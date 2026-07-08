@@ -30,9 +30,15 @@ export function JarvisLottie({ size }: { size?: number }) {
   }, []);
 
   return (
+    // Same padding-percentage technique as RobotAgent/OrchestrationCanvas
+    // instead of the `aspect-ratio` CSS property: this div's child is a
+    // Lottie-rendered SVG (a replaced element), and `aspect-ratio` on a
+    // container with a replaced-element child has a Chromium quirk where
+    // the resolved intrinsic size is cached and never re-resolves on pure
+    // browser zoom, freezing the core at its first-rendered pixel size.
     <div
       ref={containerRef}
-      style={size ? { width: size, height: size } : { width: "100%", aspectRatio: "1 / 1" }}
+      style={size ? { width: size, height: size, position: "relative" } : { width: "100%", position: "relative", paddingTop: "100%" }}
       className="relative"
     >
       <div
@@ -44,7 +50,7 @@ export function JarvisLottie({ size }: { size?: number }) {
         animationData={animationData}
         loop
         autoplay
-        style={{ width: "100%", height: "100%" }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
       />
     </div>
   );

@@ -27,11 +27,23 @@ export function RobotAgent({ variant, active, color, size = 120, fluid = false }
   const h = size * 1.25;
 
   return (
+    // Fluid sizing uses the padding-percentage aspect-ratio technique, not
+    // the `aspect-ratio` CSS property: a container sized with `aspect-ratio`
+    // that holds an SVG child (a replaced element) has a Chromium quirk
+    // where the resolved intrinsic size gets cached and never re-resolves on
+    // pure browser zoom, freezing the robot at its first-rendered pixel
+    // size while the rest of the page zooms normally.
     <div
-      style={fluid ? { width: "100%", aspectRatio: "120 / 150" } : { width: size, height: h }}
+      style={fluid ? { width: "100%", position: "relative", paddingTop: `${(150 / 120) * 100}%` } : { width: size, height: h }}
       className="relative"
     >
-      <svg width="100%" height="100%" viewBox="0 0 120 150" fill="none">
+      <svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 120 150"
+        fill="none"
+        style={fluid ? { position: "absolute", inset: 0 } : undefined}
+      >
         <defs>
           <linearGradient id={metal} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#e8eaf2" />
