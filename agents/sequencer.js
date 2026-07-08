@@ -27,7 +27,7 @@ async function loadEmailsSkill() {
   }
 }
 
-function buildSystemPrompt(skillContext) {
+async function loadEmailPrompt() {
   const base = `You are writing a short follow-up email on behalf of Ayinla at Tedmark
 Digital Agency, a digital services company in Accra, Ghana, to a Ghanaian
 SME owner who has not replied to a previous outreach email.
@@ -42,6 +42,7 @@ Rules:
 Respond with ONLY valid JSON, no markdown fences:
 {"subject": "<short subject line>", "body": "<email body>"}`;
 
+  const skillContext = await loadEmailsSkill();
   if (!skillContext) return base;
 
   return [
@@ -52,12 +53,27 @@ Respond with ONLY valid JSON, no markdown fences:
   ].join('\n');
 }
 
-function parseFollowUpResponse(text) {
+async function loadWhatsappPrompt() {
+  return readFile(path.join(__dirname, '..', 'prompts', 'followup-whatsapp.md'), 'utf-8');
+}
+
+function parseEmailFollowUpResponse(text) {
   const cleaned = text.trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();
   const parsed = JSON.parse(cleaned);
 
   if (typeof parsed.subject !== 'string' || typeof parsed.body !== 'string') {
     throw new Error('Response missing subject or body');
+  }
+
+  return parsed;
+}
+
+function parseWhatsappFollowUpResponse(text) {
+  const cleaned = text.trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();
+  const parsed = JSON.parse(cleaned);
+
+  if (typeof parsed.body !== 'string') {
+    throw new Error('Response missing body');
   }
 
   return parsed;
@@ -77,8 +93,8 @@ export async function runSequencer() {
     return;
   }
 
-  const skillContext = await loadEmailsSkill();
-  const systemPrompt = buildSystemPrompt(skillContext);
+  const emailSystemPrompt = await loadEmailPrompt();
+  const whatsappSystemPrompt = await loadWhatsappPrompt();
 
   for (const candidate of candidates) {
     const latest = await getLatestFollowUp(candidate.lead_id);
@@ -104,24 +120,51 @@ export async function runSequencer() {
     }
 
     const nextStep = currentStep + 1;
+    // Follow up in the same channel the original message was sent through,
+    // rather than re-deciding from scratch — a WhatsApp conversation should
+    // get a WhatsApp nudge, not a switch to email.
+    const channel = candidate.message_type === 'whatsapp' ? 'whatsapp' : 'email';
 
     try {
-      const text = await complete({
-        system: systemPrompt,
-        user: `Business name: ${candidate.business_name}\nSector: ${candidate.sector}\nLocation: ${candidate.location}\nOriginal subject: ${candidate.subject}\nFollow-up step: ${nextStep} of ${maxSequenceStep}`,
-        maxTokens: 300,
-        json: true,
-      });
+      if (channel === 'email') {
+        const text = await complete({
+          system: emailSystemPrompt,
+          user: `Business name: ${candidate.business_name}\nSector: ${candidate.sector}\nLocation: ${candidate.location}\nOriginal subject: ${candidate.subject}\nFollow-up step: ${nextStep} of ${maxSequenceStep}`,
+          maxTokens: 300,
+          json: true,
+        });
 
-      const { subject, body } = parseFollowUpResponse(text);
+        const { subject, body } = parseEmailFollowUpResponse(text);
 
-      await insertOutreach({
-        lead_id: candidate.lead_id,
-        message_type: 'email',
-        subject,
-        body,
-        status: 'draft',
-      });
+        await insertOutreach({
+          lead_id: candidate.lead_id,
+          message_type: 'email',
+          subject,
+          body,
+          status: 'draft',
+        });
+
+        console.log(`[sequencer] Email follow-up step ${nextStep} drafted for "${candidate.business_name}".`);
+      } else {
+        const text = await complete({
+          system: whatsappSystemPrompt,
+          user: `Business name: ${candidate.business_name}\nSector: ${candidate.sector}\nLocation: ${candidate.location}\nOriginal message topic: ${candidate.subject ?? candidate.body.slice(0, 80)}\nFollow-up step: ${nextStep} of ${maxSequenceStep}`,
+          maxTokens: 150,
+          json: true,
+        });
+
+        const { body } = parseWhatsappFollowUpResponse(text);
+
+        await insertOutreach({
+          lead_id: candidate.lead_id,
+          message_type: 'whatsapp',
+          subject: null,
+          body,
+          status: 'draft',
+        });
+
+        console.log(`[sequencer] WhatsApp follow-up step ${nextStep} drafted for "${candidate.business_name}".`);
+      }
 
       const followUp = await insertFollowUp({
         lead_id: candidate.lead_id,
@@ -130,7 +173,7 @@ export async function runSequencer() {
         status: 'pending',
       });
 
-      console.log(`[sequencer] Follow-up step ${nextStep} drafted and scheduled for "${candidate.business_name}" (follow_up id: ${followUp.id}).`);
+      console.log(`[sequencer] Scheduled follow_up id ${followUp.id} for "${candidate.business_name}".`);
     } catch (err) {
       console.error(`[sequencer] AI call failed for "${candidate.business_name}": ${err.message}. Skipping.`);
     }
