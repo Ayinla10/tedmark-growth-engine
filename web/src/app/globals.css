@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --app-bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --border-c: #e2e8f0;
+  --ink: #0f172a;
+  --ink-secondary: #475569;
+  --ink-muted: #64748b;
+  --brand: #0143a0;
+  --ai: #7c3aed;
+  --glass-bg: 255 255 255;
+  --glass-alpha: 0.6;
+  --terminal-bg: #f8fafc;
+}
+
+.dark {
+  --app-bg: #020617;
+  --surface: #0f172a;
+  --surface-2: #1e293b;
+  --border-c: #334155;
+  --ink: #f1f5f9;
+  --ink-secondary: #94a3b8;
+  --ink-muted: #64748b;
+  --brand: #60a5fa;
+  --ai: #a78bfa;
+  --glass-bg: 46 48 55;
+  --glass-alpha: 0.7;
+  --terminal-bg: #000000;
+}
+
+@theme inline {
+  --color-app-bg: var(--app-bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border-c: var(--border-c);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-brand: var(--brand);
+  --color-ai: var(--ai);
+  --color-terminal: var(--terminal-bg);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--app-bg);
+  color: var(--ink);
+}
+
+.glass {
+  background: rgb(var(--glass-bg) / var(--glass-alpha));
+  backdrop-filter: blur(12px);
+  border: 1px solid rgb(from var(--border-c) r g b / 0.5);
+}
+
+.ai-glow {
+  box-shadow: 0 0 15px rgba(124, 58, 237, 0.15);
+}
+
+.scanning-line {
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #7c3aed, transparent);
+  animation: scan 3s linear infinite;
+}
+
+@keyframes scan {
+  0% { top: 0; }
+  100% { top: 100%; }
+}
+
+.terminal-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.terminal-scroll::-webkit-scrollbar-thumb {
+  background: #7c3aed;
+  border-radius: 10px;
+}
+
+.prose-proposal h2 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 1.25rem 0 0.5rem;
+  color: var(--ink);
+}
+.prose-proposal h2:first-child {
+  margin-top: 0;
+}
+.prose-proposal p {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+  color: var(--ink-secondary);
+}
+.prose-proposal ul, .prose-proposal ol {
+  margin: 0.5rem 0 0.5rem 1.25rem;
+  color: var(--ink-secondary);
+}
+.prose-proposal li {
+  margin: 0.25rem 0;
+}
+.prose-proposal strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.prose-proposal table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 13px;
+}
+.prose-proposal th, .prose-proposal td {
+  border: 1px solid var(--border-c);
+  padding: 6px 10px;
+  text-align: left;
+}
+.prose-proposal th {
+  background: var(--surface-2);
+}

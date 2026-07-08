@@ -1,0 +1,530 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Tedmark AI | Control Center</title>
+<script>
+(function () {
+  var stored = localStorage.getItem('tedmark-theme');
+  var isDark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.classList.toggle('dark', isDark);
+})();
+</script>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<style>
+        :root {
+            --c-app-bg: 248 250 252;
+            --c-surface: 255 255 255;
+            --c-surface-2: 241 245 249;
+            --c-border: 226 232 240;
+            --c-ink: 15 23 42;
+            --c-ink-secondary: 71 85 105;
+            --c-ink-muted: 100 116 139;
+            --c-brand: 1 67 160;
+            --c-ai: 124 58 237;
+            --c-glass-bg: 255 255 255;
+            --c-glass-alpha: 0.6;
+            --c-terminal-bg: 248 250 252;
+            --c-terminal-border: 226 232 240;
+        }
+        .dark {
+            --c-app-bg: 2 6 23;
+            --c-surface: 15 23 42;
+            --c-surface-2: 30 41 59;
+            --c-border: 51 65 85;
+            --c-ink: 241 245 249;
+            --c-ink-secondary: 148 163 184;
+            --c-ink-muted: 100 116 139;
+            --c-brand: 96 165 250;
+            --c-ai: 167 139 250;
+            --c-glass-bg: 46 48 55;
+            --c-glass-alpha: 0.7;
+            --c-terminal-bg: 0 0 0;
+            --c-terminal-border: 51 65 85;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.6; filter: blur(8px); }
+            50% { opacity: 1; filter: blur(12px); }
+        }
+        .ai-glow {
+            box-shadow: 0 0 15px rgba(124, 58, 237, 0.15);
+        }
+        .glass {
+            background: rgb(var(--c-glass-bg) / var(--c-glass-alpha));
+            backdrop-filter: blur(12px);
+            border: 1px solid rgb(var(--c-border) / 0.5);
+        }
+        .terminal-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .terminal-scroll::-webkit-scrollbar-thumb {
+            background: #7C3AED;
+            border-radius: 10px;
+        }
+        .scanning-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #7C3AED, transparent);
+            animation: scan 3s linear infinite;
+        }
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "app-bg": "rgb(var(--c-app-bg) / <alpha-value>)",
+                        "surface": "rgb(var(--c-surface) / <alpha-value>)",
+                        "surface-2": "rgb(var(--c-surface-2) / <alpha-value>)",
+                        "border-c": "rgb(var(--c-border) / <alpha-value>)",
+                        "ink": "rgb(var(--c-ink) / <alpha-value>)",
+                        "ink-secondary": "rgb(var(--c-ink-secondary) / <alpha-value>)",
+                        "ink-muted": "rgb(var(--c-ink-muted) / <alpha-value>)",
+                        "brand": "rgb(var(--c-brand) / <alpha-value>)",
+                        "ai": "rgb(var(--c-ai) / <alpha-value>)",
+                        "terminal": "rgb(var(--c-terminal-bg) / <alpha-value>)"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1280px",
+                        "lg": "24px",
+                        "3xl": "64px",
+                        "xs": "4px",
+                        "2xl": "48px",
+                        "gutter": "24px",
+                        "xl": "32px",
+                        "sm": "8px",
+                        "base": "8px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "display": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-xs": ["Inter"],
+                        "headline-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "1", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "label-xs": ["12px", {"lineHeight": "1", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-app-bg text-ink font-body-md overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface border-r border-border-c shadow-sm flex flex-col py-6 z-50">
+<div class="px-6 mb-8">
+<h1 class="font-display text-headline-md font-bold text-brand leading-tight">Tedmark AI</h1>
+<p class="text-label-xs text-ink-muted uppercase tracking-widest mt-1">Sales Intelligence Hub</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-brand font-bold border-r-4 border-brand hover:bg-surface-2 transition-colors duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<span class="text-body-md">AI Agents</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-ink-secondary hover:bg-surface-2 transition-colors duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-ink-secondary hover:bg-surface-2 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">travel_explore</span>
+<span class="text-body-md">Lead Discovery</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-ink-secondary hover:bg-surface-2 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">verified_user</span>
+<span class="text-body-md">Qualified Leads</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-ink-secondary hover:bg-surface-2 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">drafts</span>
+<span class="text-body-md">Outreach Drafts</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-ink-secondary hover:bg-surface-2 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="text-body-md">Follow-ups</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-ink-secondary hover:bg-surface-2 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-body-md">Proposals</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-ink-secondary hover:bg-surface-2 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<span class="text-body-md">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-ink-secondary hover:bg-surface-2 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-body-md">Settings</span>
+</a>
+</nav>
+<div class="px-4 mt-auto pt-6 border-t border-border-c space-y-1">
+<button class="w-full bg-brand text-white font-label-md py-3 rounded-xl mb-4 hover:opacity-90 transition-opacity active:scale-95">
+                Deploy New Agent
+            </button>
+<a class="flex items-center gap-3 px-4 py-2 text-ink-secondary hover:text-brand transition-all" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="text-body-sm">Help Center</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-ink-secondary hover:text-red-500 transition-all" href="#">
+<span class="material-symbols-outlined text-red-500">logout</span>
+<span class="text-body-sm">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 flex flex-col h-screen relative">
+<!-- Top Navbar -->
+<header class="fixed top-0 right-0 left-64 h-16 bg-surface/80 backdrop-blur-md flex justify-between items-center px-gutter z-40 border-b border-border-c">
+<div class="flex items-center gap-4">
+<div class="relative focus-within:ring-2 focus-within:ring-brand/15 rounded-lg">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted">search</span>
+<input class="bg-surface-2 border-none rounded-lg pl-10 pr-4 py-1.5 text-body-sm w-64 focus:ring-0 text-ink" placeholder="Search Agents..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2 px-3 py-1 bg-ai/15 rounded-full border border-ai/30">
+<span class="w-2 h-2 rounded-full bg-ai animate-pulse"></span>
+<span class="text-label-xs font-bold text-ai">AI Processing</span>
+</div>
+<div class="flex items-center gap-4 text-ink-secondary">
+<button id="theme-toggle" class="hover:text-brand transition-all active:scale-95" aria-label="Toggle color theme">
+<span class="material-symbols-outlined" id="theme-icon">dark_mode</span>
+</button>
+<button class="hover:text-brand transition-all active:scale-95"><span class="material-symbols-outlined">notifications</span></button>
+<button class="hover:text-brand transition-all active:scale-95"><span class="material-symbols-outlined">chat_bubble</span></button>
+<div class="flex items-center gap-3 pl-4 border-l border-border-c">
+<div class="text-right hidden xl:block">
+<p class="text-label-md font-bold text-ink">Alex Rivera</p>
+<p class="text-label-xs text-ink-muted">Agency Lead</p>
+</div>
+<div class="w-8 h-8 rounded-full border border-border-c bg-brand/20 flex items-center justify-center text-label-xs font-bold text-brand">AR</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Monitoring Grid -->
+<section class="mt-16 flex-1 p-gutter overflow-y-auto pb-64">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h2 class="font-display text-headline-lg font-bold text-ink">Agent Intelligence Command</h2>
+<p class="text-body-md text-ink-secondary">Real-time surveillance of active neural processes.</p>
+</div>
+<div class="flex gap-3">
+<button class="glass px-4 py-2 rounded-lg flex items-center gap-2 text-label-md text-ink hover:bg-surface-2 transition-all">
+<span class="material-symbols-outlined text-sm">pause</span> Pause All
+                    </button>
+<button class="bg-brand text-white px-4 py-2 rounded-lg flex items-center gap-2 text-label-md hover:shadow-lg transition-all">
+<span class="material-symbols-outlined text-sm">refresh</span> System Sync
+                    </button>
+</div>
+</div>
+<!-- Bento Grid of Agent Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Card 1: Scout -->
+<div class="glass ai-glow rounded-3xl p-6 relative overflow-hidden transition-all hover:-translate-y-1">
+<div class="scanning-line opacity-20"></div>
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-brand/15 flex items-center justify-center text-brand border border-brand/30">
+<span class="material-symbols-outlined text-3xl">travel_explore</span>
+</div>
+<div>
+<h3 class="text-headline-md font-bold text-ink">Scout</h3>
+<p class="text-label-xs text-ai flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> ACTIVE &bull; Accra Node
+                                </p>
+</div>
+</div>
+<div class="text-right">
+<span class="text-label-xs text-ink-muted block">CPU LOAD</span>
+<span class="text-headline-md font-bold text-brand">42%</span>
+</div>
+</div>
+<div class="space-y-4 mb-6">
+<div class="flex justify-between text-body-sm">
+<span class="text-ink-muted">Current Objective:</span>
+<span class="font-medium text-ink">Logistics in Accra</span>
+</div>
+<div class="flex justify-between text-body-sm">
+<span class="text-ink-muted">Queue Depth:</span>
+<span class="font-medium text-ink">142 Entities</span>
+</div>
+<div class="flex justify-between text-body-sm">
+<span class="text-ink-muted">LLM Provider:</span>
+<span class="font-medium text-ai">Claude Sonnet 4.6</span>
+</div>
+</div>
+<div class="flex items-center gap-6 pt-4 border-t border-border-c">
+<div class="flex-1">
+<div class="flex justify-between text-label-xs mb-1">
+<span class="text-ink-muted uppercase">Success Rate</span>
+<span class="text-green-600 dark:text-green-400">100%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden">
+<div class="h-full bg-green-500 w-[100%] shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>
+</div>
+</div>
+<div class="text-right">
+<span class="text-label-xs text-ink-muted block">DONE</span>
+<span class="text-headline-md font-bold text-ink">1,402</span>
+</div>
+</div>
+</div>
+<!-- Card 2: Qualifier -->
+<div class="glass ai-glow rounded-3xl p-6 relative overflow-hidden transition-all hover:-translate-y-1">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-ai/15 flex items-center justify-center text-ai border border-ai/30">
+<span class="material-symbols-outlined text-3xl">verified_user</span>
+</div>
+<div>
+<h3 class="text-headline-md font-bold text-ink">Qualifier</h3>
+<p class="text-label-xs text-ai flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> PROCESSING
+                                </p>
+</div>
+</div>
+<div class="relative w-14 h-14">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-surface-2" cx="28" cy="28" fill="transparent" r="24" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-ai" cx="28" cy="28" fill="transparent" r="24" stroke="currentColor" stroke-dasharray="150" stroke-dashoffset="15" stroke-width="4"></circle>
+</svg>
+<span class="absolute inset-0 flex items-center justify-center text-label-xs font-bold text-ink">9/10</span>
+</div>
+</div>
+<div class="p-4 bg-surface-2/60 rounded-2xl border border-border-c mb-6">
+<div class="flex justify-between items-center mb-2">
+<span class="text-label-xs text-ink-muted">ANALYZING WEB DOMAIN</span>
+<span class="text-label-xs px-2 py-0.5 rounded-full bg-green-500/15 text-green-700 dark:text-green-400">Match Found</span>
+</div>
+<p class="text-body-md font-bold text-ink">Star Bites Coffee &amp; Co.</p>
+<p class="text-label-xs text-ink-muted mt-1">Multi-location enterprise potential detected.</p>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-2 rounded-xl p-3 text-center">
+<span class="text-label-xs text-ink-muted block">ERRORS</span>
+<span class="text-body-lg font-bold text-green-600 dark:text-green-400">0%</span>
+</div>
+<div class="bg-surface-2 rounded-xl p-3 text-center">
+<span class="text-label-xs text-ink-muted block">VERIFIED</span>
+<span class="text-body-lg font-bold text-ink">884</span>
+</div>
+</div>
+</div>
+<!-- Card 3: Outreach -->
+<div class="glass ai-glow rounded-3xl p-6 relative overflow-hidden transition-all hover:-translate-y-1">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 border border-amber-500/30">
+<span class="material-symbols-outlined text-3xl">mark_email_read</span>
+</div>
+<div>
+<h3 class="text-headline-md font-bold text-ink">Outreach</h3>
+<p class="text-label-xs text-ai flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> GENERATING
+                                </p>
+</div>
+</div>
+</div>
+<div class="mb-6">
+<p class="text-label-xs text-ink-muted mb-2">DYNAMIC EMAIL COMPOSITION</p>
+<div class="space-y-2">
+<div class="h-2 bg-surface-2 rounded-full w-full"></div>
+<div class="h-2 bg-surface-2 rounded-full w-[80%]"></div>
+<div class="h-2 bg-surface-2 rounded-full w-[90%]"></div>
+</div>
+<p class="text-body-sm italic text-ink-secondary mt-4 border-l-2 border-brand pl-3">
+                            "Hello A-Life Clinic Team, I noticed your recent expansion into surgical diagnostics..."
+                        </p>
+</div>
+<div class="flex justify-between items-end">
+<div>
+<span class="text-label-xs text-ink-muted block">THREADS OPEN</span>
+<span class="text-headline-md font-bold text-ink">42</span>
+</div>
+<div class="text-right">
+<span class="text-label-xs text-ink-muted block">DAILY SENT</span>
+<span class="text-headline-md font-bold text-brand">312</span>
+</div>
+</div>
+</div>
+<!-- Card 4: Sequencer -->
+<div class="glass ai-glow rounded-3xl p-6 relative overflow-hidden transition-all hover:-translate-y-1 lg:col-span-1">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-ai/15 flex items-center justify-center text-ai border border-ai/30">
+<span class="material-symbols-outlined text-3xl">history</span>
+</div>
+<div>
+<h3 class="text-headline-md font-bold text-ink">Sequencer</h3>
+<p class="text-label-xs text-ai flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> IDLE &bull; ON STANDBY
+                                </p>
+</div>
+</div>
+<div class="text-right">
+<span class="text-label-xs text-ink-muted block">TODAY</span>
+<span class="text-headline-md font-bold text-ink">12 Scheduled</span>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex items-center gap-3 p-3 bg-surface-2 rounded-xl">
+<span class="material-symbols-outlined text-ai">schedule</span>
+<div class="flex-1">
+<p class="text-body-sm font-bold text-ink">Follow-up #2: TechNova</p>
+<p class="text-label-xs text-ink-muted">T-minus 14 mins</p>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 bg-surface-2 rounded-xl">
+<span class="material-symbols-outlined text-ai">schedule</span>
+<div class="flex-1">
+<p class="text-body-sm font-bold text-ink">Bump: Zenith Group</p>
+<p class="text-label-xs text-ink-muted">T-minus 1 hour</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 5: Proposal -->
+<div class="glass ai-glow rounded-3xl p-6 relative overflow-hidden transition-all hover:-translate-y-1 lg:col-span-2">
+<div class="flex h-full gap-6">
+<div class="w-1/3 flex flex-col justify-between">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 border border-amber-500/30">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">description</span>
+</div>
+<div>
+<h3 class="text-headline-md font-bold text-ink">Proposal</h3>
+<p class="text-label-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> WAITING APPROVAL
+                                    </p>
+</div>
+</div>
+<div class="mt-6">
+<span class="text-label-xs text-ink-muted block mb-1">CONVERSION ESTIMATE</span>
+<span class="text-display font-bold text-green-600 dark:text-green-400">88%</span>
+</div>
+</div>
+<div class="flex-1 bg-surface-2 rounded-2xl p-4 overflow-hidden relative group min-h-[180px]">
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-4">
+<div class="w-full">
+<p class="text-label-xs text-white/60 mb-1">MOST RECENT GENERATION</p>
+<h4 class="text-body-lg font-bold text-white">Digital Transformation Bundle</h4>
+<p class="text-body-sm text-white/80">Draft for: Metropolitan Bank Gh.</p>
+<div class="mt-4 flex gap-2">
+<button class="bg-brand text-white px-3 py-1 rounded-lg text-label-md">Review</button>
+<button class="glass px-3 py-1 rounded-lg text-label-md text-white">Edit</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Live Streaming Logs (Terminal style) -->
+<footer class="fixed bottom-0 right-0 left-64 h-56 bg-terminal/90 backdrop-blur-xl border-t border-border-c z-40 overflow-hidden flex flex-col"><div class="scanning-line opacity-10 pointer-events-none"></div>
+<div class="flex items-center justify-between px-6 py-2 bg-surface-2/40 border-b border-border-c">
+<div class="flex items-center gap-4">
+<span class="text-label-xs font-bold text-ai uppercase tracking-widest">Live Activity Log</span>
+<div class="flex gap-2">
+<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+<span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+</div>
+</div>
+<div class="flex items-center gap-4 text-label-xs text-ink-muted"><div class="flex gap-2 mr-2"><button class="hover:text-brand transition-colors"><span class="material-symbols-outlined text-sm">delete</span></button><button class="hover:text-brand transition-colors"><span class="material-symbols-outlined text-sm">download</span></button></div>
+<span class="">Filter: All Agents</span>
+<span class="material-symbols-outlined text-sm">settings_ethernet</span>
+</div>
+</div>
+<div class="flex-1 p-4 font-mono text-[12px] terminal-scroll overflow-y-auto bg-terminal/40">
+<div class="space-y-1" id="terminal-content"><div class="flex items-center gap-4 py-1.5 px-2 border-b border-border-c/50 hover:bg-ink/5 transition-colors group"><span class="font-mono text-ink-muted opacity-60">[14:32:01]</span><span class="px-2 py-0.5 rounded bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/30 text-[10px] font-bold font-mono uppercase tracking-tighter">Scout</span><span class="text-ink font-sans">Found 14 new logistics companies in Accra Industrial Area.</span></div><div class="flex items-center gap-4 py-1.5 px-2 border-b border-border-c/50 hover:bg-ink/5 transition-colors group"><span class="font-mono text-ink-muted opacity-60">[14:32:05]</span><span class="px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 text-[10px] font-bold font-mono uppercase tracking-tighter">Qualifier</span><span class="text-ink font-sans">Analyzing 'A-Life Clinic' domain... High-intent signals detected.</span></div><div class="flex items-center gap-4 py-1.5 px-2 border-b border-border-c/50 hover:bg-ink/5 transition-colors group"><span class="font-mono text-ink-muted opacity-60">[14:32:12]</span><span class="px-2 py-0.5 rounded bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/30 text-[10px] font-bold font-mono uppercase tracking-tighter">Outreach</span><span class="text-ink font-sans">Email template 'A-Level Healthcare' generated for Dr. Boateng.</span></div><div class="flex items-center gap-4 py-1.5 px-2 border-b border-border-c/50 hover:bg-ink/5 transition-colors group"><span class="font-mono text-ink-muted opacity-60">[14:32:18]</span><span class="px-2 py-0.5 rounded bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30 text-[10px] font-bold font-mono uppercase tracking-tighter">System</span><span class="text-ink font-sans">Batch 84 successfully migrated to 'Qualified Leads'.</span></div><div class="flex items-center gap-4 py-1.5 px-2 border-b border-border-c/50 hover:bg-ink/5 transition-colors group"><span class="font-mono text-ink-muted opacity-60">[14:32:25]</span><span class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold font-mono uppercase tracking-tighter">Proposal</span><span class="text-ink font-sans">Awaiting signature for Metropolitan Bank Gh proposal. (Ref: #MB002)</span></div></div>
+</div>
+</footer>
+</main>
+<!-- Micro-interaction Scripts -->
+<script>
+        // Theme toggle
+        var themeToggle = document.getElementById('theme-toggle');
+        var themeIcon = document.getElementById('theme-icon');
+        function syncThemeIcon() {
+            themeIcon.textContent = document.documentElement.classList.contains('dark') ? 'light_mode' : 'dark_mode';
+        }
+        syncThemeIcon();
+        themeToggle.addEventListener('click', function () {
+            var isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('tedmark-theme', isDark ? 'dark' : 'light');
+            syncThemeIcon();
+        });
+
+        // Terminal log simulation
+        const terminal = document.getElementById('terminal-content');
+        const agents = ['SCOUT', 'QUALIFIER', 'OUTREACH', 'SEQUENCER', 'PROPOSAL', 'SYSTEM'];
+        const colors = [
+            'text-purple-700 dark:text-purple-400',
+            'text-blue-700 dark:text-blue-400',
+            'text-purple-700 dark:text-purple-400',
+            'text-pink-700 dark:text-pink-400',
+            'text-amber-700 dark:text-amber-400',
+            'text-green-700 dark:text-green-400'
+        ];
+        const actions = [
+            'Refined search query for deeper intent analysis.',
+            'Optimizing lead score for high-conversion probability.',
+            'Personalized hook inserted into outreach draft.',
+            'Scheduled follow-up sequence updated.',
+            'PDF Proposal generated and stored in cloud.',
+            'Neural weights adjusted for current campaign context.'
+        ];
+
+        function addLog() {
+            const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+            const agentIdx = Math.floor(Math.random() * agents.length);
+            const logEntry = document.createElement('div');
+            logEntry.className = 'flex gap-4 opacity-0 transition-opacity duration-500';
+            logEntry.innerHTML = `
+                <span class="text-ink-muted">[${time}]</span>
+                <span class="${colors[agentIdx]}">[${agents[agentIdx]}]</span>
+                <span class="text-ink">${actions[Math.floor(Math.random() * actions.length)]}</span>
+            `;
+            terminal.appendChild(logEntry);
+            setTimeout(() => logEntry.classList.remove('opacity-0'), 100);
+
+            const parent = terminal.parentElement;
+            parent.scrollTop = parent.scrollHeight;
+
+            if (terminal.children.length > 50) {
+                terminal.removeChild(terminal.firstChild);
+            }
+        }
+
+        setInterval(addLog, 4000);
+    </script>
+
+
+</body></html>

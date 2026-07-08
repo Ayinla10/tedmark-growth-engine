@@ -1,0 +1,20 @@
+{
+  "name": "tedmark-growth-engine",
+  "version": "1.0.0",
+  "description": "TEDMARK AI GROWTH ENGINE — lead generation and client acquisition system for Tedmark Digital Agency",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "node-cron": "^3.0.3",
+    "openai": "^6.45.0",
+    "pg": "^8.13.1",
+    "playwright": "^1.48.2",
+    "resend": "^4.0.1"
+  }
+}
