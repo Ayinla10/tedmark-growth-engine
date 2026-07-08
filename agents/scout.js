@@ -2,15 +2,15 @@ import { searchBusinesses } from '../tools/mapsClient.js';
 import { checkWebsiteExists } from '../tools/scraper.js';
 import { insertLead, findLeadByNameAndLocation } from '../tools/db.js';
 
-export async function runScout({ sector, city, limit }) {
-  console.log(`[scout] Searching for "${sector}" businesses in "${city}" (limit ${limit})...`);
+export async function runScout({ sector, city, limit, offset = 0 }) {
+  console.log(`[scout] Searching for "${sector}" businesses in "${city}" (limit ${limit}, offset ${offset})...`);
 
   let businesses;
   try {
-    businesses = await searchBusinesses({ sector, city, limit });
+    businesses = await searchBusinesses({ sector, city, limit, offset });
   } catch (err) {
     console.error(`[scout] Places search failed: ${err.message}`);
-    return;
+    return { found: 0, saved: 0, skipped: 0 };
   }
 
   console.log(`[scout] Found ${businesses.length} businesses. Processing...`);
@@ -56,4 +56,6 @@ export async function runScout({ sector, city, limit }) {
   }
 
   console.log(`[scout] Done. Saved ${saved}, skipped ${skipped}.`);
+
+  return { found: businesses.length, saved, skipped };
 }

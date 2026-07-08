@@ -79,7 +79,7 @@ function extractContact(properties) {
   return { phone, website };
 }
 
-export async function searchBusinesses({ sector, city, limit = 20 }) {
+export async function searchBusinesses({ sector, city, limit = 20, offset = 0 }) {
   const category = resolveCategory(sector);
   const placeId = await geocodeCity(city);
 
@@ -89,6 +89,10 @@ export async function searchBusinesses({ sector, city, limit = 20 }) {
     limit: String(limit),
     apiKey: getApiKey(),
   });
+
+  if (offset > 0) {
+    params.set('offset', String(offset));
+  }
 
   const res = await fetch(`${PLACES_URL}?${params.toString()}`);
   const data = await res.json();

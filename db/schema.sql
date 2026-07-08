@@ -65,8 +65,23 @@ CREATE TABLE IF NOT EXISTS replies (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Tracks how far Scout has paged into Geoapify's results for each
+-- sector+city combination, so daily runs advance to fresh results instead
+-- of re-fetching the same top-N businesses forever.
+CREATE TABLE IF NOT EXISTS scout_progress (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sector text NOT NULL,
+  city text NOT NULL,
+  next_offset integer NOT NULL DEFAULT 0,
+  exhausted boolean NOT NULL DEFAULT false,
+  last_run_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (sector, city)
+);
+
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_outreach_lead_id ON outreach(lead_id);
 CREATE INDEX IF NOT EXISTS idx_follow_ups_lead_id ON follow_ups(lead_id);
 CREATE INDEX IF NOT EXISTS idx_proposals_lead_id ON proposals(lead_id);
 CREATE INDEX IF NOT EXISTS idx_replies_lead_id ON replies(lead_id);
+CREATE INDEX IF NOT EXISTS idx_scout_progress_rotation ON scout_progress(exhausted, last_run_at);

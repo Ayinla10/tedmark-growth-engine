@@ -251,4 +251,34 @@ export async function insertProposal(proposal) {
   return result.rows[0];
 }
 
+export async function seedScoutProgress(sector, city) {
+  await query(
+    `INSERT INTO scout_progress (sector, city) VALUES ($1, $2)
+     ON CONFLICT (sector, city) DO NOTHING`,
+    [sector, city]
+  );
+}
+
+export async function getNextScoutBatch(limit) {
+  const result = await query(
+    `SELECT * FROM scout_progress
+     WHERE exhausted = false
+     ORDER BY last_run_at ASC NULLS FIRST
+     LIMIT $1`,
+    [limit]
+  );
+  return result.rows;
+}
+
+export async function recordScoutRun(id, { nextOffset, exhausted }) {
+  const result = await query(
+    `UPDATE scout_progress
+     SET next_offset = $1, exhausted = $2, last_run_at = now()
+     WHERE id = $3
+     RETURNING *`,
+    [nextOffset, exhausted, id]
+  );
+  return result.rows[0];
+}
+
 export default pool;
