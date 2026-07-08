@@ -1,6 +1,7 @@
 import { MapPin } from "lucide-react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { LeadRowActions } from "@/components/lead-row-actions";
 import { RunScoutModal } from "@/components/run-scout-modal";
 import { Card, EmptyState, PageHeader, ScoreBadge, StatusBadge, Td, Th, formatDate } from "@/components/ui";
@@ -9,8 +10,13 @@ import { getLeads } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default async function LeadDiscoveryPage() {
-  const leads = await getLeads();
+export default async function LeadDiscoveryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const leads = await getLeads(undefined, { from, to });
 
   return (
     <AppShell>
@@ -20,6 +26,10 @@ export default async function LeadDiscoveryPage() {
           subtitle={`${leads.length} businesses discovered by the Scout agent.`}
           actions={<RunScoutModal />}
         />
+
+        <div className="flex justify-end mb-4">
+          <DateRangeFilter label="Found between" />
+        </div>
 
         <Card className="overflow-hidden">
           {leads.length === 0 ? (

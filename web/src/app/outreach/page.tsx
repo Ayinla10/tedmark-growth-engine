@@ -1,14 +1,20 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { AgentRunButton } from "@/components/agent-run-button";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { OutreachModal } from "@/components/outreach-modal";
 import { Card, EmptyState, PageHeader, StatusBadge, Td, Th, formatDate } from "@/components/ui";
 import { getOutreach } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default async function OutreachPage() {
-  const rows = await getOutreach();
+export default async function OutreachPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const rows = await getOutreach({ from, to });
 
   return (
     <AppShell>
@@ -26,6 +32,10 @@ export default async function OutreachPage() {
             />
           }
         />
+
+        <div className="flex justify-end mb-4">
+          <DateRangeFilter label="Drafted between" />
+        </div>
 
         <Card className="overflow-hidden">
           {rows.length === 0 ? (

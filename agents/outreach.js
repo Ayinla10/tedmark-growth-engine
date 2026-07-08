@@ -15,9 +15,9 @@ import {
 } from '../tools/db.js';
 import { sendEmail } from '../tools/emailSender.js';
 import { normalizeGhanaPhone } from '../tools/contactFinder.js';
+import { getSetting } from '../tools/settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIN_SCORE = 6;
 
 function resolveChannel(lead) {
   if (lead.email) return 'email';
@@ -103,8 +103,9 @@ export async function runOutreach({ limit, leadId }) {
     }
     leads = [lead];
   } else {
-    console.log(`[outreach] Fetching up to ${limit} qualified leads with score >= ${MIN_SCORE}...`);
-    leads = await getQualifiedLeads(limit, MIN_SCORE);
+    const minScore = await getSetting('outreach_min_score');
+    console.log(`[outreach] Fetching up to ${limit} qualified leads with score >= ${minScore}...`);
+    leads = await getQualifiedLeads(limit, minScore);
   }
 
   if (leads.length === 0) {

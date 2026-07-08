@@ -15,12 +15,14 @@ CREATE TABLE IF NOT EXISTS leads (
   score_reason text,
   status text NOT NULL DEFAULT 'raw' CHECK (status IN ('raw', 'qualified', 'contacted', 'archived')),
   enriched_at timestamptz,
+  qualified_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Safe to re-run against an existing database — adds the column if this
--- schema was applied before enriched_at existed.
+-- Safe to re-run against an existing database — adds columns if this
+-- schema was applied before they existed.
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS enriched_at timestamptz;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS qualified_at timestamptz;
 
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,6 +79,14 @@ CREATE TABLE IF NOT EXISTS scout_progress (
   last_run_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (sector, city)
+);
+
+-- Configurable agent behavior, editable from the dashboard Settings page
+-- instead of being hardcoded in source files.
+CREATE TABLE IF NOT EXISTS settings (
+  key text PRIMARY KEY,
+  value jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);

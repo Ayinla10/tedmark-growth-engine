@@ -4,23 +4,7 @@ import { runQualifier } from '../agents/qualifier.js';
 import { runOutreach } from '../agents/outreach.js';
 import { runSequencer } from '../agents/sequencer.js';
 import { seedScoutProgress, getNextScoutBatch, recordScoutRun } from '../tools/db.js';
-
-// The full target market. Expanded over time as more Ghanaian cities are
-// added — each sector+city combination is tracked independently in
-// scout_progress so daily runs page forward into fresh results instead of
-// re-fetching the same top businesses forever.
-const SECTORS = ['restaurant', 'school', 'clinic', 'logistics', 'retail', 'real estate'];
-const CITIES = ['Accra', 'Kumasi', 'Tema', 'Takoradi', 'Cape Coast'];
-
-// How many sector+city combinations to run per day. At ~30 total combos,
-// this cycles through the whole matrix roughly every 3 days, each cycle
-// paging further into results — tuned to land around 50-100 new leads/day.
-const COMBOS_PER_DAY = 10;
-const PER_COMBO_LIMIT = 8;
-
-const ENRICH_LIMIT = 80;
-const QUALIFY_LIMIT = 80;
-const OUTREACH_LIMIT = 30;
+import { getSettings } from '../tools/settings.js';
 
 async function step(name, fn) {
   console.log(`\n=== ${name} ===`);
@@ -32,14 +16,16 @@ async function step(name, fn) {
   }
 }
 
-async function runScoutRotation() {
-  for (const sector of SECTORS) {
-    for (const city of CITIES) {
+async function runScoutRotation(settings) {
+  const { scout_sectors: sectors, scout_cities: cities, scout_combos_per_day: combosPerDay, scout_per_combo_limit: perComboLimit } = settings;
+
+  for (const sector of sectors) {
+    for (const city of cities) {
       await seedScoutProgress(sector, city);
     }
   }
 
-  const batch = await getNextScoutBatch(COMBOS_PER_DAY);
+  const batch = await getNextScoutBatch(combosPerDay);
 
   if (batch.length === 0) {
     console.log('[daily-pipeline] Every sector+city combination is exhausted — no more results available from Geoapify.');
@@ -48,12 +34,12 @@ async function runScoutRotation() {
 
   for (const combo of batch) {
     const result = await step(`Scout: ${combo.sector} in ${combo.city} (offset ${combo.next_offset})`, () =>
-      runScout({ sector: combo.sector, city: combo.city, limit: PER_COMBO_LIMIT, offset: combo.next_offset })
+      runScout({ sector: combo.sector, city: combo.city, limit: perComboLimit, offset: combo.next_offset })
     );
 
     if (!result) continue;
 
-    const exhausted = result.found < PER_COMBO_LIMIT;
+    const exhausted = result.found < perComboLimit;
     await recordScoutRun(combo.id, {
       nextOffset: combo.next_offset + result.found,
       exhausted,
@@ -68,11 +54,14 @@ async function runScoutRotation() {
 export async function runDailyPipeline() {
   console.log(`[daily-pipeline] Starting run at ${new Date().toISOString()}`);
 
-  await runScoutRotation();
+  const settings = await getSettings();
+  console.log(`[daily-pipeline] Using settings: ${JSON.stringify(settings)}`);
 
-  await step('Enrich', () => runEnricher({ limit: ENRICH_LIMIT }));
-  await step('Qualify', () => runQualifier({ limit: QUALIFY_LIMIT }));
-  await step('Outreach drafts', () => runOutreach({ limit: OUTREACH_LIMIT }));
+  await runScoutRotation(settings);
+
+  await step('Enrich', () => runEnricher({ limit: settings.enrich_limit }));
+  await step('Qualify', () => runQualifier({ limit: settings.qualify_limit }));
+  await step('Outreach drafts', () => runOutreach({ limit: settings.outreach_limit }));
   await step('Sequencer', () => runSequencer());
 
   console.log(`\n[daily-pipeline] Run finished at ${new Date().toISOString()}`);

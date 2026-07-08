@@ -1,12 +1,18 @@
 import { AppShell } from "@/components/app-shell";
 import { AgentRunButton } from "@/components/agent-run-button";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { Card, EmptyState, PageHeader, StatusBadge, Td, Th, formatDate } from "@/components/ui";
 import { getFollowUps } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default async function FollowUpsPage() {
-  const rows = await getFollowUps();
+export default async function FollowUpsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const rows = await getFollowUps({ from, to });
 
   return (
     <AppShell>
@@ -23,6 +29,10 @@ export default async function FollowUpsPage() {
             />
           }
         />
+
+        <div className="flex justify-end mb-4">
+          <DateRangeFilter label="Scheduled between" />
+        </div>
 
         <Card className="overflow-hidden">
           {rows.length === 0 ? (

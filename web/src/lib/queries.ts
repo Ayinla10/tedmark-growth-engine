@@ -131,15 +131,35 @@ export async function getKpiSummary(): Promise<KpiSummary> {
   };
 }
 
-export async function getLeads(status?: string): Promise<Lead[]> {
-  if (status) {
-    const res = await pool.query(
-      `SELECT * FROM leads WHERE status = $1 ORDER BY created_at DESC LIMIT 200`,
-      [status]
-    );
-    return res.rows;
+export type DateRange = { from?: string; to?: string };
+
+function dateClause(column: string, range: DateRange | undefined, params: unknown[]): string {
+  if (!range) return "";
+  const clauses: string[] = [];
+  if (range.from) {
+    params.push(range.from);
+    clauses.push(`${column} >= $${params.length}`);
   }
-  const res = await pool.query(`SELECT * FROM leads ORDER BY created_at DESC LIMIT 200`);
+  if (range.to) {
+    params.push(`${range.to} 23:59:59`);
+    clauses.push(`${column} <= $${params.length}`);
+  }
+  return clauses.length ? ` AND ${clauses.join(" AND ")}` : "";
+}
+
+export async function getLeads(status?: string, range?: DateRange): Promise<Lead[]> {
+  const params: unknown[] = [];
+  let where = "";
+  if (status) {
+    params.push(status);
+    where += ` AND status = $${params.length}`;
+  }
+  where += dateClause("created_at", range, params);
+
+  const res = await pool.query(
+    `SELECT * FROM leads WHERE true${where} ORDER BY created_at DESC LIMIT 200`,
+    params
+  );
   return res.rows;
 }
 
@@ -151,29 +171,58 @@ export async function getRecentQualifiedLeads(limit = 8): Promise<Lead[]> {
   return res.rows;
 }
 
-export async function getOutreach(): Promise<OutreachRow[]> {
-  const res = await pool.query(`
-    SELECT o.*, l.business_name, l.email AS lead_email, l.phone AS lead_phone
-    FROM outreach o JOIN leads l ON l.id = o.lead_id
-    ORDER BY o.created_at DESC LIMIT 200
-  `);
+export async function getQualifiedLeadsFiltered(range?: DateRange): Promise<Lead[]> {
+  const params: unknown[] = [];
+  const where = dateClause("qualified_at", range, params);
+
+  const res = await pool.query(
+    `SELECT * FROM leads
+     WHERE score IS NOT NULL AND status != 'archived'${where}
+     ORDER BY score DESC, qualified_at DESC
+     LIMIT 200`,
+    params
+  );
   return res.rows;
 }
 
-export async function getFollowUps(): Promise<FollowUpRow[]> {
-  const res = await pool.query(`
-    SELECT f.*, l.business_name
-    FROM follow_ups f JOIN leads l ON l.id = f.lead_id
-    ORDER BY f.scheduled_at DESC LIMIT 200
-  `);
+export async function getOutreach(range?: DateRange): Promise<OutreachRow[]> {
+  const params: unknown[] = [];
+  const where = dateClause("o.created_at", range, params);
+
+  const res = await pool.query(
+    `SELECT o.*, l.business_name, l.email AS lead_email, l.phone AS lead_phone
+     FROM outreach o JOIN leads l ON l.id = o.lead_id
+     WHERE true${where}
+     ORDER BY o.created_at DESC LIMIT 200`,
+    params
+  );
   return res.rows;
 }
 
-export async function getProposals(): Promise<ProposalRow[]> {
-  const res = await pool.query(`
-    SELECT p.*, l.business_name
-    FROM proposals p JOIN leads l ON l.id = p.lead_id
-    ORDER BY p.created_at DESC LIMIT 100
-  `);
+export async function getFollowUps(range?: DateRange): Promise<FollowUpRow[]> {
+  const params: unknown[] = [];
+  const where = dateClause("f.scheduled_at", range, params);
+
+  const res = await pool.query(
+    `SELECT f.*, l.business_name
+     FROM follow_ups f JOIN leads l ON l.id = f.lead_id
+     WHERE true${where}
+     ORDER BY f.scheduled_at DESC LIMIT 200`,
+    params
+  );
+  return res.rows;
+}
+
+export async function getProposals(range?: DateRange): Promise<ProposalRow[]> {
+  const params: unknown[] = [];
+  const where = dateClause("p.created_at", range, params);
+
+  const res = await pool.query(
+    `SELECT p.*, l.business_name
+     FROM proposals p JOIN leads l ON l.id = p.lead_id
+     WHERE true${where}
+     ORDER BY p.created_at DESC LIMIT 100`,
+    params
+  );
   return res.rows;
 }

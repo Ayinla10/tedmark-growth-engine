@@ -1,7 +1,9 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { AppShell } from "@/components/app-shell";
+import { SettingsForm } from "@/components/settings-form";
 import { Card, PageHeader } from "@/components/ui";
+import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -27,18 +29,38 @@ function readBackendEnv(): Record<string, boolean> {
   return configured;
 }
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
   const backendEnv = readBackendEnv();
+  const settings = await getSettings();
 
   return (
     <AppShell>
-      <section className="p-6">
+      <section className="p-6 max-w-4xl">
         <PageHeader
           title="Settings"
-          subtitle="API keys are managed in the backend .env file — never stored in the browser."
+          subtitle="Everything the agents use to decide what to do and when."
         />
 
-        <Card className="overflow-hidden max-w-3xl">
+        <Card className="p-5 mb-6">
+          <SettingsForm initial={settings} />
+        </Card>
+
+        <Card className="p-5 mb-6 bg-amber-500/5 border-amber-500/20">
+          <p className="text-sm font-semibold text-ink mb-1">When it runs automatically</p>
+          <p className="text-sm text-ink-secondary">
+            The daily pipeline runs at <span className="font-mono">07:00 Accra time</span> via a
+            scheduled GitHub Actions workflow. That schedule is defined in{" "}
+            <span className="font-mono">.github/workflows/daily-pipeline.yml</span>, not in this
+            database — GitHub doesn&apos;t support reading a schedule from an app, so changing the
+            time means editing that file directly. Ask and it&apos;s a one-line change.
+          </p>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <div className="px-5 py-4 border-b border-border-c">
+            <p className="text-sm font-semibold text-ink">API keys</p>
+            <p className="text-xs text-ink-muted">Managed in the backend .env file — never stored in the browser.</p>
+          </div>
           <div className="divide-y divide-border-c">
             {KEYS.map((key) => {
               const configured = backendEnv[key.env] ?? Boolean(process.env[key.env]);
@@ -64,7 +86,7 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        <p className="text-xs text-ink-muted mt-4 max-w-3xl">
+        <p className="text-xs text-ink-muted mt-4">
           To update keys, edit the backend <span className="font-mono">.env</span> file and{" "}
           <span className="font-mono">web\.env.local</span> (dashboard database access), then restart
           the affected process.

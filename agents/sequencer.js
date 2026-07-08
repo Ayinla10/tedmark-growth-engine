@@ -11,10 +11,9 @@ import {
   insertOutreach,
   archiveLead,
 } from '../tools/db.js';
+import { getSettings } from '../tools/settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DAYS_BETWEEN_STEPS = 3;
-const MAX_SEQUENCE_STEP = 3;
 
 async function loadEmailsSkill() {
   try {
@@ -67,7 +66,11 @@ function parseFollowUpResponse(text) {
 export async function runSequencer() {
   console.log('[sequencer] Checking for leads awaiting reply...');
 
-  const candidates = await getOutreachAwaitingReply(DAYS_BETWEEN_STEPS);
+  const settings = await getSettings();
+  const daysBetweenSteps = settings.sequencer_days_between_steps;
+  const maxSequenceStep = settings.sequencer_max_steps;
+
+  const candidates = await getOutreachAwaitingReply(daysBetweenSteps);
 
   if (candidates.length === 0) {
     console.log('[sequencer] No leads need a follow-up right now.');
@@ -81,9 +84,9 @@ export async function runSequencer() {
     const latest = await getLatestFollowUp(candidate.lead_id);
     const currentStep = latest?.sequence_step ?? 0;
 
-    if (currentStep >= MAX_SEQUENCE_STEP) {
+    if (currentStep >= maxSequenceStep) {
       await archiveLead(candidate.lead_id);
-      console.log(`[sequencer] "${candidate.business_name}" reached step ${MAX_SEQUENCE_STEP} with no reply — archived.`);
+      console.log(`[sequencer] "${candidate.business_name}" reached step ${maxSequenceStep} with no reply — archived.`);
       continue;
     }
 
@@ -95,7 +98,7 @@ export async function runSequencer() {
     const referenceTime = latest?.sent_at ? new Date(latest.sent_at) : new Date(candidate.sent_at);
     const daysSinceReference = (Date.now() - referenceTime.getTime()) / (1000 * 60 * 60 * 24);
 
-    if (daysSinceReference < DAYS_BETWEEN_STEPS) {
+    if (daysSinceReference < daysBetweenSteps) {
       console.log(`[sequencer] "${candidate.business_name}" not due for next step yet — skipping.`);
       continue;
     }
@@ -105,7 +108,7 @@ export async function runSequencer() {
     try {
       const text = await complete({
         system: systemPrompt,
-        user: `Business name: ${candidate.business_name}\nSector: ${candidate.sector}\nLocation: ${candidate.location}\nOriginal subject: ${candidate.subject}\nFollow-up step: ${nextStep} of ${MAX_SEQUENCE_STEP}`,
+        user: `Business name: ${candidate.business_name}\nSector: ${candidate.sector}\nLocation: ${candidate.location}\nOriginal subject: ${candidate.subject}\nFollow-up step: ${nextStep} of ${maxSequenceStep}`,
         maxTokens: 300,
         json: true,
       });

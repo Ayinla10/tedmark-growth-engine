@@ -76,7 +76,8 @@ export async function updateLeadScore(id, score, scoreReason) {
     `UPDATE leads
      SET score = $1,
          score_reason = $2,
-         status = CASE WHEN status = 'raw' THEN 'qualified' ELSE status END
+         status = CASE WHEN status = 'raw' THEN 'qualified' ELSE status END,
+         qualified_at = now()
      WHERE id = $3
      RETURNING *`,
     [score, scoreReason, id]

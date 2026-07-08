@@ -1,17 +1,25 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { AgentRunButton } from "@/components/agent-run-button";
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { LeadRowActions } from "@/components/lead-row-actions";
 import { ScoringProtocol } from "@/components/scoring-protocol";
 import { Card, EmptyState, PageHeader, ScoreBadge, Td, Th, formatDate } from "@/components/ui";
-import { getLeads, getScoringProtocol } from "@/lib/queries";
+import { getLeads, getQualifiedLeadsFiltered, getScoringProtocol } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default async function QualifiedLeadsPage() {
-  const [allLeads, protocol] = await Promise.all([getLeads(), getScoringProtocol()]);
-  const leads = allLeads.filter((l) => l.score != null && l.status !== "archived");
-  const sorted = [...leads].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+export default async function QualifiedLeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const [sorted, allLeads, protocol] = await Promise.all([
+    getQualifiedLeadsFiltered({ from, to }),
+    getLeads(),
+    getScoringProtocol(),
+  ]);
   const rawCount = allLeads.filter((l) => l.status === "raw").length;
 
   return (
@@ -32,6 +40,10 @@ export default async function QualifiedLeadsPage() {
             ) : undefined
           }
         />
+
+        <div className="flex justify-end mb-4">
+          <DateRangeFilter label="Qualified between" />
+        </div>
 
         <ScoringProtocol protocol={protocol} />
 

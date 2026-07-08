@@ -10,6 +10,7 @@ import {
   logReplyDb,
   markWhatsappSentDb,
 } from "./mutations";
+import { setSetting, type Settings } from "./settings";
 
 function refreshAll() {
   revalidatePath("/agents");
@@ -111,4 +112,16 @@ export async function markWhatsappSentAction(outreachId: string) {
   const row = await markWhatsappSentDb(outreachId);
   refreshAll();
   return { ok: Boolean(row) };
+}
+
+export async function saveSettingsAction(settings: Settings) {
+  try {
+    await Promise.all(
+      (Object.keys(settings) as (keyof Settings)[]).map((key) => setSetting(key, settings[key]))
+    );
+    revalidatePath("/settings");
+    return { ok: true, output: "Settings saved." };
+  } catch (err) {
+    return { ok: false, output: err instanceof Error ? err.message : "Could not save settings." };
+  }
 }
