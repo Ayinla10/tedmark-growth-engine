@@ -131,6 +131,42 @@ export async function getKpiSummary(): Promise<KpiSummary> {
   };
 }
 
+export type AgentActivity = {
+  scoutLastRunAt: string | null;
+  scoutCombosRemaining: number;
+  scoutCombosTotal: number;
+  qualifierLastRunAt: string | null;
+  outreachLastDraftAt: string | null;
+  sequencerLastRunAt: string | null;
+  proposalLastRunAt: string | null;
+};
+
+export async function getAgentActivity(): Promise<AgentActivity> {
+  const [scout, qualifier, outreach, sequencer, proposal] = await Promise.all([
+    pool.query(`
+      SELECT
+        max(last_run_at) AS last_run_at,
+        count(*) FILTER (WHERE exhausted = false)::int AS remaining,
+        count(*)::int AS total
+      FROM scout_progress
+    `),
+    pool.query(`SELECT max(qualified_at) AS last_run_at FROM leads`),
+    pool.query(`SELECT max(created_at) AS last_run_at FROM outreach`),
+    pool.query(`SELECT max(scheduled_at) AS last_run_at FROM follow_ups`),
+    pool.query(`SELECT max(created_at) AS last_run_at FROM proposals`),
+  ]);
+
+  return {
+    scoutLastRunAt: scout.rows[0].last_run_at,
+    scoutCombosRemaining: scout.rows[0].remaining,
+    scoutCombosTotal: scout.rows[0].total,
+    qualifierLastRunAt: qualifier.rows[0].last_run_at,
+    outreachLastDraftAt: outreach.rows[0].last_run_at,
+    sequencerLastRunAt: sequencer.rows[0].last_run_at,
+    proposalLastRunAt: proposal.rows[0].last_run_at,
+  };
+}
+
 export type DateRange = { from?: string; to?: string };
 
 function dateClause(column: string, range: DateRange | undefined, params: unknown[]): string {
