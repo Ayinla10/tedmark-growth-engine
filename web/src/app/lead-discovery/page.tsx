@@ -4,8 +4,9 @@ import { AppShell } from "@/components/app-shell";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { LeadRowActions } from "@/components/lead-row-actions";
 import { RunScoutModal } from "@/components/run-scout-modal";
-import { Card, EmptyState, PageHeader, ScoreBadge, StatusBadge, Td, Th, formatDate } from "@/components/ui";
+import { Card, EmptyState, PageHeader, ScoreBadge, StatusBadge, Td, Th } from "@/components/ui";
 import { googleMapsSearchUrl } from "@/lib/googleLinks";
+import { formatDate } from "@/lib/time";
 import { getLeads } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,7 @@ export default async function LeadDiscoveryPage({
                 </thead>
                 <tbody>
                   {leads.map((lead) => (
-                    <tr key={lead.id} className="border-b border-border-c/50 last:border-0 hover:bg-surface-2/50">
+                    <tr key={lead.id} className="table-row-hover border-b border-border-c/50 last:border-0 hover:bg-surface-2/50">
                       <Td className="font-medium">
                         <div className="flex items-center gap-2">
                           <Link href={`/leads/${lead.id}`} className="text-brand hover:underline">

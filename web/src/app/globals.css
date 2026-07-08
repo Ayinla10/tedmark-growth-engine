@@ -32,6 +32,41 @@
   --terminal-bg: #000000;
 }
 
+/* No init script: default to system preference via media query unless the
+   user has explicitly chosen a theme (in which case .dark or .light,
+   applied by theme-toggle.tsx, wins by appearing later in the cascade). */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --app-bg: #020617;
+    --surface: #0f172a;
+    --surface-2: #1e293b;
+    --border-c: #334155;
+    --ink: #f1f5f9;
+    --ink-secondary: #94a3b8;
+    --ink-muted: #64748b;
+    --brand: #60a5fa;
+    --ai: #a78bfa;
+    --glass-bg: 46 48 55;
+    --glass-alpha: 0.7;
+    --terminal-bg: #000000;
+  }
+}
+
+.light {
+  --app-bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --border-c: #e2e8f0;
+  --ink: #0f172a;
+  --ink-secondary: #475569;
+  --ink-muted: #64748b;
+  --brand: #0143a0;
+  --ai: #7c3aed;
+  --glass-bg: 255 255 255;
+  --glass-alpha: 0.6;
+  --terminal-bg: #f8fafc;
+}
+
 @theme inline {
   --color-app-bg: var(--app-bg);
   --color-surface: var(--surface);
@@ -74,6 +109,27 @@ body {
 
 .ai-glow {
   box-shadow: 0 0 15px rgba(124, 58, 237, 0.15);
+}
+
+.card-shadow {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.05);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.card-shadow:hover {
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.06), 0 12px 24px rgb(0 0 0 / 0.08);
+}
+
+.dark .card-shadow {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 16px rgb(0 0 0 / 0.3);
+}
+
+.dark .card-shadow:hover {
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25), 0 12px 28px rgb(0 0 0 / 0.4);
+}
+
+.table-row-hover {
+  transition: background-color 0.15s ease;
 }
 
 .hero-gradient {

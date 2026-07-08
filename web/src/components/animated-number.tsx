@@ -1,9 +1,10 @@
 "use client";
 
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
+import type { CSSProperties } from "react";
 import { useEffect } from "react";
 
-export function AnimatedNumber({ value, className }: { value: number; className?: string }) {
+export function AnimatedNumber({ value, className, style }: { value: number; className?: string; style?: CSSProperties }) {
   const motionValue = useMotionValue(0);
   const rounded = useTransform(motionValue, (v) => Math.round(v).toLocaleString());
 
@@ -12,5 +13,5 @@ export function AnimatedNumber({ value, className }: { value: number; className?
     return () => controls.stop();
   }, [value, motionValue]);
 
-  return <motion.span className={className}>{rounded}</motion.span>;
+  return <motion.span className={className} style={style}>{rounded}</motion.span>;
 }

@@ -1,14 +1,17 @@
-import { History } from "lucide-react";
+import { FileText, RefreshCw, Send, ShieldCheck, TrendingUp, Users } from "lucide-react";
 import { AgentRunButton } from "@/components/agent-run-button";
-import { OutreachIcon, ProposalIcon, QualifierIcon, ScoutIcon, SequencerIcon } from "@/components/agent-icons";
+import { AiCoreViz } from "@/components/ai-core-viz";
 import { AnimatedNumber } from "@/components/animated-number";
-import { AppShell } from "@/components/app-shell";
+import { CommandShell } from "@/components/command-shell";
+import { Waveform } from "@/components/jarvis-core";
 import { MotionCard } from "@/components/motion-card";
+import { OrchestrationCanvas, type OrchestrationNode } from "@/components/orchestration-canvas";
 import { RunScoutModal } from "@/components/run-scout-modal";
 import { TerminalLog } from "@/components/terminal-log";
 import {
   getAgentActivity,
   getFollowUps,
+  getGrowthStats,
   getKpiSummary,
   getOutreach,
   getProposals,
@@ -18,296 +21,313 @@ import { isRecent, timeAgo } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
-function StatusBadge({ active, activeLabel, idleLabel, color }: { active: boolean; activeLabel: string; idleLabel: string; color: string }) {
-  return (
-    <p className="text-xs flex items-center gap-1.5" style={{ color: active ? color : "var(--ink-muted)" }}>
-      <span
-        className={`w-1.5 h-1.5 rounded-full ${active ? "status-dot-active" : ""}`}
-        style={{ background: active ? "#22c55e" : "var(--ink-muted)" }}
-      />
-      {active ? activeLabel : idleLabel}
-    </p>
-  );
+const AGENT_COLORS = {
+  scout: "#38bdf8",
+  qualifier: "#a78bfa",
+  outreach: "#fbbf24",
+  sequencer: "#818cf8",
+  proposal: "#f59e0b",
+  analytics: "#34d399",
+} as const;
+
+function pctChange(now: number, before: number): number | null {
+  if (before === 0) return null;
+  return Math.round(((now - before) / before) * 100);
 }
 
 export default async function AgentsPage() {
-  const [kpi, topLeads, followUps, outreach, proposals, activity] = await Promise.all([
+  const [kpi, topLeads, followUps, outreach, proposals, activity, growth] = await Promise.all([
     getKpiSummary(),
     getRecentQualifiedLeads(1),
     getFollowUps(),
     getOutreach(),
     getProposals(),
     getAgentActivity(),
+    getGrowthStats(),
   ]);
   const topLead = topLeads[0] ?? null;
-  const upcomingFollowUps = followUps.filter((f) => f.status === "pending").slice(0, 2);
   const latestDraft = outreach.find((o) => o.status === "draft") ?? null;
   const latestProposal = proposals[0] ?? null;
+  const pendingFollowUps = followUps.filter((f) => f.status === "pending").length;
 
-  const scoutActive = isRecent(activity.scoutLastRunAt);
-  const qualifierActive = isRecent(activity.qualifierLastRunAt);
-  const outreachActive = isRecent(activity.outreachLastDraftAt);
-  const sequencerActive = isRecent(activity.sequencerLastRunAt);
-  const proposalActive = isRecent(activity.proposalLastRunAt);
-  const anyActive = scoutActive || qualifierActive || outreachActive || sequencerActive || proposalActive;
+  // Status per agent from real timestamps: most recently active agent is
+  // "in progress", other recently-active are "completed", stale = "pending".
+  const timestamps = [
+    { key: "scout", at: activity.scoutLastRunAt },
+    { key: "qualifier", at: activity.qualifierLastRunAt },
+    { key: "outreach", at: activity.outreachLastDraftAt },
+    { key: "sequencer", at: activity.sequencerLastRunAt },
+    { key: "proposal", at: activity.proposalLastRunAt },
+  ] as const;
+  const recentKeys = timestamps.filter((t) => isRecent(t.at)).map((t) => t.key);
+  const mostRecent = [...timestamps]
+    .filter((t) => isRecent(t.at))
+    .sort((a, b) => new Date(b.at!).getTime() - new Date(a.at!).getTime())[0]?.key;
+
+  function statusOf(key: (typeof timestamps)[number]["key"]): OrchestrationNode["status"] {
+    if (key === mostRecent) return "inprogress";
+    if (recentKeys.includes(key)) return "completed";
+    return "pending";
+  }
+  function labelOf(key: (typeof timestamps)[number]["key"], at: string | null): string {
+    const s = statusOf(key);
+    if (s === "inprogress") return `Active ${timeAgo(at)}`;
+    if (s === "completed") return `Completed ${timeAgo(at)}`;
+    return "Pending";
+  }
+
+  const anyAgentActive = recentKeys.length > 0;
+
+  const nodes: OrchestrationNode[] = [
+    {
+      variant: "scout",
+      name: "Scout Agent",
+      color: AGENT_COLORS.scout,
+      status: statusOf("scout"),
+      statusLabel: labelOf("scout", activity.scoutLastRunAt),
+      detail: `Found ${kpi.leadsToday} businesses today`,
+      order: 1,
+    },
+    {
+      variant: "qualifier",
+      name: "Qualifier Agent",
+      color: AGENT_COLORS.qualifier,
+      status: statusOf("qualifier"),
+      statusLabel: labelOf("qualifier", activity.qualifierLastRunAt),
+      detail: topLead ? `Top lead: ${topLead.business_name} (${topLead.score}/10)` : "Awaiting raw leads",
+      order: 2,
+    },
+    {
+      variant: "outreach",
+      name: "Outreach Agent",
+      color: AGENT_COLORS.outreach,
+      status: statusOf("outreach"),
+      statusLabel: labelOf("outreach", activity.outreachLastDraftAt),
+      detail: kpi.drafts > 0 ? `${kpi.drafts} drafts awaiting approval` : "No drafts pending",
+      order: 3,
+    },
+    {
+      variant: "sequencer",
+      name: "Sequencer Agent",
+      color: AGENT_COLORS.sequencer,
+      status: statusOf("sequencer"),
+      statusLabel: labelOf("sequencer", activity.sequencerLastRunAt),
+      detail: pendingFollowUps > 0 ? `${pendingFollowUps} follow-ups scheduled` : "Waiting on sent outreach",
+      order: 4,
+    },
+    {
+      variant: "proposal",
+      name: "Proposal Agent",
+      color: AGENT_COLORS.proposal,
+      status: statusOf("proposal"),
+      statusLabel: labelOf("proposal", activity.proposalLastRunAt),
+      detail: latestProposal ? `Latest: ${latestProposal.business_name}` : "Awaiting qualified leads",
+      order: 5,
+    },
+    {
+      // Analytics reflects the pipeline as a whole: it "analyzes" whenever
+      // any other agent has produced fresh data in the last 24h.
+      variant: "analytics",
+      name: "Analytics Agent",
+      color: AGENT_COLORS.analytics,
+      status: anyAgentActive ? "completed" : "pending",
+      statusLabel: anyAgentActive ? "Analyzing" : "Pending",
+      detail: `Tracking ${kpi.leadsTotal} leads & ${kpi.proposals} proposals`,
+      order: 6,
+    },
+  ];
+
+  const completedCount = nodes.filter((n) => n.status === "completed").length;
+  const activeCount = nodes.filter((n) => n.status === "inprogress").length;
+  const pendingCount = nodes.filter((n) => n.status === "pending").length;
+
+  const currentActivity = [
+    { node: nodes[0], line: `Discovered ${kpi.leadsToday} businesses using Geoapify Places`, at: activity.scoutLastRunAt },
+    { node: nodes[1], line: topLead ? `Scored ${topLead.business_name}: ${topLead.score}/10` : "No leads scored yet", at: activity.qualifierLastRunAt },
+    { node: nodes[2], line: latestDraft ? `Drafted ${latestDraft.message_type === "whatsapp" ? "WhatsApp message" : "email"} for ${latestDraft.business_name}` : "No drafts yet", at: activity.outreachLastDraftAt },
+    { node: nodes[3], line: pendingFollowUps > 0 ? `${pendingFollowUps} follow-ups pending` : "Waiting for outreach to age 3+ days", at: activity.sequencerLastRunAt },
+    { node: nodes[4], line: latestProposal ? `Generated proposal for ${latestProposal.business_name}` : "Awaiting qualified leads", at: activity.proposalLastRunAt },
+    { node: nodes[5], line: "Processing data & insights", at: null },
+  ];
+
+  const conversionRate = kpi.qualified > 0 ? Math.round((kpi.contacted / kpi.qualified) * 1000) / 10 : null;
+
+  const kpiCards = [
+    { label: "Leads Discovered", sub: "Today", value: growth.leadsToday, delta: pctChange(growth.leadsToday, growth.leadsYesterday), deltaSub: "vs yesterday", icon: Users, color: "#38bdf8" },
+    { label: "Qualified Leads", sub: "Today", value: growth.qualifiedToday, delta: pctChange(growth.qualifiedToday, growth.qualifiedYesterday), deltaSub: "vs yesterday", icon: ShieldCheck, color: "#a78bfa" },
+    { label: "Outreach Sent", sub: "Today", value: growth.outreachSentToday, delta: pctChange(growth.outreachSentToday, growth.outreachSentYesterday), deltaSub: "vs yesterday", icon: Send, color: "#fbbf24" },
+    { label: "Proposals Generated", sub: "This Week", value: growth.proposalsThisWeek, delta: pctChange(growth.proposalsThisWeek, growth.proposalsLastWeek), deltaSub: "vs last week", icon: FileText, color: "#f59e0b" },
+  ];
 
   return (
-    <AppShell>
-      <section className="flex-1 p-6 pb-64">
-        <div className="hero-gradient rounded-3xl border border-border-c p-6 mb-8 flex items-center justify-between flex-wrap gap-4">
+    <CommandShell>
+      <section className="p-6 pb-64 space-y-6">
+        {/* Command header */}
+        <div className="rounded-3xl border border-emerald-500/15 bg-[#080d1a] p-6 flex items-center justify-between flex-wrap gap-4 shadow-[0_0_40px_rgba(34,197,94,0.05)]">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className={`w-2 h-2 rounded-full ${anyActive ? "bg-green-500 animate-pulse" : "bg-ink-muted"}`} />
-              <span className="text-xs font-medium text-ink-secondary uppercase tracking-wide">
-                {anyActive ? "Agents active in the last 24h" : "No recent activity"}
-              </span>
+              <span className={`w-2 h-2 rounded-full ${anyAgentActive ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.2em]">AI Command Center</span>
             </div>
-            <h2 className="text-2xl font-semibold text-ink">Agent intelligence command</h2>
-            <p className="text-ink-secondary">Real-time view of what each agent is actually doing.</p>
+            <h2 className="text-2xl font-semibold text-slate-100">
+              AI Orchestrator <span className={anyAgentActive ? "text-emerald-400" : "text-slate-500"}>{anyAgentActive ? "Active" : "Standby"}</span>
+            </h2>
+            <p className="text-slate-400 text-sm">Real-time orchestration of your AI agents</p>
+          </div>
+          <div className="hidden lg:flex flex-col items-center gap-1">
+            <p className="text-[10px] tracking-[0.3em] text-indigo-300/90 font-semibold uppercase">
+              Jarvis core: listening &amp; coordinating
+            </p>
+            <Waveform bars={52} height={30} color="#818cf8" />
           </div>
           <div className="flex gap-3">
-            <RunScoutModal />
-            <AgentRunButton label="Run sequencer" runningLabel="Syncing…" variant="primary" action="sequence" />
+            <RunScoutModal command />
+            <AgentRunButton
+              label="Run Full Sequence"
+              runningLabel="Orchestrating…"
+              action="sequence"
+              icon={<RefreshCw size={15} />}
+              className="bg-emerald-500/15 border border-emerald-500/50 text-emerald-400 px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-semibold hover:bg-emerald-500/25 transition-all disabled:opacity-60"
+            />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Scout */}
-          <MotionCard index={0} className="glass rounded-3xl p-6 relative overflow-hidden">
-            <div className="flex justify-between items-start mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-brand/15 flex items-center justify-center text-brand border border-brand/30">
-                  <ScoutIcon active={scoutActive} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-ink">Scout</h3>
-                  <StatusBadge active={scoutActive} activeLabel={`Ran ${timeAgo(activity.scoutLastRunAt)}`} idleLabel="Idle" color="var(--brand)" />
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-ink-muted block">Raw leads</span>
-                <AnimatedNumber value={kpi.funnel.raw} className="text-lg font-semibold text-brand" />
-              </div>
-            </div>
-            <div className="space-y-4 mb-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-ink-muted">Found today:</span>
-                <span className="font-medium text-ink">{kpi.leadsToday} businesses</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-ink-muted">Sector+city coverage:</span>
-                <span className="font-medium text-ink">
-                  {activity.scoutCombosTotal - activity.scoutCombosRemaining} of {activity.scoutCombosTotal} done
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Orchestration canvas */}
+          <div className="xl:col-span-2 rounded-3xl border border-sky-500/15 bg-[#060a16] p-4 overflow-hidden relative">
+            <div
+              className="absolute inset-0 opacity-40"
+              style={{ background: "radial-gradient(ellipse at center, rgba(56,189,248,0.07) 0%, transparent 65%)" }}
+            />
+            <OrchestrationCanvas nodes={nodes} />
+          </div>
+
+          {/* Right rail */}
+          <div className="space-y-6">
+            <MotionCard index={0} className="rounded-3xl border border-sky-500/15 bg-[#0a0f1e] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-semibold tracking-[0.15em] text-slate-300 uppercase">Orchestration status</h3>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1.5 ${anyAgentActive ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-700/40 text-slate-400"}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${anyAgentActive ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
+                  {anyAgentActive ? "Live" : "Idle"}
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-ink-muted">Data source:</span>
-                <span className="font-medium text-ai">Geoapify Places</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-6 pt-4 border-t border-border-c">
-              <div className="flex-1">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-ink-muted uppercase">Pipeline coverage</span>
-                  <span className="text-green-600 dark:text-green-400">
-                    {kpi.leadsTotal > 0 ? Math.round(((kpi.leadsTotal - kpi.funnel.raw) / kpi.leadsTotal) * 100) : 0}%
-                  </span>
+              <div className="rounded-2xl bg-[#070b16] border border-sky-500/10 p-4 mb-4">
+                <p className="text-[11px] text-slate-500 mb-1">Active workflow</p>
+                <p className="text-sm font-semibold text-slate-100">Lead Generation Sequence</p>
+                <div className="mt-2 opacity-70">
+                  <Waveform bars={30} height={14} color="#38bdf8" />
                 </div>
-                <div className="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden">
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div>
+                  <p className="text-lg font-bold text-slate-100">6</p>
+                  <p className="text-[10px] text-slate-500">Total agents</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-amber-400">{activeCount}</p>
+                  <p className="text-[10px] text-slate-500">Active now</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-emerald-400">{completedCount}</p>
+                  <p className="text-[10px] text-slate-500">Completed</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-slate-400">{pendingCount}</p>
+                  <p className="text-[10px] text-slate-500">Pending</p>
+                </div>
+              </div>
+            </MotionCard>
+
+            <MotionCard index={1} className="rounded-3xl border border-sky-500/15 bg-[#0a0f1e] p-5">
+              <h3 className="text-xs font-semibold tracking-[0.15em] text-slate-300 uppercase mb-4">Current activity</h3>
+              <div className="space-y-1">
+                {currentActivity.map(({ node, line, at }, i) => (
                   <div
-                    className="h-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-700"
-                    style={{ width: `${kpi.leadsTotal > 0 ? ((kpi.leadsTotal - kpi.funnel.raw) / kpi.leadsTotal) * 100 : 0}%` }}
-                  />
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-ink-muted block">Total found</span>
-                <AnimatedNumber value={kpi.leadsTotal} className="text-lg font-semibold text-ink" />
-              </div>
-            </div>
-          </MotionCard>
-
-          {/* Qualifier */}
-          <MotionCard index={1} className="glass rounded-3xl p-6 relative overflow-hidden">
-            <div className="flex justify-between items-start mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-ai/15 flex items-center justify-center text-ai border border-ai/30">
-                  <QualifierIcon active={qualifierActive} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-ink">Qualifier</h3>
-                  <StatusBadge active={qualifierActive} activeLabel={`Scored ${timeAgo(activity.qualifierLastRunAt)}`} idleLabel="Idle" color="var(--ai)" />
-                </div>
-              </div>
-              <div className="relative w-14 h-14">
-                <svg className="w-full h-full -rotate-90">
-                  <circle className="text-surface-2" cx="28" cy="28" fill="transparent" r="24" stroke="currentColor" strokeWidth="4" />
-                  <circle
-                    className="text-ai"
-                    cx="28"
-                    cy="28"
-                    fill="transparent"
-                    r="24"
-                    stroke="currentColor"
-                    strokeDasharray="150"
-                    strokeDashoffset={150 - ((kpi.avgScore ?? 0) / 10) * 150}
-                    strokeWidth="4"
-                    style={{ transition: "stroke-dashoffset 0.8s ease" }}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-ink">
-                  {kpi.avgScore != null ? `${kpi.avgScore}/10` : "—"}
-                </span>
-              </div>
-            </div>
-            <div className="p-4 bg-surface-2/60 rounded-2xl border border-border-c mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-ink-muted">Top scored lead</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/15 text-green-700 dark:text-green-400">
-                  {topLead ? `${topLead.score}/10` : "None yet"}
-                </span>
-              </div>
-              <p className="text-sm font-semibold text-ink">{topLead?.business_name ?? "No qualified leads yet"}</p>
-              <p className="text-xs text-ink-muted mt-1 line-clamp-2">
-                {topLead?.score_reason ?? "Run: node index.js qualify --limit 10"}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-surface-2 rounded-xl p-3 text-center">
-                <span className="text-xs text-ink-muted block">Avg score</span>
-                <span className="text-lg font-semibold text-green-600 dark:text-green-400">{kpi.avgScore ?? "—"}</span>
-              </div>
-              <div className="bg-surface-2 rounded-xl p-3 text-center">
-                <span className="text-xs text-ink-muted block">Qualified</span>
-                <AnimatedNumber value={kpi.qualified} className="text-lg font-semibold text-ink" />
-              </div>
-            </div>
-          </MotionCard>
-
-          {/* Outreach */}
-          <MotionCard index={2} className="glass rounded-3xl p-6 relative overflow-hidden">
-            <div className="flex justify-between items-start mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                  <OutreachIcon active={outreachActive} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-ink">Outreach</h3>
-                  <StatusBadge active={outreachActive} activeLabel={`Drafted ${timeAgo(activity.outreachLastDraftAt)}`} idleLabel="Idle" color="#d97706" />
-                </div>
-              </div>
-            </div>
-            <div className="mb-6">
-              <p className="text-xs text-ink-muted mb-2">Latest draft</p>
-              {latestDraft ? (
-                <p className="text-sm italic text-ink-secondary border-l-2 border-brand pl-3 line-clamp-4">
-                  &quot;{latestDraft.body.slice(0, 180)}
-                  {latestDraft.body.length > 180 ? "…" : ""}&quot;
-                </p>
-              ) : (
-                <p className="text-sm text-ink-muted border-l-2 border-border-c pl-3">
-                  No drafts yet — run: node index.js outreach --limit 10
-                </p>
-              )}
-            </div>
-            <div className="flex justify-between items-end">
-              <div>
-                <span className="text-xs text-ink-muted block">Drafts awaiting approval</span>
-                <AnimatedNumber value={kpi.drafts} className="text-lg font-semibold text-ink" />
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-ink-muted block">Contacted</span>
-                <AnimatedNumber value={kpi.contacted} className="text-lg font-semibold text-brand" />
-              </div>
-            </div>
-          </MotionCard>
-
-          {/* Sequencer */}
-          <MotionCard index={3} className="glass rounded-3xl p-6 relative overflow-hidden">
-            <div className="flex justify-between items-start mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-ai/15 flex items-center justify-center text-ai border border-ai/30">
-                  <SequencerIcon active={sequencerActive} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-ink">Sequencer</h3>
-                  <StatusBadge active={sequencerActive} activeLabel={`Ran ${timeAgo(activity.sequencerLastRunAt)}`} idleLabel="Idle • on standby" color="var(--ai)" />
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-ink-muted block">Pending</span>
-                <AnimatedNumber value={kpi.pendingFollowUps} className="text-lg font-semibold text-ink" />
-              </div>
-            </div>
-            <div className="space-y-3">
-              {upcomingFollowUps.length === 0 ? (
-                <div className="p-3 bg-surface-2 rounded-xl">
-                  <p className="text-sm text-ink-secondary">No follow-ups pending.</p>
-                  <p className="text-xs text-ink-muted mt-0.5">
-                    Created automatically when sent outreach goes 3+ days without a reply.
-                  </p>
-                </div>
-              ) : (
-                upcomingFollowUps.map((f) => (
-                  <div key={f.id} className="flex items-center gap-3 p-3 bg-surface-2 rounded-xl">
-                    <History size={18} className="text-ai" />
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-ink">
-                        Follow-up #{f.sequence_step}: {f.business_name}
-                      </p>
-                      <p className="text-xs text-ink-muted">
-                        Scheduled {new Date(f.scheduled_at).toLocaleDateString("en-GB")}
-                      </p>
+                    key={node.variant}
+                    className={`flex items-start gap-3 p-2.5 rounded-xl ${node.status === "inprogress" ? "bg-amber-500/10 border border-amber-500/20" : ""}`}
+                  >
+                    <span
+                      className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center border shrink-0 mt-0.5"
+                      style={{ background: "#0d1220", borderColor: `${node.color}66`, color: node.color }}
+                    >
+                      {i + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold" style={{ color: node.color }}>{node.name}</p>
+                        <p className="text-[10px] text-slate-500 shrink-0">
+                          {node.status === "inprogress" ? "In progress" : node.status === "completed" ? (at ? timeAgo(at) : "Live") : "Pending"}
+                        </p>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">{line}</p>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </MotionCard>
+                ))}
+              </div>
+            </MotionCard>
 
-          {/* Proposal */}
-          <MotionCard index={4} className="glass rounded-3xl p-6 relative overflow-hidden lg:col-span-2">
-            <div className="flex h-full gap-6">
-              <div className="w-1/3 flex flex-col justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                    <ProposalIcon active={proposalActive} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-ink">Proposal</h3>
-                    <StatusBadge active={proposalActive} activeLabel={`Made ${timeAgo(activity.proposalLastRunAt)}`} idleLabel="Standing by" color="#d97706" />
-                  </div>
-                </div>
-                <div className="mt-6">
-                  <span className="text-xs text-ink-muted block mb-1">Proposals generated</span>
-                  <AnimatedNumber value={kpi.proposals} className="text-4xl font-bold text-green-600 dark:text-green-400" />
+            <MotionCard index={2} className="rounded-3xl border border-sky-500/15 bg-[#0a0f1e] p-5">
+              <h3 className="text-xs font-semibold tracking-[0.15em] text-slate-300 uppercase mb-3">AI core visualization</h3>
+              <div className="flex items-center gap-4">
+                <AiCoreViz size={120} />
+                <div className="flex-1 rounded-2xl bg-[#070b16] border border-sky-500/10 p-3">
+                  <p className="text-sm font-semibold text-sky-300">Listening…</p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Analyzing inputs from {recentKeys.length} active agent{recentKeys.length === 1 ? "" : "s"}
+                  </p>
+                  {kpi.avgScore != null ? (
+                    <p className="text-[11px] text-emerald-400 mt-1.5">Avg lead score: {kpi.avgScore}/10</p>
+                  ) : null}
                 </div>
               </div>
-              <div className="flex-1 bg-surface-2 rounded-2xl p-4 overflow-hidden relative min-h-[180px]">
-                {latestProposal ? (
-                  <div className="h-full flex flex-col justify-end">
-                    <p className="text-xs text-ink-muted mb-1">Most recent generation</p>
-                    <h4 className="text-base font-semibold text-ink">{latestProposal.business_name}</h4>
-                    <p className="text-sm text-ink-secondary capitalize">
-                      {latestProposal.services?.join(", ") ?? "Services TBD"} &bull; {latestProposal.budget_range ?? "budget TBD"}
-                    </p>
-                    <p className="text-xs text-ink-muted mt-2 line-clamp-2">{latestProposal.content?.slice(0, 160) ?? ""}</p>
-                  </div>
+            </MotionCard>
+          </div>
+        </div>
+
+        {/* KPI strip */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {kpiCards.map((k, i) => (
+            <MotionCard key={k.label} index={i} className="rounded-2xl border border-sky-500/15 bg-[#0a0f1e] p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[11px] text-slate-400">{k.label}</p>
+                  <p className="text-[10px] text-slate-600 mb-1.5">{k.sub}</p>
+                  <AnimatedNumber value={k.value} className="text-2xl font-bold" style={{ color: k.color }} />
+                  <p className={`text-[10px] mt-1 ${k.delta == null ? "text-slate-600" : k.delta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {k.delta == null ? `— ${k.deltaSub}` : `${k.delta >= 0 ? "+" : ""}${k.delta}% ${k.deltaSub}`}
+                  </p>
+                </div>
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center border"
+                  style={{ background: `${k.color}1a`, borderColor: `${k.color}40`, color: k.color }}
+                >
+                  <k.icon size={17} />
+                </div>
+              </div>
+            </MotionCard>
+          ))}
+          <MotionCard index={4} className="rounded-2xl border border-sky-500/15 bg-[#0a0f1e] p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[11px] text-slate-400">Contact Rate</p>
+                <p className="text-[10px] text-slate-600 mb-1.5">Contacted / qualified</p>
+                {conversionRate != null ? (
+                  <p className="text-2xl font-bold text-emerald-400">{conversionRate}%</p>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-center">
-                    <p className="text-sm text-ink-secondary">No proposals generated yet.</p>
-                    <p className="text-xs text-ink-muted mt-1 font-mono">
-                      node index.js proposal --lead-id &lt;uuid&gt; --services &quot;website,seo&quot; --budget &quot;mid&quot;
-                    </p>
-                  </div>
+                  <p className="text-2xl font-bold text-slate-600">—</p>
                 )}
+                <p className="text-[10px] mt-1 text-slate-600">all time</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center border bg-emerald-500/10 border-emerald-500/25 text-emerald-400">
+                <TrendingUp size={17} />
               </div>
             </div>
           </MotionCard>
         </div>
       </section>
 
-      <TerminalLog />
-    </AppShell>
+      <TerminalLog command />
+    </CommandShell>
   );
 }

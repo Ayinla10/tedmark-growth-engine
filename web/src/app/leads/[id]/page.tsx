@@ -5,8 +5,9 @@ import { AppShell } from "@/components/app-shell";
 import { LeadRowActions } from "@/components/lead-row-actions";
 import { ProposalModal } from "@/components/proposal-modal";
 import { ReplyForm } from "@/components/reply-form";
-import { Card, PageHeader, ScoreBadge, StatusBadge, formatDate } from "@/components/ui";
+import { Card, PageHeader, ScoreBadge, StatusBadge } from "@/components/ui";
 import { googleMapsSearchUrl, googleSearchUrl } from "@/lib/googleLinks";
+import { formatDate } from "@/lib/time";
 import { getLeadThread } from "@/lib/mutations";
 import { getLeadDetail, getScoringProtocol } from "@/lib/queries";
 

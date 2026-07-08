@@ -1,8 +1,9 @@
 import { AppShell } from "@/components/app-shell";
 import { AgentRunButton } from "@/components/agent-run-button";
 import { DateRangeFilter } from "@/components/date-range-filter";
-import { Card, EmptyState, PageHeader, StatusBadge, Td, Th, formatDate } from "@/components/ui";
+import { Card, EmptyState, PageHeader, StatusBadge, Td, Th } from "@/components/ui";
 import { getFollowUps } from "@/lib/queries";
+import { formatDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,7 @@ export default async function FollowUpsPage({
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.id} className="border-b border-border-c/50 last:border-0 hover:bg-surface-2/50">
+                    <tr key={row.id} className="table-row-hover border-b border-border-c/50 last:border-0 hover:bg-surface-2/50">
                       <Td className="font-medium">{row.business_name}</Td>
                       <Td>{row.sequence_step} of 3</Td>
                       <Td className="text-ink-muted">{formatDate(row.scheduled_at)}</Td>

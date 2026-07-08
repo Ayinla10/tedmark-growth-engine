@@ -1,4 +1,5 @@
 import { MessageCircle, Search } from "lucide-react";
+import { JarvisRing } from "./jarvis-ring";
 import { NotificationsDropdown } from "./notifications-dropdown";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -20,9 +21,9 @@ export function Header() {
         </div>
       </div>
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2 px-3 py-1 bg-ai/15 rounded-full border border-ai/30">
-          <span className="w-2 h-2 rounded-full bg-ai animate-pulse" />
-          <span className="text-xs font-semibold text-ai">AI processing</span>
+        <div className="flex items-center gap-2 px-3 py-1 bg-ai/15 rounded-full border border-ai/30 text-ai">
+          <JarvisRing size={16} />
+          <span className="text-xs font-semibold">Listening</span>
         </div>
         <div className="flex items-center gap-4 text-ink-secondary">
           <ThemeToggle />

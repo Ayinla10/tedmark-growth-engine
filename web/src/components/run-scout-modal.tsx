@@ -1,12 +1,14 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Play, Search } from "lucide-react";
 import { useState, useTransition } from "react";
 import { runScoutAction } from "@/lib/actions";
 import { Modal, ResultBanner } from "./modal";
 import type { AgentRunResult } from "@/lib/runAgent";
 
-export function RunScoutModal() {
+// `command` renders the trigger in the dark outlined command-center style
+// with a play icon, matching the AI Orchestrator page.
+export function RunScoutModal({ command = false }: { command?: boolean }) {
   const [open, setOpen] = useState(false);
   const [sector, setSector] = useState("restaurant");
   const [city, setCity] = useState("Accra");
@@ -19,9 +21,13 @@ export function RunScoutModal() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="bg-brand text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm hover:shadow-lg transition-all"
+        className={
+          command
+            ? "bg-[#0d1220] border border-slate-600/50 text-slate-100 px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-semibold hover:bg-[#141b30] hover:border-slate-500/60 transition-all"
+            : "bg-brand text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm hover:shadow-lg transition-all"
+        }
       >
-        <Search size={16} /> Run scout
+        {command ? <Play size={15} /> : <Search size={16} />} Run Scout
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Run scout">

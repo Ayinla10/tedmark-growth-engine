@@ -3,7 +3,8 @@ import { AppShell } from "@/components/app-shell";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { ProposalModal } from "@/components/proposal-modal";
 import { ProposalWizard } from "@/components/proposal-wizard";
-import { Card, EmptyState, PageHeader, Td, Th, formatDate } from "@/components/ui";
+import { Card, EmptyState, PageHeader, Td, Th } from "@/components/ui";
+import { formatDate } from "@/lib/time";
 import { getLeads, getProposals } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,7 @@ export default async function ProposalsPage({
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.id} className="border-b border-border-c/50 last:border-0 hover:bg-surface-2/50">
+                    <tr key={row.id} className="table-row-hover border-b border-border-c/50 last:border-0 hover:bg-surface-2/50">
                       <Td className="font-medium">
                         <Link href={`/leads/${row.lead_id}`} className="text-brand hover:underline">
                           {row.business_name}

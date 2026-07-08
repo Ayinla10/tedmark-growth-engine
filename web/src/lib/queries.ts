@@ -167,6 +167,54 @@ export async function getAgentActivity(): Promise<AgentActivity> {
   };
 }
 
+export type GrowthStats = {
+  leadsToday: number;
+  leadsYesterday: number;
+  qualifiedToday: number;
+  qualifiedYesterday: number;
+  outreachSentToday: number;
+  outreachSentYesterday: number;
+  proposalsThisWeek: number;
+  proposalsLastWeek: number;
+};
+
+export async function getGrowthStats(): Promise<GrowthStats> {
+  const [leads, outreach, proposals] = await Promise.all([
+    pool.query(`
+      SELECT
+        count(*) FILTER (WHERE created_at::date = now()::date)::int AS leads_today,
+        count(*) FILTER (WHERE created_at::date = now()::date - 1)::int AS leads_yesterday,
+        count(*) FILTER (WHERE qualified_at::date = now()::date)::int AS qualified_today,
+        count(*) FILTER (WHERE qualified_at::date = now()::date - 1)::int AS qualified_yesterday
+      FROM leads
+    `),
+    pool.query(`
+      SELECT
+        count(*) FILTER (WHERE sent_at::date = now()::date)::int AS sent_today,
+        count(*) FILTER (WHERE sent_at::date = now()::date - 1)::int AS sent_yesterday
+      FROM outreach
+    `),
+    pool.query(`
+      SELECT
+        count(*) FILTER (WHERE created_at >= date_trunc('week', now()))::int AS this_week,
+        count(*) FILTER (WHERE created_at >= date_trunc('week', now()) - interval '7 days'
+                           AND created_at < date_trunc('week', now()))::int AS last_week
+      FROM proposals
+    `),
+  ]);
+
+  return {
+    leadsToday: leads.rows[0].leads_today,
+    leadsYesterday: leads.rows[0].leads_yesterday,
+    qualifiedToday: leads.rows[0].qualified_today,
+    qualifiedYesterday: leads.rows[0].qualified_yesterday,
+    outreachSentToday: outreach.rows[0].sent_today,
+    outreachSentYesterday: outreach.rows[0].sent_yesterday,
+    proposalsThisWeek: proposals.rows[0].this_week,
+    proposalsLastWeek: proposals.rows[0].last_week,
+  };
+}
+
 export type DateRange = { from?: string; to?: string };
 
 function dateClause(column: string, range: DateRange | undefined, params: unknown[]): string {

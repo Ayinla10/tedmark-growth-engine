@@ -1,14 +1,23 @@
+"use client";
+
+import { motion } from "framer-motion";
 import type { ReactNode } from "react";
+import { AnimatedNumber } from "./animated-number";
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between mb-8">
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex items-center justify-between mb-8"
+    >
       <div>
         <h2 className="text-2xl font-semibold text-ink">{title}</h2>
         {subtitle ? <p className="text-ink-secondary">{subtitle}</p> : null}
       </div>
       {actions}
-    </div>
+    </motion.div>
   );
 }
 
@@ -42,19 +51,36 @@ export function StatusBadge({ status }: { status: string }) {
   return <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full capitalize ${cls}`}>{status}</span>;
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Card({ children, className = "", index = 0 }: { children: ReactNode; className?: string; index?: number }) {
   return (
-    <div className={`bg-surface border border-border-c rounded-2xl ${className}`}>{children}</div>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: index * 0.05, ease: "easeOut" }}
+      className={`card-shadow bg-surface border border-border-c rounded-2xl ${className}`}
+    >
+      {children}
+    </motion.div>
   );
 }
 
-export function KpiCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+export function KpiCard({ label, value, hint, index = 0 }: { label: string; value: string | number; hint?: string; index?: number }) {
+  const numeric = typeof value === "number";
   return (
-    <div className="bg-surface border border-border-c rounded-2xl p-4">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: index * 0.05, ease: "easeOut" }}
+      className="card-shadow bg-surface border border-border-c rounded-2xl p-4"
+    >
       <p className="text-xs text-ink-muted mb-1">{label}</p>
-      <p className="text-2xl font-semibold text-ink">{value}</p>
+      {numeric ? (
+        <AnimatedNumber value={value as number} className="text-2xl font-semibold text-ink" />
+      ) : (
+        <p className="text-2xl font-semibold text-ink">{value}</p>
+      )}
       {hint ? <p className="text-xs text-ink-muted mt-1">{hint}</p> : null}
-    </div>
+    </motion.div>
   );
 }
 
@@ -72,18 +98,15 @@ export function Td({ children, className = "" }: { children: ReactNode; classNam
 
 export function EmptyState({ title, hint }: { title: string; hint: string }) {
   return (
-    <div className="text-center py-16">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="text-center py-16"
+    >
       <p className="text-ink font-medium">{title}</p>
       <p className="text-sm text-ink-muted mt-1">{hint}</p>
-    </div>
+    </motion.div>
   );
 }
 
-export function formatDate(value: string | null): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}

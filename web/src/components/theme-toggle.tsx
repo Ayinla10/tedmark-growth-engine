@@ -1,7 +1,7 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 const THEME_EVENT = "tedmark-theme-change";
 
@@ -11,7 +11,10 @@ function subscribe(callback: () => void) {
 }
 
 function getSnapshot() {
-  return document.documentElement.classList.contains("dark");
+  const el = document.documentElement;
+  if (el.classList.contains("dark")) return true;
+  if (el.classList.contains("light")) return false;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
 function getServerSnapshot() {
@@ -32,6 +35,15 @@ export function ThemeToggle() {
   const mounted = useHasMounted();
   const isDark = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
+  useEffect(() => {
+    const stored = localStorage.getItem("tedmark-theme");
+    if (!stored) return;
+    const el = document.documentElement;
+    el.classList.toggle("dark", stored === "dark");
+    el.classList.toggle("light", stored === "light");
+    window.dispatchEvent(new Event(THEME_EVENT));
+  }, []);
+
   if (!mounted) {
     return <div className="h-5 w-5" aria-hidden="true" />;
   }
@@ -43,6 +55,7 @@ export function ThemeToggle() {
       onClick={() => {
         const next = !isDark;
         document.documentElement.classList.toggle("dark", next);
+        document.documentElement.classList.toggle("light", !next);
         localStorage.setItem("tedmark-theme", next ? "dark" : "light");
         window.dispatchEvent(new Event(THEME_EVENT));
       }}

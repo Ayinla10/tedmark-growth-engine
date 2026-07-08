@@ -12,16 +12,6 @@ export const metadata: Metadata = {
   description: "Tedmark AI Growth Engine — sales intelligence hub",
 };
 
-const themeInitScript = `
-(function () {
-  try {
-    var stored = localStorage.getItem('tedmark-theme');
-    var isDark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.classList.toggle('dark', isDark);
-  } catch (e) {}
-})();
-`;
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,9 +19,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full`} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-      </head>
       <body className="min-h-full font-sans antialiased">{children}</body>
     </html>
   );

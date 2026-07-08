@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { AnimatedBar } from "@/components/animated-bar";
 import { Card, KpiCard, PageHeader } from "@/components/ui";
 import pool from "@/lib/db";
 
@@ -37,27 +38,27 @@ export default async function AnalyticsPage() {
         <PageHeader title="Analytics" subtitle="Pipeline performance across all agents." />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <KpiCard label="Total leads" value={s.leads} />
-          <KpiCard label="Emails sent" value={s.sent} />
-          <KpiCard label="Response rate" value={responseRate} />
-          <KpiCard label="Proposals" value={s.proposals} />
+          <KpiCard index={0} label="Total leads" value={s.leads} />
+          <KpiCard index={1} label="Emails sent" value={s.sent} />
+          <KpiCard index={2} label="Response rate" value={responseRate} />
+          <KpiCard index={3} label="Proposals" value={s.proposals} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="p-5">
+          <Card index={4} className="p-5">
             <p className="text-sm font-semibold text-ink mb-4">Leads by sector</p>
             {bySector.rows.length === 0 ? (
               <p className="text-sm text-ink-muted">No data yet.</p>
             ) : (
               <div className="space-y-3">
-                {bySector.rows.map((row) => (
+                {bySector.rows.map((row, i) => (
                   <div key={row.sector ?? "unknown"}>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-ink-secondary capitalize">{row.sector ?? "Unknown"}</span>
                       <span className="font-semibold text-ink">{row.total}</span>
                     </div>
                     <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden">
-                      <div className="h-full rounded-full bg-brand" style={{ width: `${(row.total / sectorMax) * 100}%` }} />
+                      <AnimatedBar widthPercent={(row.total / sectorMax) * 100} className="bg-brand" delay={0.1 + i * 0.05} />
                     </div>
                   </div>
                 ))}
@@ -65,14 +66,14 @@ export default async function AnalyticsPage() {
             )}
           </Card>
 
-          <Card className="p-5">
+          <Card index={5} className="p-5">
             <p className="text-sm font-semibold text-ink mb-4">AI score distribution</p>
             <div className="space-y-3">
               {[
                 { label: "High need (8–10)", value: d.high, color: "bg-green-500" },
                 { label: "Medium need (5–7)", value: d.mid, color: "bg-amber-500" },
                 { label: "Low need (1–4)", value: d.low, color: "bg-red-500" },
-              ].map((row) => {
+              ].map((row, i) => {
                 const total = Math.max(d.high + d.mid + d.low, 1);
                 return (
                   <div key={row.label}>
@@ -81,7 +82,7 @@ export default async function AnalyticsPage() {
                       <span className="font-semibold text-ink">{row.value}</span>
                     </div>
                     <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden">
-                      <div className={`h-full rounded-full ${row.color}`} style={{ width: `${(row.value / total) * 100}%` }} />
+                      <AnimatedBar widthPercent={(row.value / total) * 100} className={row.color} delay={0.1 + i * 0.08} />
                     </div>
                   </div>
                 );

@@ -4,7 +4,8 @@ import { AgentRunButton } from "@/components/agent-run-button";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { LeadRowActions } from "@/components/lead-row-actions";
 import { ScoringProtocol } from "@/components/scoring-protocol";
-import { Card, EmptyState, PageHeader, ScoreBadge, Td, Th, formatDate } from "@/components/ui";
+import { Card, EmptyState, PageHeader, ScoreBadge, Td, Th } from "@/components/ui";
+import { formatDate } from "@/lib/time";
 import { getLeads, getQualifiedLeadsFiltered, getScoringProtocol } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +66,7 @@ export default async function QualifiedLeadsPage({
                 </thead>
                 <tbody>
                   {sorted.map((lead) => (
-                    <tr key={lead.id} className="border-b border-border-c/50 last:border-0 hover:bg-surface-2/50">
+                    <tr key={lead.id} className="table-row-hover border-b border-border-c/50 last:border-0 hover:bg-surface-2/50">
                       <Td className="font-medium">
                         <Link href={`/leads/${lead.id}`} className="text-brand hover:underline">
                           {lead.business_name}

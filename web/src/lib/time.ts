@@ -14,3 +14,12 @@ export function isRecent(iso: string | null, hours = 24): boolean {
   if (!iso) return false;
   return Date.now() - new Date(iso).getTime() < hours * 60 * 60 * 1000;
 }
+
+export function formatDate(value: string | null): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
