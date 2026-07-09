@@ -217,7 +217,7 @@ export async function getGrowthStats(): Promise<GrowthStats> {
 
 export type DateRange = { from?: string; to?: string };
 
-function dateClause(column: string, range: DateRange | undefined, params: unknown[]): string {
+export function dateClause(column: string, range: DateRange | undefined, params: unknown[]): string {
   if (!range) return "";
   const clauses: string[] = [];
   if (range.from) {

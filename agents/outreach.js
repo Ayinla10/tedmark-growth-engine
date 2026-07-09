@@ -14,17 +14,10 @@ import {
   getLeadById,
 } from '../tools/db.js';
 import { sendEmail } from '../tools/emailSender.js';
-import { normalizeGhanaPhone } from '../tools/contactFinder.js';
+import { resolveChannel } from '../tools/channel.js';
 import { getSetting } from '../tools/settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-function resolveChannel(lead) {
-  if (lead.email) return 'email';
-  const normalized = normalizeGhanaPhone(lead.phone);
-  if (normalized?.isMobile) return 'whatsapp';
-  return null;
-}
 
 async function loadPrompt() {
   return readFile(path.join(__dirname, '..', 'prompts', 'outreach.md'), 'utf-8');
