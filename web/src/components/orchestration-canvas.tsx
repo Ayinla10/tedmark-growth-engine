@@ -90,7 +90,7 @@ export function OrchestrationCanvas({ nodes }: { nodes: OrchestrationNode[] }) {
           <div
             key={node.key}
             className="absolute flex flex-col items-center text-center"
-            style={{ left: `${p.x}%`, top: `${p.y}%`, transform: "translate(-50%, -50%)", width: "17%" }}
+            style={{ left: `${p.x}%`, top: `${p.y}%`, transform: "translate(-50%, -50%)", width: "13%" }}
           >
             <motion.div
               className="flex flex-col items-center text-center w-full"
