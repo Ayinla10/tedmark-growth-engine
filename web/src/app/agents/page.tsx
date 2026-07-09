@@ -5,6 +5,7 @@ import { AnimatedNumber } from "@/components/animated-number";
 import { CommandShell } from "@/components/command-shell";
 import { Waveform } from "@/components/jarvis-core";
 import { MotionCard } from "@/components/motion-card";
+import { OrchestrationCanvas, type OrchestrationNode } from "@/components/orchestration-canvas";
 import { RunScoutModal } from "@/components/run-scout-modal";
 import { TerminalLog } from "@/components/terminal-log";
 import {
@@ -35,15 +36,6 @@ function pctChange(now: number, before: number): number | null {
 }
 
 type AgentStatus = "inprogress" | "completed" | "pending";
-
-type AgentNode = {
-  name: string;
-  color: string;
-  status: AgentStatus;
-  statusLabel: string;
-  detail: string;
-  order: number;
-};
 
 export default async function AgentsPage() {
   const [kpi, topLeads, followUps, outreach, proposals, activity, growth] = await Promise.all([
@@ -88,8 +80,9 @@ export default async function AgentsPage() {
 
   const anyAgentActive = recentKeys.length > 0;
 
-  const nodes: AgentNode[] = [
+  const nodes: OrchestrationNode[] = [
     {
+      key: "scout",
       name: "Scout Agent",
       color: AGENT_COLORS.scout,
       status: statusOf("scout"),
@@ -98,6 +91,7 @@ export default async function AgentsPage() {
       order: 1,
     },
     {
+      key: "qualifier",
       name: "Qualifier Agent",
       color: AGENT_COLORS.qualifier,
       status: statusOf("qualifier"),
@@ -106,6 +100,7 @@ export default async function AgentsPage() {
       order: 2,
     },
     {
+      key: "outreach",
       name: "Outreach Agent",
       color: AGENT_COLORS.outreach,
       status: statusOf("outreach"),
@@ -114,6 +109,7 @@ export default async function AgentsPage() {
       order: 3,
     },
     {
+      key: "sequencer",
       name: "Sequencer Agent",
       color: AGENT_COLORS.sequencer,
       status: statusOf("sequencer"),
@@ -122,6 +118,7 @@ export default async function AgentsPage() {
       order: 4,
     },
     {
+      key: "proposal",
       name: "Proposal Agent",
       color: AGENT_COLORS.proposal,
       status: statusOf("proposal"),
@@ -132,6 +129,7 @@ export default async function AgentsPage() {
     {
       // Analytics reflects the pipeline as a whole: it "analyzes" whenever
       // any other agent has produced fresh data in the last 24h.
+      key: "analytics",
       name: "Analytics Agent",
       color: AGENT_COLORS.analytics,
       status: anyAgentActive ? "completed" : "pending",
@@ -196,43 +194,14 @@ export default async function AgentsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Agent status grid */}
-          <div className="xl:col-span-2 rounded-3xl border border-sky-500/15 bg-[#060a16] p-5">
-            <h3 className="text-xs font-semibold tracking-[0.15em] text-slate-300 uppercase mb-4">Agent fleet</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {nodes.map((node) => (
-                <div
-                  key={node.name}
-                  className="rounded-2xl border p-4 flex items-start gap-3"
-                  style={{
-                    background: node.status === "pending" ? "#0a0f1e" : `${node.color}0d`,
-                    borderColor: node.status === "pending" ? "rgba(56,189,248,0.1)" : `${node.color}33`,
-                  }}
-                >
-                  <span
-                    className="w-8 h-8 rounded-xl text-xs font-bold flex items-center justify-center border shrink-0"
-                    style={{ background: "#0d1220", borderColor: `${node.color}66`, color: node.color }}
-                  >
-                    {node.order}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-100">{node.name}</p>
-                    <p
-                      className="text-xs font-medium flex items-center gap-1.5 mt-0.5"
-                      style={{ color: node.status === "pending" ? "#64748b" : node.color }}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${node.status === "inprogress" ? "animate-pulse" : ""}`}
-                        style={{ background: node.status === "pending" ? "#64748b" : node.color }}
-                      />
-                      {node.statusLabel}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1 leading-snug">{node.detail}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          {/* Orchestration canvas */}
+          <div className="xl:col-span-3 rounded-3xl border border-sky-500/15 bg-[#060a16] p-6 overflow-hidden relative">
+            <div
+              className="absolute inset-0 opacity-40 pointer-events-none"
+              style={{ background: "radial-gradient(ellipse at center, rgba(56,189,248,0.07) 0%, transparent 65%)" }}
+            />
+            <OrchestrationCanvas nodes={nodes} />
           </div>
 
           {/* Right rail */}
@@ -277,7 +246,7 @@ export default async function AgentsPage() {
               <div className="space-y-1">
                 {currentActivity.map(({ node, line, at }, i) => (
                   <div
-                    key={node.name}
+                    key={node.key}
                     className={`flex items-start gap-3 p-2.5 rounded-xl ${node.status === "inprogress" ? "bg-amber-500/10 border border-amber-500/20" : ""}`}
                   >
                     <span
