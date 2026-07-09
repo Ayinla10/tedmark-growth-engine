@@ -88,7 +88,16 @@ export function OrchestrationCanvas({ nodes }: { nodes: OrchestrationNode[] }) {
   const byVariant = Object.fromEntries(nodes.map((n) => [n.variant, n])) as Record<RobotVariant, OrchestrationNode>;
 
   return (
-    <div className="relative w-full" style={{ aspectRatio: `${W} / ${H}` }}>
+    // The classic "padding-percentage" aspect-ratio technique instead of the
+    // `aspect-ratio` CSS property: a container with an SVG child (a replaced
+    // element) sized via `aspect-ratio` has a known Chromium bug where the
+    // browser caches the resolved intrinsic size and never re-resolves it on
+    // pure zoom (only on true layout-triggering reflows) — which is exactly
+    // why the canvas stayed pixel-for-pixel frozen while the rest of the
+    // page (plain block/percentage layout, no aspect-ratio) zoomed normally.
+    // padding-top percentage is plain block layout with no replaced-element
+    // caching involved, so it has none of that risk.
+    <div className="relative w-full" style={{ paddingTop: `${(H / W) * 100}%` }}>
       {/* Connection layer */}
       <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 w-full h-full" fill="none">
         <defs>
