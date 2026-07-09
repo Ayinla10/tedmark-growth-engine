@@ -2,13 +2,11 @@ import {
   BarChart3,
   BookOpen,
   Bot,
-  ChevronDown,
   Compass,
   FileText,
   History,
   HelpCircle,
   LayoutGrid,
-  LogOut,
   Mail,
   Plus,
   Search,
@@ -17,8 +15,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { getSession } from "@/lib/auth";
 import { JarvisRing } from "./jarvis-ring";
 import { NotificationsDropdown } from "./notifications-dropdown";
+import { UserMenu } from "./user-menu";
 
 const NAV = [
   { href: "/agents", label: "AI Orchestrator", icon: Bot, active: true },
@@ -36,7 +36,9 @@ const NAV = [
 // Immersive dark shell for the AI command center. Deliberately independent
 // of the app theme — the command center is always dark, like the rest of
 // the JARVIS aesthetic on this page.
-export function CommandShell({ children }: { children: ReactNode }) {
+export async function CommandShell({ children }: { children: ReactNode }) {
+  const user = await getSession();
+
   return (
     <div className="min-h-screen bg-[#04060d] text-slate-200 flex">
       {/* Sidebar */}
@@ -85,10 +87,6 @@ export function CommandShell({ children }: { children: ReactNode }) {
             <HelpCircle size={16} />
             Help Center
           </Link>
-          <button type="button" className="flex items-center gap-3 px-3 py-1.5 rounded-xl text-sm text-red-400/80 hover:text-red-400">
-            <LogOut size={16} />
-            Log out
-          </button>
         </div>
 
         <div className="mx-4 mb-4 rounded-2xl border border-emerald-500/15 bg-[#070d18] p-3">
@@ -120,16 +118,7 @@ export function CommandShell({ children }: { children: ReactNode }) {
             <div className="text-slate-400">
               <NotificationsDropdown />
             </div>
-            <div className="flex items-center gap-3 pl-4 border-l border-slate-700/50">
-              <div className="text-right hidden xl:block">
-                <p className="text-sm font-semibold text-slate-200">Alex Rivera</p>
-                <p className="text-[11px] text-slate-500">Agency lead</p>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-xs font-bold text-emerald-400">
-                AR
-              </div>
-              <ChevronDown size={14} className="text-slate-500" />
-            </div>
+            {user ? <UserMenu user={user} dark /> : null}
           </div>
         </header>
 

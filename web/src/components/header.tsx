@@ -1,9 +1,11 @@
 import { MessageCircle, Search } from "lucide-react";
+import type { SessionUser } from "@/lib/auth";
 import { JarvisRing } from "./jarvis-ring";
 import { NotificationsDropdown } from "./notifications-dropdown";
 import { ThemeToggle } from "./theme-toggle";
+import { UserMenu } from "./user-menu";
 
-export function Header() {
+export function Header({ user }: { user: SessionUser | null }) {
   return (
     <header className="fixed top-0 right-0 left-64 h-16 bg-surface/80 backdrop-blur-md flex justify-between items-center px-6 z-40 border-b border-border-c">
       <div className="flex items-center gap-4">
@@ -35,15 +37,7 @@ export function Header() {
           >
             <MessageCircle size={20} />
           </button>
-          <div className="flex items-center gap-3 pl-4 border-l border-border-c">
-            <div className="text-right hidden xl:block">
-              <p className="text-sm font-semibold text-ink">Alex Rivera</p>
-              <p className="text-xs text-ink-muted">Agency lead</p>
-            </div>
-            <div className="w-8 h-8 rounded-full border border-border-c bg-brand/20 flex items-center justify-center text-xs font-semibold text-brand">
-              AR
-            </div>
-          </div>
+          {user ? <UserMenu user={user} /> : null}
         </div>
       </div>
     </header>
