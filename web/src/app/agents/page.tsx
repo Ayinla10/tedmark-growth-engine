@@ -196,12 +196,14 @@ export default async function AgentsPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           {/* Orchestration canvas */}
-          <div className="xl:col-span-3 rounded-3xl border border-sky-500/15 bg-[#060a16] p-6 overflow-hidden relative">
+          <div className="xl:col-span-3 rounded-3xl border border-sky-500/15 bg-[#060a16] p-6 overflow-hidden relative flex items-center justify-center">
             <div
               className="absolute inset-0 opacity-40 pointer-events-none"
               style={{ background: "radial-gradient(ellipse at center, rgba(56,189,248,0.07) 0%, transparent 65%)" }}
             />
-            <OrchestrationCanvas nodes={nodes} />
+            <div className="w-full">
+              <OrchestrationCanvas nodes={nodes} />
+            </div>
           </div>
 
           {/* Right rail */}

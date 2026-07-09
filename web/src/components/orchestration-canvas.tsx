@@ -82,33 +82,42 @@ export function OrchestrationCanvas({ nodes }: { nodes: OrchestrationNode[] }) {
       {nodes.map((node, i) => {
         const p = positions[i];
         return (
-          <motion.div
+          // Centering lives on this plain div's transform. Framer Motion
+          // takes over the `transform` property on any element it animates
+          // (here, the nested motion.div's opacity/scale), silently
+          // dropping a manual translate(-50%,-50%) if it were set here
+          // instead — which is what put every node off its intended center.
+          <div
             key={node.key}
             className="absolute flex flex-col items-center text-center"
             style={{ left: `${p.x}%`, top: `${p.y}%`, transform: "translate(-50%, -50%)", width: "17%" }}
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, delay: node.order * 0.08, ease: "easeOut" }}
           >
-            <div className="relative w-full">
-              <span
-                className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center border"
-                style={{ background: "#0d1220", borderColor: `${node.color}88`, color: node.color }}
-              >
-                {node.order}
-              </span>
-              <RobotAgent active={node.status !== "pending"} color={node.color} fluid />
-            </div>
-            <p className="text-[13px] font-semibold text-slate-100 mt-1 whitespace-nowrap">{node.name}</p>
-            <p className="text-[11px] font-medium flex items-center gap-1.5" style={{ color: node.status === "pending" ? "#64748b" : node.color }}>
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${node.status === "inprogress" ? "animate-pulse" : ""}`}
-                style={{ background: node.status === "pending" ? "#64748b" : node.color }}
-              />
-              {node.statusLabel}
-            </p>
-            <p className="text-[10px] text-slate-400 leading-snug mt-0.5 line-clamp-2 max-w-[140px]">{node.detail}</p>
-          </motion.div>
+            <motion.div
+              className="flex flex-col items-center text-center w-full"
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4, delay: node.order * 0.08, ease: "easeOut" }}
+            >
+              <div className="relative w-full">
+                <span
+                  className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center border"
+                  style={{ background: "#0d1220", borderColor: `${node.color}88`, color: node.color }}
+                >
+                  {node.order}
+                </span>
+                <RobotAgent active={node.status !== "pending"} color={node.color} fluid />
+              </div>
+              <p className="text-[13px] font-semibold text-slate-100 mt-1 whitespace-nowrap">{node.name}</p>
+              <p className="text-[11px] font-medium flex items-center gap-1.5" style={{ color: node.status === "pending" ? "#64748b" : node.color }}>
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${node.status === "inprogress" ? "animate-pulse" : ""}`}
+                  style={{ background: node.status === "pending" ? "#64748b" : node.color }}
+                />
+                {node.statusLabel}
+              </p>
+              <p className="text-[10px] text-slate-400 leading-snug mt-0.5 line-clamp-2 max-w-[140px]">{node.detail}</p>
+            </motion.div>
+          </div>
         );
       })}
     </div>
