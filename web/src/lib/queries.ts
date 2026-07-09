@@ -139,10 +139,11 @@ export type AgentActivity = {
   outreachLastDraftAt: string | null;
   sequencerLastRunAt: string | null;
   proposalLastRunAt: string | null;
+  analyticsLastRunAt: string | null;
 };
 
 export async function getAgentActivity(): Promise<AgentActivity> {
-  const [scout, qualifier, outreach, sequencer, proposal] = await Promise.all([
+  const [scout, qualifier, outreach, sequencer, proposal, analytics] = await Promise.all([
     pool.query(`
       SELECT
         max(last_run_at) AS last_run_at,
@@ -154,6 +155,7 @@ export async function getAgentActivity(): Promise<AgentActivity> {
     pool.query(`SELECT max(created_at) AS last_run_at FROM outreach`),
     pool.query(`SELECT max(scheduled_at) AS last_run_at FROM follow_ups`),
     pool.query(`SELECT max(created_at) AS last_run_at FROM proposals`),
+    pool.query(`SELECT max(created_at) AS last_run_at FROM analytics_snapshots`),
   ]);
 
   return {
@@ -164,7 +166,25 @@ export async function getAgentActivity(): Promise<AgentActivity> {
     outreachLastDraftAt: outreach.rows[0].last_run_at,
     sequencerLastRunAt: sequencer.rows[0].last_run_at,
     proposalLastRunAt: proposal.rows[0].last_run_at,
+    analyticsLastRunAt: analytics.rows[0].last_run_at,
   };
+}
+
+export type AnalyticsSnapshot = {
+  summary: string;
+  insights: {
+    sectors: { sector: string; total: number; avg_score: number | null; contacted: number }[];
+    channels: { channel: string; sent: number; replied: number; replyRate: number | null }[];
+    funnel: { totalLeads: number; qualifyRate: number | null; contactRate: number | null };
+  };
+  created_at: string;
+};
+
+export async function getLatestAnalyticsSnapshot(): Promise<AnalyticsSnapshot | null> {
+  const res = await pool.query(
+    `SELECT summary, insights, created_at FROM analytics_snapshots ORDER BY created_at DESC LIMIT 1`
+  );
+  return res.rows[0] ?? null;
 }
 
 export type GrowthStats = {

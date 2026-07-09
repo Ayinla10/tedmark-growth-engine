@@ -60,6 +60,12 @@ export async function runSequencerAction() {
   return result;
 }
 
+export async function runAnalyticsAction() {
+  const result = await runAgentCommand("analytics", []);
+  refreshAll();
+  return result;
+}
+
 export async function runProposalAction(leadId: string, services: string[], budget: string) {
   const result = await runAgentCommand("proposal", [
     "--lead-id", leadId,

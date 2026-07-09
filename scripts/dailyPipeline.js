@@ -3,6 +3,7 @@ import { runEnricher } from '../agents/enricher.js';
 import { runQualifier } from '../agents/qualifier.js';
 import { runOutreach } from '../agents/outreach.js';
 import { runSequencer } from '../agents/sequencer.js';
+import { runAnalytics } from '../agents/analytics.js';
 import { seedScoutProgress, getNextScoutBatch, recordScoutRun } from '../tools/db.js';
 import { getSettings } from '../tools/settings.js';
 
@@ -63,6 +64,7 @@ export async function runDailyPipeline() {
   await step('Qualify', () => runQualifier({ limit: settings.qualify_limit }));
   await step('Outreach drafts', () => runOutreach({ limit: settings.outreach_limit }));
   await step('Sequencer', () => runSequencer());
+  await step('Analytics', () => runAnalytics());
 
   console.log(`\n[daily-pipeline] Run finished at ${new Date().toISOString()}`);
   console.log('[daily-pipeline] New outreach drafts are waiting for human review in the dashboard — nothing was auto-approved or sent.');

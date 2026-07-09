@@ -14,6 +14,7 @@ import {
   getFollowUps,
   getGrowthStats,
   getKpiSummary,
+  getLatestAnalyticsSnapshot,
   getOutreach,
   getProposals,
   getRecentQualifiedLeads,
@@ -39,7 +40,7 @@ function pctChange(now: number, before: number): number | null {
 type AgentStatus = "inprogress" | "completed" | "pending";
 
 export default async function AgentsPage() {
-  const [kpi, topLeads, followUps, outreach, proposals, activity, growth] = await Promise.all([
+  const [kpi, topLeads, followUps, outreach, proposals, activity, growth, analyticsSnapshot] = await Promise.all([
     getKpiSummary(),
     getRecentQualifiedLeads(1),
     getFollowUps(),
@@ -47,6 +48,7 @@ export default async function AgentsPage() {
     getProposals(),
     getAgentActivity(),
     getGrowthStats(),
+    getLatestAnalyticsSnapshot(),
   ]);
   const topLead = topLeads[0] ?? null;
   const latestDraft = outreach.find((o) => o.status === "draft") ?? null;
@@ -61,6 +63,7 @@ export default async function AgentsPage() {
     { key: "outreach", at: activity.outreachLastDraftAt },
     { key: "sequencer", at: activity.sequencerLastRunAt },
     { key: "proposal", at: activity.proposalLastRunAt },
+    { key: "analytics", at: activity.analyticsLastRunAt },
   ] as const;
   const recentKeys = timestamps.filter((t) => isRecent(t.at)).map((t) => t.key);
   const mostRecent = [...timestamps]
@@ -128,14 +131,12 @@ export default async function AgentsPage() {
       order: 5,
     },
     {
-      // Analytics reflects the pipeline as a whole: it "analyzes" whenever
-      // any other agent has produced fresh data in the last 24h.
       key: "analytics",
       name: "Analytics Agent",
       color: AGENT_COLORS.analytics,
-      status: anyAgentActive ? "completed" : "pending",
-      statusLabel: anyAgentActive ? "Analyzing" : "Pending",
-      detail: `Tracking ${kpi.leadsTotal} leads & ${kpi.proposals} proposals`,
+      status: statusOf("analytics"),
+      statusLabel: labelOf("analytics", activity.analyticsLastRunAt),
+      detail: analyticsSnapshot?.summary ?? "No analytics run yet",
       order: 6,
     },
   ];
@@ -150,7 +151,7 @@ export default async function AgentsPage() {
     { node: nodes[2], line: latestDraft ? `Drafted ${latestDraft.message_type === "whatsapp" ? "WhatsApp message" : "email"} for ${latestDraft.business_name}` : "No drafts yet", at: activity.outreachLastDraftAt },
     { node: nodes[3], line: pendingFollowUps > 0 ? `${pendingFollowUps} follow-ups pending` : "Waiting for outreach to age 3+ days", at: activity.sequencerLastRunAt },
     { node: nodes[4], line: latestProposal ? `Generated proposal for ${latestProposal.business_name}` : "Awaiting qualified leads", at: activity.proposalLastRunAt },
-    { node: nodes[5], line: "Processing data & insights", at: null },
+    { node: nodes[5], line: analyticsSnapshot?.summary ?? "No analytics run yet", at: activity.analyticsLastRunAt },
   ];
 
   const conversionRate = kpi.qualified > 0 ? Math.round((kpi.contacted / kpi.qualified) * 1000) / 10 : null;
@@ -185,6 +186,12 @@ export default async function AgentsPage() {
           </div>
           <div className="flex gap-3">
             <RunScoutModal command />
+            <AgentRunButton
+              label="Run Analytics"
+              runningLabel="Analyzing…"
+              action="analytics"
+              className="bg-emerald-500/5 border border-emerald-500/25 text-emerald-400 px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm font-medium hover:bg-emerald-500/15 transition-all disabled:opacity-60"
+            />
             <AgentRunButton
               label="Run Full Sequence"
               runningLabel="Orchestrating…"
@@ -279,7 +286,7 @@ export default async function AgentsPage() {
                 <div className="flex-1 rounded-2xl bg-[#070b16] border border-sky-500/10 p-3">
                   <p className="text-sm font-semibold text-sky-300">Listening…</p>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Analyzing inputs from {recentKeys.length} active agent{recentKeys.length === 1 ? "" : "s"}
+                    {analyticsSnapshot?.summary ?? `Analyzing inputs from ${recentKeys.length} active agent${recentKeys.length === 1 ? "" : "s"}`}
                   </p>
                   {kpi.avgScore != null ? (
                     <p className="text-[11px] text-emerald-400 mt-1.5">Avg lead score: {kpi.avgScore}/10</p>

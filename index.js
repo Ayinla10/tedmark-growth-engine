@@ -4,6 +4,7 @@ import { runOutreach, runApprove, runSend } from './agents/outreach.js';
 import { runEnricher } from './agents/enricher.js';
 import { runSequencer, startSequencerCron } from './agents/sequencer.js';
 import { runProposal } from './agents/proposal.js';
+import { runAnalytics } from './agents/analytics.js';
 import { runDailyPipeline } from './scripts/dailyPipeline.js';
 
 function parseArgs(argv) {
@@ -109,6 +110,11 @@ async function main() {
       break;
     }
 
+    case 'analytics': {
+      await runAnalytics();
+      break;
+    }
+
     case 'daily': {
       await runDailyPipeline();
       break;
@@ -127,6 +133,7 @@ async function main() {
       console.log('  node index.js sequence --run-now');
       console.log('  node index.js sequence');
       console.log('  node index.js proposal --lead-id <uuid> --services "website,seo" --budget "mid"');
+      console.log('  node index.js analytics');
       console.log('  node index.js daily');
       process.exit(command ? 1 : 0);
     }

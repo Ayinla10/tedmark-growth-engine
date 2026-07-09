@@ -89,6 +89,16 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Snapshots produced by the Analytics agent: real aggregate stats computed
+-- from the pipeline data (not a presentation-only placeholder), plus a
+-- plain-English summary the dashboard can show directly.
+CREATE TABLE IF NOT EXISTS analytics_snapshots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  summary text NOT NULL,
+  insights jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Dashboard users. There is no public signup — accounts are created via
 -- the create-admin CLI script (web/scripts/create-user.mjs).
 CREATE TABLE IF NOT EXISTS users (

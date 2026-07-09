@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useState, useTransition } from "react";
-import { runQualifierAction, runOutreachAction, runSequencerAction } from "@/lib/actions";
+import { runQualifierAction, runOutreachAction, runSequencerAction, runAnalyticsAction } from "@/lib/actions";
 import { ResultBanner } from "./modal";
 
-type AgentAction = "qualify" | "outreach" | "sequence";
+type AgentAction = "qualify" | "outreach" | "sequence" | "analytics";
 
 export function AgentRunButton({
   label,
@@ -36,6 +36,7 @@ export function AgentRunButton({
   async function run() {
     if (action === "qualify") return runQualifierAction(limit ?? 10);
     if (action === "outreach") return runOutreachAction(limit ?? 10);
+    if (action === "analytics") return runAnalyticsAction();
     return runSequencerAction();
   }
 
