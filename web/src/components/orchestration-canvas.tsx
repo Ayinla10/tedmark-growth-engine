@@ -71,7 +71,7 @@ export function OrchestrationCanvas({ nodes }: { nodes: OrchestrationNode[] }) {
       {/* Central core */}
       <div
         className="absolute flex flex-col items-center"
-        style={{ left: `${CENTER.x}%`, top: `${CENTER.y}%`, transform: "translate(-50%, -50%)", width: "26%" }}
+        style={{ left: `${CENTER.x}%`, top: `${CENTER.y}%`, transform: "translate(-50%, -50%)", width: "17%" }}
       >
         <JarvisFlowCore />
         <p className="text-[10px] tracking-[0.25em] text-sky-300/90 font-semibold -mt-1 whitespace-nowrap">J.A.R.V.I.S CORE</p>
