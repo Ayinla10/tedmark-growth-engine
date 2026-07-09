@@ -5,7 +5,8 @@ import { AnimatedNumber } from "@/components/animated-number";
 import { CommandShell } from "@/components/command-shell";
 import { Waveform } from "@/components/jarvis-core";
 import { MotionCard } from "@/components/motion-card";
-import { OrchestrationCanvas, type OrchestrationNode } from "@/components/orchestration-canvas";
+import { OrchestrationCanvasLive } from "@/components/orchestration-canvas-live";
+import type { OrchestrationNode } from "@/components/orchestration-canvas";
 import { RunScoutModal } from "@/components/run-scout-modal";
 import { TerminalLog } from "@/components/terminal-log";
 import {
@@ -202,7 +203,7 @@ export default async function AgentsPage() {
               style={{ background: "radial-gradient(ellipse at center, rgba(56,189,248,0.07) 0%, transparent 65%)" }}
             />
             <div className="w-full">
-              <OrchestrationCanvas nodes={nodes} />
+              <OrchestrationCanvasLive nodes={nodes} />
             </div>
           </div>
 
