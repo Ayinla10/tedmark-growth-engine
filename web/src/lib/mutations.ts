@@ -74,6 +74,64 @@ export async function logReplyDb(leadId: string, outreachId: string | null, body
   return res.rows[0];
 }
 
+export type KnowledgeItemInput = {
+  title: string;
+  category: string;
+  content: string;
+  applicableAgents: string[];
+  targetAudience: string | null;
+  tags: string[];
+  source: string | null;
+  status: "draft" | "published";
+};
+
+export async function insertKnowledgeItemDb(input: KnowledgeItemInput) {
+  const res = await pool.query(
+    `INSERT INTO knowledge_items
+       (title, category, content, applicable_agents, target_audience, tags, source, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [
+      input.title,
+      input.category,
+      input.content,
+      input.applicableAgents,
+      input.targetAudience,
+      input.tags,
+      input.source,
+      input.status,
+    ]
+  );
+  return res.rows[0];
+}
+
+export async function updateKnowledgeItemDb(id: string, input: KnowledgeItemInput) {
+  const res = await pool.query(
+    `UPDATE knowledge_items
+     SET title = $1, category = $2, content = $3, applicable_agents = $4,
+         target_audience = $5, tags = $6, source = $7, status = $8, updated_at = now()
+     WHERE id = $9
+     RETURNING *`,
+    [
+      input.title,
+      input.category,
+      input.content,
+      input.applicableAgents,
+      input.targetAudience,
+      input.tags,
+      input.source,
+      input.status,
+      id,
+    ]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function deleteKnowledgeItemDb(id: string) {
+  const res = await pool.query(`DELETE FROM knowledge_items WHERE id = $1 RETURNING id`, [id]);
+  return res.rows[0] ?? null;
+}
+
 export type ThreadItem = {
   id: string;
   kind: "sent" | "draft" | "reply";

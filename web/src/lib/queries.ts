@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import pool from "./db";
+import { KNOWLEDGE_CATEGORIES } from "./knowledge-constants";
 
 const BACKEND_ROOT = process.env.BACKEND_ROOT || "D:\\tedmark-growth-engine";
 
@@ -39,6 +40,7 @@ export type Lead = {
   score: number | null;
   score_reason: string | null;
   status: string;
+  source: string;
   created_at: string;
 };
 
@@ -55,6 +57,7 @@ export type OutreachRow = {
   sent_at: string | null;
   opened: boolean;
   replied: boolean;
+  knowledge_ids: string[];
   created_at: string;
 };
 
@@ -75,6 +78,7 @@ export type ProposalRow = {
   services: string[] | null;
   budget_range: string | null;
   content: string | null;
+  knowledge_ids: string[];
   created_at: string;
 };
 
@@ -233,6 +237,200 @@ export async function getGrowthStats(): Promise<GrowthStats> {
     proposalsThisWeek: proposals.rows[0].this_week,
     proposalsLastWeek: proposals.rows[0].last_week,
   };
+}
+
+export { KNOWLEDGE_CATEGORIES, KNOWLEDGE_AGENTS } from "./knowledge-constants";
+
+export type KnowledgeItem = {
+  id: string;
+  title: string;
+  category: string;
+  content: string;
+  applicable_agents: string[];
+  target_audience: string | null;
+  tags: string[];
+  source: string | null;
+  approved: boolean;
+  status: "draft" | "published";
+  created_at: string;
+  updated_at: string;
+};
+
+export async function getKnowledgeItems(search?: string): Promise<KnowledgeItem[]> {
+  const params: unknown[] = [];
+  let where = "";
+  if (search) {
+    params.push(`%${search}%`);
+    where = ` WHERE title ILIKE $1 OR content ILIKE $1 OR $1 = ANY(tags)`;
+  }
+  const res = await pool.query(
+    `SELECT * FROM knowledge_items${where} ORDER BY updated_at DESC LIMIT 200`,
+    params
+  );
+  return res.rows;
+}
+
+export async function getKnowledgeItemById(id: string): Promise<KnowledgeItem | null> {
+  const res = await pool.query(`SELECT * FROM knowledge_items WHERE id = $1`, [id]);
+  return res.rows[0] ?? null;
+}
+
+export type KnowledgeRef = { id: string; title: string; category: string };
+
+// Resolves a list of knowledge_ids (as stored on an outreach/proposal row)
+// into their titles, for showing "Informed by: ..." badges without another
+// round trip per row.
+export async function getKnowledgeRefs(ids: string[]): Promise<KnowledgeRef[]> {
+  if (ids.length === 0) return [];
+  const res = await pool.query(
+    `SELECT id, title, category FROM knowledge_items WHERE id = ANY($1)`,
+    [ids]
+  );
+  return res.rows;
+}
+
+export type KnowledgeUsage = {
+  outreachCount: number;
+  proposalCount: number;
+  recentOutreach: { id: string; lead_id: string; business_name: string; created_at: string }[];
+  recentProposals: { id: string; lead_id: string; business_name: string; created_at: string }[];
+};
+
+export async function getKnowledgeUsage(id: string): Promise<KnowledgeUsage> {
+  const [outreachCount, proposalCount, recentOutreach, recentProposals] = await Promise.all([
+    pool.query(`SELECT count(*)::int AS n FROM outreach WHERE $1 = ANY(knowledge_ids)`, [id]),
+    pool.query(`SELECT count(*)::int AS n FROM proposals WHERE $1 = ANY(knowledge_ids)`, [id]),
+    pool.query(
+      `SELECT o.id, o.lead_id, l.business_name, o.created_at
+       FROM outreach o JOIN leads l ON l.id = o.lead_id
+       WHERE $1 = ANY(o.knowledge_ids)
+       ORDER BY o.created_at DESC LIMIT 5`,
+      [id]
+    ),
+    pool.query(
+      `SELECT p.id, p.lead_id, l.business_name, p.created_at
+       FROM proposals p JOIN leads l ON l.id = p.lead_id
+       WHERE $1 = ANY(p.knowledge_ids)
+       ORDER BY p.created_at DESC LIMIT 5`,
+      [id]
+    ),
+  ]);
+
+  return {
+    outreachCount: outreachCount.rows[0].n,
+    proposalCount: proposalCount.rows[0].n,
+    recentOutreach: recentOutreach.rows,
+    recentProposals: recentProposals.rows,
+  };
+}
+
+export type KnowledgeItemWithUsage = {
+  id: string;
+  title: string;
+  category: string;
+  status: "draft" | "published";
+  applicable_agents: string[];
+  updated_at: string;
+  usageCount: number;
+  replyRate: number | null;
+  lastUsedAt: string | null;
+};
+
+// Real per-item usage stats for the "performance" table — no fabricated
+// metrics, just genuine counts joined off the same knowledge_ids arrays
+// recorded when outreach/proposals were generated.
+export async function getKnowledgeItemsWithUsage(): Promise<KnowledgeItemWithUsage[]> {
+  const res = await pool.query(`
+    SELECT
+      ki.id, ki.title, ki.category, ki.status, ki.applicable_agents, ki.updated_at,
+      count(DISTINCT o.id)::int AS outreach_count,
+      count(DISTINCT p.id)::int AS proposal_count,
+      count(DISTINCT o.id) FILTER (WHERE o.status = 'sent')::int AS outreach_sent_count,
+      count(DISTINCT o.id) FILTER (WHERE o.replied)::int AS outreach_replied_count,
+      greatest(max(o.created_at), max(p.created_at)) AS last_used_at
+    FROM knowledge_items ki
+    LEFT JOIN outreach o ON ki.id = ANY(o.knowledge_ids)
+    LEFT JOIN proposals p ON ki.id = ANY(p.knowledge_ids)
+    GROUP BY ki.id
+    ORDER BY (count(DISTINCT o.id) + count(DISTINCT p.id)) DESC, ki.updated_at DESC
+  `);
+
+  return res.rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    category: r.category,
+    status: r.status,
+    applicable_agents: r.applicable_agents,
+    updated_at: r.updated_at,
+    usageCount: r.outreach_count + r.proposal_count,
+    replyRate: r.outreach_sent_count > 0 ? Math.round((r.outreach_replied_count / r.outreach_sent_count) * 1000) / 10 : null,
+    lastUsedAt: r.last_used_at,
+  }));
+}
+
+export type KnowledgeCategoryStats = {
+  category: string;
+  itemCount: number;
+  contentSizeKb: number;
+  thisWeek: number;
+  lastWeek: number;
+  sparkline: number[]; // 7 entries, oldest to newest
+};
+
+// Real weekly usage per category, computed by unnesting the knowledge_ids
+// recorded on outreach/proposals over the last 14 days and matching them
+// back to the category each id belongs to — done in JS rather than a single
+// gnarly SQL query, since volumes here are small (an internal dashboard).
+export async function getKnowledgeCategoryStats(): Promise<KnowledgeCategoryStats[]> {
+  const [items, outreachRows, proposalRows] = await Promise.all([
+    pool.query(`SELECT id, category, length(content) AS len FROM knowledge_items`),
+    pool.query(`SELECT knowledge_ids, created_at FROM outreach WHERE created_at > now() - interval '14 days' AND array_length(knowledge_ids, 1) > 0`),
+    pool.query(`SELECT knowledge_ids, created_at FROM proposals WHERE created_at > now() - interval '14 days' AND array_length(knowledge_ids, 1) > 0`),
+  ]);
+
+  const categoryById = new Map<string, string>(items.rows.map((r) => [r.id, r.category]));
+  const itemCountByCategory = new Map<string, number>();
+  const sizeByCategory = new Map<string, number>();
+  for (const row of items.rows) {
+    itemCountByCategory.set(row.category, (itemCountByCategory.get(row.category) ?? 0) + 1);
+    sizeByCategory.set(row.category, (sizeByCategory.get(row.category) ?? 0) + Number(row.len));
+  }
+
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const dailyByCategory = new Map<string, number[]>(); // index 0 = 13 days ago ... index 13 = today
+
+  function bump(knowledgeIds: string[], createdAt: string) {
+    const dayIndex = Math.floor((now - new Date(createdAt).getTime()) / dayMs);
+    if (dayIndex < 0 || dayIndex > 13) return;
+    const seen = new Set<string>();
+    for (const id of knowledgeIds) {
+      const category = categoryById.get(id);
+      if (!category || seen.has(category)) continue;
+      seen.add(category);
+      const arr = dailyByCategory.get(category) ?? new Array(14).fill(0);
+      // index 13 = today, so convert dayIndex (0 = today) to array position
+      arr[13 - dayIndex] += 1;
+      dailyByCategory.set(category, arr);
+    }
+  }
+
+  for (const row of outreachRows.rows) bump(row.knowledge_ids, row.created_at);
+  for (const row of proposalRows.rows) bump(row.knowledge_ids, row.created_at);
+
+  return KNOWLEDGE_CATEGORIES.map((category) => {
+    const daily = dailyByCategory.get(category) ?? new Array(14).fill(0);
+    const lastWeek = daily.slice(0, 7).reduce((a, b) => a + b, 0);
+    const thisWeek = daily.slice(7, 14).reduce((a, b) => a + b, 0);
+    return {
+      category,
+      itemCount: itemCountByCategory.get(category) ?? 0,
+      contentSizeKb: Math.round(((sizeByCategory.get(category) ?? 0) / 1024) * 10) / 10,
+      thisWeek,
+      lastWeek,
+      sparkline: daily.slice(7, 14),
+    };
+  });
 }
 
 export type DateRange = { from?: string; to?: string };

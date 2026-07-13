@@ -21,7 +21,9 @@ function waLink(phone: string, body: string) {
   return `https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(body)}`;
 }
 
-export function OutreachModal({ row }: { row: OutreachPreviewData }) {
+type KnowledgeRef = { id: string; title: string; category: string };
+
+export function OutreachModal({ row, knowledgeRefs = [] }: { row: OutreachPreviewData; knowledgeRefs?: KnowledgeRef[] }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [subject, setSubject] = useState(row.subject ?? "");
@@ -105,6 +107,21 @@ export function OutreachModal({ row }: { row: OutreachPreviewData }) {
             <p className="text-sm text-ink-secondary whitespace-pre-wrap">{body}</p>
           </div>
         )}
+
+        {knowledgeRefs.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5 mt-3">
+            <span className="text-xs text-ink-muted">Informed by:</span>
+            {knowledgeRefs.map((ref) => (
+              <a
+                key={ref.id}
+                href={`/knowledge-base/${ref.id}`}
+                className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand/10 text-brand hover:bg-brand/20"
+              >
+                {ref.title}
+              </a>
+            ))}
+          </div>
+        ) : null}
 
         {result ? <ResultBanner ok={result.ok} output={result.output ?? ""} /> : null}
 

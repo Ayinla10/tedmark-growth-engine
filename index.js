@@ -1,10 +1,12 @@
 import { runScout } from './agents/scout.js';
+import { runWebScout } from './agents/webScout.js';
 import { runQualifier } from './agents/qualifier.js';
 import { runOutreach, runApprove, runSend } from './agents/outreach.js';
 import { runEnricher } from './agents/enricher.js';
 import { runSequencer, startSequencerCron } from './agents/sequencer.js';
 import { runProposal } from './agents/proposal.js';
 import { runAnalytics } from './agents/analytics.js';
+import { runCleanKnowledge } from './agents/knowledgeCleaner.js';
 import { runDailyPipeline } from './scripts/dailyPipeline.js';
 
 function parseArgs(argv) {
@@ -36,6 +38,22 @@ async function main() {
       }
 
       await runScout({ sector, city, limit });
+      break;
+    }
+
+    case 'web-scout': {
+      const sector = args.sector;
+      const city = args.city;
+      const query = args.query;
+      const queryType = args['query-type'] || 'web';
+      const start = parseInt(args.start, 10) || 1;
+
+      if (!sector || !city || !query) {
+        console.error('Usage: node index.js web-scout --sector "restaurant" --city "Accra" --query "..." --query-type web --start 1');
+        process.exit(1);
+      }
+
+      await runWebScout({ sector, city, query, queryType, start });
       break;
     }
 
@@ -115,6 +133,19 @@ async function main() {
       break;
     }
 
+    case 'clean-knowledge': {
+      const category = args.category;
+      const text = args.text;
+
+      if (!category || !text) {
+        console.error('Usage: node index.js clean-knowledge --category "Services & Pricing" --text "<raw text>"');
+        process.exit(1);
+      }
+
+      await runCleanKnowledge({ category, text });
+      break;
+    }
+
     case 'daily': {
       await runDailyPipeline();
       break;
@@ -125,6 +156,7 @@ async function main() {
       console.log('');
       console.log('Available commands:');
       console.log('  node index.js scout --sector "restaurant" --city "Accra" --limit 20');
+      console.log('  node index.js web-scout --sector "restaurant" --city "Accra" --query "..." --query-type web --start 1');
       console.log('  node index.js qualify --limit 10');
       console.log('  node index.js enrich --limit 20');
       console.log('  node index.js outreach --limit 10');
@@ -134,6 +166,7 @@ async function main() {
       console.log('  node index.js sequence');
       console.log('  node index.js proposal --lead-id <uuid> --services "website,seo" --budget "mid"');
       console.log('  node index.js analytics');
+      console.log('  node index.js clean-knowledge --category "Services & Pricing" --text "<raw text>"');
       console.log('  node index.js daily');
       process.exit(command ? 1 : 0);
     }

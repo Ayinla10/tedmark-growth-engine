@@ -35,13 +35,14 @@ export async function insertLead(lead) {
     website_url = null,
     phone = null,
     email = null,
+    source = 'maps',
   } = lead;
 
   const result = await query(
-    `INSERT INTO leads (business_name, sector, location, website_url, phone, email, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'raw')
+    `INSERT INTO leads (business_name, sector, location, website_url, phone, email, source, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'raw')
      RETURNING *`,
-    [business_name, sector, location, website_url, phone, email]
+    [business_name, sector, location, website_url, phone, email, source]
   );
 
   return result.rows[0];
@@ -91,13 +92,13 @@ export async function getLeadById(id) {
 }
 
 export async function insertOutreach(outreach) {
-  const { lead_id, message_type, subject, body, status = 'draft' } = outreach;
+  const { lead_id, message_type, subject, body, status = 'draft', knowledge_ids = [] } = outreach;
 
   const result = await query(
-    `INSERT INTO outreach (lead_id, message_type, subject, body, status)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO outreach (lead_id, message_type, subject, body, status, knowledge_ids)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [lead_id, message_type, subject, body, status]
+    [lead_id, message_type, subject, body, status, knowledge_ids]
   );
 
   return result.rows[0];
@@ -240,13 +241,13 @@ export async function archiveLead(id) {
 }
 
 export async function insertProposal(proposal) {
-  const { lead_id, services, budget_range, content } = proposal;
+  const { lead_id, services, budget_range, content, knowledge_ids = [] } = proposal;
 
   const result = await query(
-    `INSERT INTO proposals (lead_id, services, budget_range, content)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO proposals (lead_id, services, budget_range, content, knowledge_ids)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [lead_id, services, budget_range, content]
+    [lead_id, services, budget_range, content, knowledge_ids]
   );
 
   return result.rows[0];
@@ -278,6 +279,36 @@ export async function recordScoutRun(id, { nextOffset, exhausted }) {
      WHERE id = $3
      RETURNING *`,
     [nextOffset, exhausted, id]
+  );
+  return result.rows[0];
+}
+
+export async function seedSearchProgress(sector, city, queryType) {
+  await query(
+    `INSERT INTO search_progress (sector, city, query_type) VALUES ($1, $2, $3)
+     ON CONFLICT (sector, city, query_type) DO NOTHING`,
+    [sector, city, queryType]
+  );
+}
+
+export async function getNextSearchBatch(limit) {
+  const result = await query(
+    `SELECT * FROM search_progress
+     WHERE exhausted = false
+     ORDER BY last_run_at ASC NULLS FIRST
+     LIMIT $1`,
+    [limit]
+  );
+  return result.rows;
+}
+
+export async function recordSearchRun(id, { nextStart, exhausted }) {
+  const result = await query(
+    `UPDATE search_progress
+     SET next_start = $1, exhausted = $2, last_run_at = now()
+     WHERE id = $3
+     RETURNING *`,
+    [nextStart, exhausted, id]
   );
   return result.rows[0];
 }

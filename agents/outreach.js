@@ -16,6 +16,7 @@ import {
 import { sendEmail } from '../tools/emailSender.js';
 import { resolveChannel } from '../tools/channel.js';
 import { getSetting } from '../tools/settings.js';
+import { appendKnowledgeContext } from '../tools/knowledge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -111,8 +112,10 @@ export async function runOutreach({ limit, leadId }) {
   const outreachPrompt = await loadPrompt();
   const whatsappPrompt = await loadWhatsappPrompt();
   const skillContext = await loadCopywritingSkill();
-  const emailSystemPrompt = buildSystemPrompt(outreachPrompt, skillContext);
-  const whatsappSystemPrompt = buildSystemPrompt(whatsappPrompt, skillContext);
+  const email = await appendKnowledgeContext(buildSystemPrompt(outreachPrompt, skillContext), 'outreach');
+  const whatsapp = await appendKnowledgeContext(buildSystemPrompt(whatsappPrompt, skillContext), 'outreach');
+  const emailSystemPrompt = email.prompt;
+  const whatsappSystemPrompt = whatsapp.prompt;
 
   for (const lead of leads) {
     if (!leadId && (await hasOutreachForLead(lead.id))) {
@@ -146,6 +149,7 @@ export async function runOutreach({ limit, leadId }) {
           subject,
           body,
           status: 'draft',
+          knowledge_ids: email.knowledgeIds,
         });
 
         console.log(`[outreach] Email draft saved for "${lead.business_name}" (outreach id: ${draft.id}) — subject: "${subject}"`);
@@ -165,6 +169,7 @@ export async function runOutreach({ limit, leadId }) {
           subject: null,
           body,
           status: 'draft',
+          knowledge_ids: whatsapp.knowledgeIds,
         });
 
         console.log(`[outreach] WhatsApp draft saved for "${lead.business_name}" (outreach id: ${draft.id}).`);

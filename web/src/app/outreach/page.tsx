@@ -5,7 +5,7 @@ import { DateRangeFilter } from "@/components/date-range-filter";
 import { OutreachModal } from "@/components/outreach-modal";
 import { Card, EmptyState, PageHeader, StatusBadge, Td, Th } from "@/components/ui";
 import { formatDate } from "@/lib/time";
-import { getOutreach } from "@/lib/queries";
+import { getKnowledgeRefs, getOutreach } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,9 @@ export default async function OutreachPage({
 }) {
   const { from, to } = await searchParams;
   const rows = await getOutreach({ from, to });
+  const allKnowledgeIds = [...new Set(rows.flatMap((r) => r.knowledge_ids))];
+  const knowledgeRefs = await getKnowledgeRefs(allKnowledgeIds);
+  const refsById = new Map(knowledgeRefs.map((r) => [r.id, r]));
 
   return (
     <AppShell>
@@ -80,7 +83,12 @@ export default async function OutreachPage({
                       <Td><StatusBadge status={row.status} /></Td>
                       <Td className="text-ink-muted">{formatDate(row.sent_at)}</Td>
                       <Td>{row.replied ? "Yes" : "—"}</Td>
-                      <Td><OutreachModal row={row} /></Td>
+                      <Td>
+                        <OutreachModal
+                          row={row}
+                          knowledgeRefs={row.knowledge_ids.map((id) => refsById.get(id)).filter((r) => r != null)}
+                        />
+                      </Td>
                     </tr>
                   ))}
                 </tbody>

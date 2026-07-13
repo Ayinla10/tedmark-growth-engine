@@ -29,7 +29,7 @@ const NAV = [
   { href: "/follow-ups", label: "Follow-ups", icon: History },
   { href: "/proposals", label: "Proposals", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/help", label: "Knowledge Base", icon: BookOpen },
+  { href: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

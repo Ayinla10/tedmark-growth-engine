@@ -41,6 +41,8 @@ export function SettingsForm({ initial }: { initial: Settings }) {
   const [cities, setCities] = useState(initial.scout_cities.join(", "));
   const [combosPerDay, setCombosPerDay] = useState(initial.scout_combos_per_day);
   const [perComboLimit, setPerComboLimit] = useState(initial.scout_per_combo_limit);
+  const [webScoutEnabled, setWebScoutEnabled] = useState(initial.web_scout_enabled);
+  const [webScoutCombosPerDay, setWebScoutCombosPerDay] = useState(initial.web_scout_combos_per_day);
   const [enrichLimit, setEnrichLimit] = useState(initial.enrich_limit);
   const [qualifyLimit, setQualifyLimit] = useState(initial.qualify_limit);
   const [outreachLimit, setOutreachLimit] = useState(initial.outreach_limit);
@@ -58,6 +60,8 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         scout_cities: cities.split(",").map((s) => s.trim()).filter(Boolean),
         scout_combos_per_day: combosPerDay,
         scout_per_combo_limit: perComboLimit,
+        web_scout_enabled: webScoutEnabled,
+        web_scout_combos_per_day: webScoutCombosPerDay,
         enrich_limit: enrichLimit,
         qualify_limit: qualifyLimit,
         outreach_limit: outreachLimit,
@@ -103,6 +107,29 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             onChange={setPerComboLimit}
             max={500}
             hint="Geoapify allows up to 500 per request."
+          />
+        </div>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-ink mb-3">Web search discovery</p>
+        <p className="text-xs text-ink-muted mb-3">
+          Finds businesses via Google search dorks and LinkedIn/Facebook search snippets, alongside the Maps-based Scout above. Needs a
+          Google Programmable Search API key configured on the server.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-ink-secondary block mb-1">Enabled</label>
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" checked={webScoutEnabled} onChange={(e) => setWebScoutEnabled(e.target.checked)} />
+              Run web search discovery in the daily pipeline
+            </label>
+          </div>
+          <NumberField
+            label="Search combinations per day"
+            value={webScoutCombosPerDay}
+            onChange={setWebScoutCombosPerDay}
+            hint="How many sector x city x query-type combinations to search each day."
           />
         </div>
       </div>

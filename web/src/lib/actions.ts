@@ -9,6 +9,10 @@ import {
   archiveLeadDb,
   logReplyDb,
   markWhatsappSentDb,
+  insertKnowledgeItemDb,
+  updateKnowledgeItemDb,
+  deleteKnowledgeItemDb,
+  type KnowledgeItemInput,
 } from "./mutations";
 import { setSetting, type Settings } from "./settings";
 
@@ -130,4 +134,41 @@ export async function saveSettingsAction(settings: Settings) {
   } catch (err) {
     return { ok: false, output: err instanceof Error ? err.message : "Could not save settings." };
   }
+}
+
+export async function createKnowledgeItemAction(input: KnowledgeItemInput) {
+  try {
+    const row = await insertKnowledgeItemDb(input);
+    revalidatePath("/knowledge-base");
+    return { ok: true, output: `Saved "${row.title}".` };
+  } catch (err) {
+    return { ok: false, output: err instanceof Error ? err.message : "Could not save knowledge item." };
+  }
+}
+
+export async function updateKnowledgeItemAction(id: string, input: KnowledgeItemInput) {
+  try {
+    const row = await updateKnowledgeItemDb(id, input);
+    if (!row) return { ok: false, output: "Knowledge item not found." };
+    revalidatePath("/knowledge-base");
+    revalidatePath(`/knowledge-base/${id}`);
+    return { ok: true, output: `Updated "${row.title}".` };
+  } catch (err) {
+    return { ok: false, output: err instanceof Error ? err.message : "Could not update knowledge item." };
+  }
+}
+
+export async function deleteKnowledgeItemAction(id: string) {
+  try {
+    const row = await deleteKnowledgeItemDb(id);
+    revalidatePath("/knowledge-base");
+    return { ok: Boolean(row) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function cleanKnowledgeContentAction(category: string, text: string) {
+  const result = await runAgentCommand("clean-knowledge", ["--category", category, "--text", text]);
+  return result;
 }

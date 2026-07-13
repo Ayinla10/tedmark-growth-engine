@@ -45,6 +45,7 @@ export default async function LeadDiscoveryPage({
                   <tr>
                     <Th>Business</Th>
                     <Th>Sector</Th>
+                    <Th>Source</Th>
                     <Th>Location</Th>
                     <Th>Website</Th>
                     <Th>Phone</Th>
@@ -74,6 +75,11 @@ export default async function LeadDiscoveryPage({
                         </div>
                       </Td>
                       <Td className="capitalize">{lead.sector ?? "—"}</Td>
+                      <Td>
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-surface-2 text-ink-secondary capitalize">
+                          {lead.source === "maps" ? "Maps" : lead.source}
+                        </span>
+                      </Td>
                       <Td className="text-ink-secondary max-w-xs truncate">{lead.location ?? "—"}</Td>
                       <Td>{lead.website_url ? "Yes" : "No"}</Td>
                       <Td className="text-ink-secondary">

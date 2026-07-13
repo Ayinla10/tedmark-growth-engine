@@ -3,12 +3,12 @@
 import {
   BarChart3,
   Bot,
+  BookOpen,
   Compass,
   FileText,
   HelpCircle,
   History,
   LayoutDashboard,
-  LogOut,
   Mail,
   Settings,
   ShieldCheck,
@@ -25,6 +25,7 @@ const navItems = [
   { href: "/follow-ups", label: "Follow-ups", icon: History },
   { href: "/proposals", label: "Proposals", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -68,13 +69,6 @@ export function Sidebar() {
         >
           <HelpCircle size={18} aria-hidden="true" />
           Help center
-        </Link>
-        <Link
-          href="#"
-          className="flex items-center gap-3 px-4 py-2 text-ink-secondary hover:text-red-500 transition-all text-sm"
-        >
-          <LogOut size={18} className="text-red-500" aria-hidden="true" />
-          Log out
         </Link>
       </div>
     </aside>

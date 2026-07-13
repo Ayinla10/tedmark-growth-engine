@@ -4,6 +4,7 @@ import path from 'path';
 import { complete } from '../tools/llm.js';
 import { getRawLeads, updateLeadScore, getLeadById } from '../tools/db.js';
 import { scrapeWebsite } from '../tools/scraper.js';
+import { appendKnowledgeContext } from '../tools/knowledge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -66,7 +67,7 @@ export async function runQualifier({ limit, leadId }) {
   }
 
   console.log(`[qualifier] Qualifying ${leads.length} leads...`);
-  const systemPrompt = await loadPrompt();
+  const { prompt: systemPrompt } = await appendKnowledgeContext(await loadPrompt(), 'qualifier');
 
   for (const lead of leads) {
     let siteData = null;

@@ -5,7 +5,7 @@ import { ProposalModal } from "@/components/proposal-modal";
 import { ProposalWizard } from "@/components/proposal-wizard";
 import { Card, EmptyState, PageHeader, Td, Th } from "@/components/ui";
 import { formatDate } from "@/lib/time";
-import { getLeads, getProposals } from "@/lib/queries";
+import { getKnowledgeRefs, getLeads, getProposals } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,9 @@ export default async function ProposalsPage({
   const eligibleLeads = leads
     .filter((l) => l.status !== "archived")
     .map((l) => ({ id: l.id, business_name: l.business_name }));
+  const allKnowledgeIds = [...new Set(rows.flatMap((r) => r.knowledge_ids))];
+  const knowledgeRefs = await getKnowledgeRefs(allKnowledgeIds);
+  const refsById = new Map(knowledgeRefs.map((r) => [r.id, r]));
 
   return (
     <AppShell>
@@ -61,7 +64,12 @@ export default async function ProposalsPage({
                       <Td className="capitalize">{row.budget_range ?? "—"}</Td>
                       <Td className="text-ink-secondary max-w-md truncate">{row.content ?? "—"}</Td>
                       <Td className="text-ink-muted">{formatDate(row.created_at)}</Td>
-                      <Td><ProposalModal row={row} /></Td>
+                      <Td>
+                        <ProposalModal
+                          row={row}
+                          knowledgeRefs={row.knowledge_ids.map((id) => refsById.get(id)).filter((r) => r != null)}
+                        />
+                      </Td>
                     </tr>
                   ))}
                 </tbody>

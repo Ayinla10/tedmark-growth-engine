@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import { complete } from '../tools/llm.js';
 import { getLeadById, insertProposal } from '../tools/db.js';
+import { appendKnowledgeContext } from '../tools/knowledge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,13 +37,13 @@ export async function runProposal({ leadId, services, budgetRange }) {
 
   console.log(`[proposal] Generating proposal for "${lead.business_name}"...`);
 
-  const systemPrompt = await loadPrompt();
+  const knowledge = await appendKnowledgeContext(await loadPrompt(), 'proposal');
   const userMessage = buildUserMessage(lead, services, budgetRange);
 
   let content;
   try {
     content = await complete({
-      system: systemPrompt,
+      system: knowledge.prompt,
       user: userMessage,
       maxTokens: 2000,
     });
@@ -56,6 +57,7 @@ export async function runProposal({ leadId, services, budgetRange }) {
     services,
     budget_range: budgetRange,
     content,
+    knowledge_ids: knowledge.knowledgeIds,
   });
 
   console.log(`[proposal] Saved proposal ${proposal.id} for "${lead.business_name}".`);

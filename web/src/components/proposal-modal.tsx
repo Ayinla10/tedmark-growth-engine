@@ -15,7 +15,9 @@ export type ProposalPreviewData = {
   content: string | null;
 };
 
-export function ProposalModal({ row }: { row: ProposalPreviewData }) {
+type KnowledgeRef = { id: string; title: string; category: string };
+
+export function ProposalModal({ row, knowledgeRefs = [] }: { row: ProposalPreviewData; knowledgeRefs?: KnowledgeRef[] }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(row.content ?? "");
@@ -90,6 +92,21 @@ export function ProposalModal({ row }: { row: ProposalPreviewData }) {
             )}
           </div>
         )}
+
+        {knowledgeRefs.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t border-border-c">
+            <span className="text-xs text-ink-muted">Informed by:</span>
+            {knowledgeRefs.map((ref) => (
+              <a
+                key={ref.id}
+                href={`/knowledge-base/${ref.id}`}
+                className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand/10 text-brand hover:bg-brand/20"
+              >
+                {ref.title}
+              </a>
+            ))}
+          </div>
+        ) : null}
 
         {result ? <ResultBanner ok={result.ok} output={result.output ?? ""} /> : null}
       </Modal>

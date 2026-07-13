@@ -1,10 +1,19 @@
 import { runScout } from '../agents/scout.js';
+import { runWebScout } from '../agents/webScout.js';
 import { runEnricher } from '../agents/enricher.js';
 import { runQualifier } from '../agents/qualifier.js';
 import { runOutreach } from '../agents/outreach.js';
 import { runSequencer } from '../agents/sequencer.js';
 import { runAnalytics } from '../agents/analytics.js';
-import { seedScoutProgress, getNextScoutBatch, recordScoutRun } from '../tools/db.js';
+import {
+  seedScoutProgress,
+  getNextScoutBatch,
+  recordScoutRun,
+  seedSearchProgress,
+  getNextSearchBatch,
+  recordSearchRun,
+} from '../tools/db.js';
+import { buildQueries } from '../tools/searchQueries.js';
 import { getSettings } from '../tools/settings.js';
 
 async function step(name, fn) {
@@ -52,6 +61,52 @@ async function runScoutRotation(settings) {
   }
 }
 
+async function runWebScoutRotation(settings) {
+  if (!settings.web_scout_enabled) {
+    console.log('[daily-pipeline] Web-scout discovery is disabled in settings — skipping.');
+    return;
+  }
+
+  const { scout_sectors: sectors, scout_cities: cities, web_scout_combos_per_day: combosPerDay } = settings;
+
+  for (const sector of sectors) {
+    for (const city of cities) {
+      for (const { type } of buildQueries(sector, city)) {
+        await seedSearchProgress(sector, city, type);
+      }
+    }
+  }
+
+  const batch = await getNextSearchBatch(combosPerDay);
+
+  if (batch.length === 0) {
+    console.log('[daily-pipeline] Every search discovery combination is exhausted for now.');
+    return;
+  }
+
+  for (const combo of batch) {
+    const queries = buildQueries(combo.sector, combo.city);
+    const match = queries.find((q) => q.type === combo.query_type);
+    if (!match) continue;
+
+    const result = await step(`Web-scout: ${combo.query_type} — ${combo.sector} in ${combo.city} (start ${combo.next_start})`, () =>
+      runWebScout({ sector: combo.sector, city: combo.city, query: match.query, queryType: combo.query_type, start: combo.next_start })
+    );
+
+    if (!result) continue;
+
+    const exhausted = result.found === 0;
+    await recordSearchRun(combo.id, {
+      nextStart: combo.next_start + 10,
+      exhausted,
+    });
+
+    if (exhausted) {
+      console.log(`[daily-pipeline] "${combo.query_type}: ${combo.sector} in ${combo.city}" is now exhausted — no more results from the Search API.`);
+    }
+  }
+}
+
 export async function runDailyPipeline() {
   console.log(`[daily-pipeline] Starting run at ${new Date().toISOString()}`);
 
@@ -59,6 +114,7 @@ export async function runDailyPipeline() {
   console.log(`[daily-pipeline] Using settings: ${JSON.stringify(settings)}`);
 
   await runScoutRotation(settings);
+  await runWebScoutRotation(settings);
 
   await step('Enrich', () => runEnricher({ limit: settings.enrich_limit }));
   await step('Qualify', () => runQualifier({ limit: settings.qualify_limit }));

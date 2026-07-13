@@ -12,6 +12,7 @@ import {
   archiveLead,
 } from '../tools/db.js';
 import { getSettings } from '../tools/settings.js';
+import { appendKnowledgeContext } from '../tools/knowledge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -93,8 +94,10 @@ export async function runSequencer() {
     return;
   }
 
-  const emailSystemPrompt = await loadEmailPrompt();
-  const whatsappSystemPrompt = await loadWhatsappPrompt();
+  const email = await appendKnowledgeContext(await loadEmailPrompt(), 'sequencer');
+  const whatsapp = await appendKnowledgeContext(await loadWhatsappPrompt(), 'sequencer');
+  const emailSystemPrompt = email.prompt;
+  const whatsappSystemPrompt = whatsapp.prompt;
 
   for (const candidate of candidates) {
     const latest = await getLatestFollowUp(candidate.lead_id);
@@ -142,6 +145,7 @@ export async function runSequencer() {
           subject,
           body,
           status: 'draft',
+          knowledge_ids: email.knowledgeIds,
         });
 
         console.log(`[sequencer] Email follow-up step ${nextStep} drafted for "${candidate.business_name}".`);
@@ -161,6 +165,7 @@ export async function runSequencer() {
           subject: null,
           body,
           status: 'draft',
+          knowledge_ids: whatsapp.knowledgeIds,
         });
 
         console.log(`[sequencer] WhatsApp follow-up step ${nextStep} drafted for "${candidate.business_name}".`);

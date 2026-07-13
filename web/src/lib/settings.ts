@@ -5,6 +5,8 @@ export const SETTINGS_DEFAULTS = {
   scout_cities: ["Accra", "Kumasi", "Tema", "Takoradi", "Cape Coast"],
   scout_combos_per_day: 10,
   scout_per_combo_limit: 8,
+  web_scout_enabled: true,
+  web_scout_combos_per_day: 5,
   enrich_limit: 80,
   qualify_limit: 80,
   outreach_limit: 30,
@@ -18,6 +20,8 @@ export type Settings = {
   scout_cities: string[];
   scout_combos_per_day: number;
   scout_per_combo_limit: number;
+  web_scout_enabled: boolean;
+  web_scout_combos_per_day: number;
   enrich_limit: number;
   qualify_limit: number;
   outreach_limit: number;
