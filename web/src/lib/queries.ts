@@ -40,6 +40,13 @@ export type SiteSignals = {
   looksOutdated: boolean;
 };
 
+export type DiscoveryEvidence = {
+  query: string;
+  title: string;
+  link: string;
+  snippet: string;
+};
+
 export type Lead = {
   id: string;
   business_name: string;
@@ -54,6 +61,8 @@ export type Lead = {
   source: string;
   site_signals: SiteSignals | null;
   recommended_service: string | null;
+  social_url: string | null;
+  discovery_evidence: DiscoveryEvidence | null;
   created_at: string;
 };
 
@@ -540,4 +549,13 @@ export async function getProposals(range?: DateRange): Promise<ProposalRow[]> {
     params
   );
   return res.rows;
+}
+
+export async function getSearchApiUsageThisMonth(provider: string): Promise<number> {
+  const res = await pool.query(
+    `SELECT count(*)::int AS n FROM search_api_usage
+     WHERE provider = $1 AND used_at >= date_trunc('month', now())`,
+    [provider]
+  );
+  return res.rows[0].n;
 }

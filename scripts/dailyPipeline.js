@@ -89,15 +89,15 @@ async function runWebScoutRotation(settings) {
     const match = queries.find((q) => q.type === combo.query_type);
     if (!match) continue;
 
-    const result = await step(`Web-scout: ${combo.query_type} — ${combo.sector} in ${combo.city} (start ${combo.next_start})`, () =>
-      runWebScout({ sector: combo.sector, city: combo.city, query: match.query, queryType: combo.query_type, start: combo.next_start })
+    const result = await step(`Web-scout: ${combo.query_type} — ${combo.sector} in ${combo.city} (offset ${combo.next_offset})`, () =>
+      runWebScout({ sector: combo.sector, city: combo.city, query: match.query, queryType: combo.query_type, offset: combo.next_offset })
     );
 
     if (!result) continue;
 
     const exhausted = result.found === 0;
     await recordSearchRun(combo.id, {
-      nextStart: combo.next_start + 10,
+      nextOffset: combo.next_offset + 1,
       exhausted,
     });
 

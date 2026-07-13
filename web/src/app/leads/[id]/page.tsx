@@ -91,6 +91,22 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 <span className="text-ink">{lead.email ?? "—"}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-ink-muted">Social profile</span>
+                <span className="text-ink">
+                  {lead.social_url ? (
+                    <a href={lead.social_url} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline flex items-center gap-1">
+                      Visit <ExternalLink size={12} />
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-muted">Found via</span>
+                <span className="text-ink capitalize">{lead.source === "maps" ? "Maps" : lead.source}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-ink-muted">Found</span>
                 <span className="text-ink">{formatDate(lead.created_at)}</span>
               </div>
@@ -153,6 +169,35 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             </pre>
           </Card>
         </div>
+
+        {lead.discovery_evidence ? (
+          <Card className="p-5 mb-6">
+            <p className="text-sm font-semibold text-ink mb-3">Discovery evidence</p>
+            <p className="text-xs text-ink-muted mb-3">
+              Exactly what search result this lead came from — useful for sanity-checking the discovery pipeline.
+            </p>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="text-ink-muted text-xs block">Matched search query</span>
+                <span className="text-ink font-mono text-xs">{lead.discovery_evidence.query}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted text-xs block">Result title</span>
+                <span className="text-ink">{lead.discovery_evidence.title || "—"}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted text-xs block">Result link</span>
+                <a href={lead.discovery_evidence.link} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline break-all">
+                  {lead.discovery_evidence.link}
+                </a>
+              </div>
+              <div>
+                <span className="text-ink-muted text-xs block">Snippet</span>
+                <span className="text-ink-secondary italic">&quot;{lead.discovery_evidence.snippet || "—"}&quot;</span>
+              </div>
+            </div>
+          </Card>
+        ) : null}
 
         <Card className="p-5 mb-6">
           <p className="text-sm font-semibold text-ink mb-4">Conversation</p>

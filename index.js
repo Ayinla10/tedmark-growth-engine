@@ -46,14 +46,14 @@ async function main() {
       const city = args.city;
       const query = args.query;
       const queryType = args['query-type'] || 'web';
-      const start = parseInt(args.start, 10) || 1;
+      const offset = parseInt(args.offset, 10) || 0;
 
       if (!sector || !city || !query) {
-        console.error('Usage: node index.js web-scout --sector "restaurant" --city "Accra" --query "..." --query-type web --start 1');
+        console.error('Usage: node index.js web-scout --sector "restaurant" --city "Accra" --query "..." --query-type web --offset 0');
         process.exit(1);
       }
 
-      await runWebScout({ sector, city, query, queryType, start });
+      await runWebScout({ sector, city, query, queryType, offset });
       break;
     }
 
@@ -156,7 +156,7 @@ async function main() {
       console.log('');
       console.log('Available commands:');
       console.log('  node index.js scout --sector "restaurant" --city "Accra" --limit 20');
-      console.log('  node index.js web-scout --sector "restaurant" --city "Accra" --query "..." --query-type web --start 1');
+      console.log('  node index.js web-scout --sector "restaurant" --city "Accra" --query "..." --query-type web --offset 0');
       console.log('  node index.js qualify --limit 10');
       console.log('  node index.js enrich --limit 20');
       console.log('  node index.js outreach --limit 10');

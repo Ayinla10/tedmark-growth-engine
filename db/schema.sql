@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS leads (
   source text NOT NULL DEFAULT 'maps' CHECK (source IN ('maps', 'web', 'linkedin', 'facebook')),
   site_signals jsonb,
   recommended_service text,
+  social_url text,
+  discovery_evidence jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -29,6 +31,8 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS qualified_at timestamptz;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'maps';
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS site_signals jsonb;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS recommended_service text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS social_url text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS discovery_evidence jsonb;
 
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -101,12 +105,22 @@ CREATE TABLE IF NOT EXISTS search_progress (
   sector text NOT NULL,
   city text NOT NULL,
   query_type text NOT NULL CHECK (query_type IN ('web', 'linkedin', 'facebook')),
-  next_start integer NOT NULL DEFAULT 1,
+  next_offset integer NOT NULL DEFAULT 0,
   exhausted boolean NOT NULL DEFAULT false,
   last_run_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (sector, city, query_type)
 );
+
+-- Logs one row per real Search API call, so real monthly usage can be
+-- shown against the provider's free-tier quota instead of guessing.
+CREATE TABLE IF NOT EXISTS search_api_usage (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider text NOT NULL,
+  used_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_search_api_usage_used_at ON search_api_usage(used_at);
 
 -- Configurable agent behavior, editable from the dashboard Settings page
 -- instead of being hardcoded in source files.

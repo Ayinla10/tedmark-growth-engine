@@ -1,21 +1,9 @@
 import { chromium } from 'playwright';
 import { promises as dns } from 'dns';
-
-const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+import { extractEmails as extractEmailsShared } from './emailUtils.js';
 
 // Ghana mobile prefixes (after +233): MTN, Vodafone/Telecel, AirtelTigo ranges.
 const GH_MOBILE_PREFIXES = ['20', '23', '24', '25', '26', '27', '28', '50', '53', '54', '55', '56', '57', '59'];
-
-const JUNK_EMAIL_PATTERNS = [
-  /@example\./i,
-  /@sentry\./i,
-  /@.*\.png$/i,
-  /@.*\.jpg$/i,
-  /^noreply@/i,
-  /^no-reply@/i,
-  /@wixpress\./i,
-  /@godaddy\./i,
-];
 
 export function normalizeGhanaPhone(raw) {
   if (!raw) return null;
@@ -56,9 +44,7 @@ export async function verifyEmailDomain(email) {
 }
 
 function extractEmails(text) {
-  const matches = text.match(EMAIL_REGEX) ?? [];
-  const unique = [...new Set(matches.map((m) => m.toLowerCase()))];
-  return unique.filter((email) => !JUNK_EMAIL_PATTERNS.some((p) => p.test(email)));
+  return extractEmailsShared(text);
 }
 
 async function collectFromPage(page) {

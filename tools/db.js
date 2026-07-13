@@ -36,22 +36,38 @@ export async function insertLead(lead) {
     phone = null,
     email = null,
     source = 'maps',
+    social_url = null,
+    discovery_evidence = null,
   } = lead;
 
   const result = await query(
-    `INSERT INTO leads (business_name, sector, location, website_url, phone, email, source, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'raw')
+    `INSERT INTO leads (business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'raw')
      RETURNING *`,
-    [business_name, sector, location, website_url, phone, email, source]
+    [business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence ? JSON.stringify(discovery_evidence) : null]
   );
 
   return result.rows[0];
 }
 
+// Suffix-stripping pattern applied on both sides of the comparison so
+// "Acme Ltd" and "Acme" are recognized as the same business, and location
+// matching is fuzzy (containment either direction) since different
+// discovery sources report location at different granularity — Maps gives
+// a full formatted address, web-scout gives just the city.
+const BUSINESS_SUFFIX_SQL = '\\s+(ltd|limited|gh|ghana|inc|co|company)\\.?$';
+
 export async function findLeadByNameAndLocation(businessName, location) {
   const result = await query(
-    `SELECT * FROM leads WHERE business_name = $1 AND location = $2 LIMIT 1`,
-    [businessName, location]
+    `SELECT * FROM leads
+     WHERE regexp_replace(lower(trim(business_name)), $1, '', 'i') = regexp_replace(lower(trim($2)), $1, '', 'i')
+       AND (
+         lower(location) = lower($3)
+         OR location ILIKE '%' || $3 || '%'
+         OR $3 ILIKE '%' || location || '%'
+       )
+     LIMIT 1`,
+    [BUSINESS_SUFFIX_SQL, businessName, location]
   );
   return result.rows[0] ?? null;
 }
@@ -311,15 +327,28 @@ export async function getNextSearchBatch(limit) {
   return result.rows;
 }
 
-export async function recordSearchRun(id, { nextStart, exhausted }) {
+export async function recordSearchRun(id, { nextOffset, exhausted }) {
   const result = await query(
     `UPDATE search_progress
-     SET next_start = $1, exhausted = $2, last_run_at = now()
+     SET next_offset = $1, exhausted = $2, last_run_at = now()
      WHERE id = $3
      RETURNING *`,
-    [nextStart, exhausted, id]
+    [nextOffset, exhausted, id]
   );
   return result.rows[0];
+}
+
+export async function recordSearchApiUsage(provider) {
+  await query(`INSERT INTO search_api_usage (provider) VALUES ($1)`, [provider]);
+}
+
+export async function getSearchApiUsageThisMonth(provider) {
+  const result = await query(
+    `SELECT count(*)::int AS n FROM search_api_usage
+     WHERE provider = $1 AND used_at >= date_trunc('month', now())`,
+    [provider]
+  );
+  return result.rows[0].n;
 }
 
 export default pool;

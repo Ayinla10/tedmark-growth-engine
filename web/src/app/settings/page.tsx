@@ -4,12 +4,14 @@ import { AppShell } from "@/components/app-shell";
 import { SettingsForm } from "@/components/settings-form";
 import { Card, PageHeader } from "@/components/ui";
 import { getSettings } from "@/lib/settings";
+import { getSearchApiUsageThisMonth } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 const KEYS: { name: string; env: string; purpose: string }[] = [
   { name: "DeepSeek", env: "DEEPSEEK_API_KEY", purpose: "Qualifier, outreach, sequencer, and proposal agents" },
   { name: "Geoapify Places", env: "GEOAPIFY_API_KEY", purpose: "Scout agent business discovery" },
+  { name: "Brave Search", env: "BRAVE_SEARCH_API_KEY", purpose: "Web-scout search discovery (dorks, LinkedIn/Facebook snippets)" },
   { name: "Resend", env: "RESEND_API_KEY", purpose: "Sending approved outreach emails" },
   { name: "PostgreSQL", env: "DATABASE_URL", purpose: "Lead and pipeline storage" },
 ];
@@ -31,7 +33,9 @@ function readBackendEnv(): Record<string, boolean> {
 
 export default async function SettingsPage() {
   const backendEnv = readBackendEnv();
-  const settings = await getSettings();
+  const [settings, braveUsage] = await Promise.all([getSettings(), getSearchApiUsageThisMonth("brave")]);
+  const braveFreeQuota = 1000; // Brave's ~$5/month free credit at $5/1,000 queries.
+  const braveUsagePct = Math.min(100, Math.round((braveUsage / braveFreeQuota) * 100));
 
   return (
     <AppShell>
@@ -43,6 +47,25 @@ export default async function SettingsPage() {
 
         <Card className="p-5 mb-6">
           <SettingsForm initial={settings} />
+        </Card>
+
+        <Card className="p-5 mb-6">
+          <p className="text-sm font-semibold text-ink mb-1">Brave Search API usage this month</p>
+          <p className="text-xs text-ink-muted mb-3">
+            Real count of search calls made by web-scout discovery — Brave&apos;s free tier covers roughly the first{" "}
+            {braveFreeQuota.toLocaleString()} per month before it starts costing $5 per 1,000.
+          </p>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-2 rounded-full bg-surface-2 overflow-hidden">
+              <div
+                className={`h-full rounded-full ${braveUsagePct >= 100 ? "bg-red-500" : braveUsagePct >= 80 ? "bg-amber-500" : "bg-brand"}`}
+                style={{ width: `${braveUsagePct}%` }}
+              />
+            </div>
+            <span className="text-sm font-mono text-ink whitespace-nowrap">
+              {braveUsage.toLocaleString()} / ~{braveFreeQuota.toLocaleString()}
+            </span>
+          </div>
         </Card>
 
         <Card className="p-5 mb-6 bg-amber-500/5 border-amber-500/20">
