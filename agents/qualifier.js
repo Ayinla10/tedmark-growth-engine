@@ -2,7 +2,7 @@ import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { complete } from '../tools/llm.js';
-import { getRawLeads, updateLeadScore, getLeadById } from '../tools/db.js';
+import { getRawLeads, updateLeadScore, updateLeadSiteSignals, getLeadById } from '../tools/db.js';
 import { scrapeWebsite } from '../tools/scraper.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
 
@@ -24,6 +24,18 @@ function buildUserMessage(lead, siteData) {
     lines.push(`Page title: ${siteData.title ?? '(none)'}`);
     lines.push(`Meta description: ${siteData.metaDescription ?? '(none)'}`);
     lines.push(`Homepage text snippet: ${siteData.textSnippet || '(empty)'}`);
+
+    if (siteData.signals) {
+      const s = siteData.signals;
+      lines.push('Detected site signals:');
+      lines.push(`- Mobile-friendly (viewport meta tag): ${s.mobileFriendly ? 'yes' : 'no'}`);
+      lines.push(`- Has analytics/tracking installed: ${s.hasTrackingPixel ? 'yes' : 'no'}`);
+      lines.push(`- Has a clear call-to-action: ${s.hasClearCta ? 'yes' : 'no'}`);
+      lines.push(`- Has a booking/reservation system: ${s.hasBookingSystem ? 'yes' : 'no'}`);
+      lines.push(`- Has basic SEO structure (H1 heading, meta description): ${s.hasH1 && s.hasMetaDescription ? 'yes' : 'no'}`);
+      lines.push(`- Copyright year found on page: ${s.copyrightYear ?? 'none found'}`);
+      lines.push(`- Looks outdated overall: ${s.looksOutdated ? 'yes' : 'no'}`);
+    }
   } else if (lead.website_url && !siteData) {
     lines.push(`Website: ${lead.website_url}`);
     lines.push('Note: website could not be scraped (may be broken or unreachable).');
@@ -77,6 +89,8 @@ export async function runQualifier({ limit, leadId }) {
       siteData = await scrapeWebsite(lead.website_url);
       if (!siteData) {
         console.warn(`[qualifier] Scrape failed for ${lead.website_url}, proceeding without site data.`);
+      } else if (siteData.signals) {
+        await updateLeadSiteSignals(lead.id, siteData.signals);
       }
     } else {
       console.log(`[qualifier] No website on file for ${lead.business_name}.`);
@@ -92,12 +106,12 @@ export async function runQualifier({ limit, leadId }) {
         json: true,
       });
 
-      const { score, score_reason } = parseScoreResponse(text);
+      const { score, score_reason, recommended_service } = parseScoreResponse(text);
 
-      const updated = await updateLeadScore(lead.id, score, score_reason);
+      const updated = await updateLeadScore(lead.id, score, score_reason, recommended_service ?? null);
 
       console.log(
-        `[qualifier] Scored "${updated.business_name}" -> ${score}/10 — ${score_reason}`
+        `[qualifier] Scored "${updated.business_name}" -> ${score}/10 — ${score_reason}${recommended_service ? ` (recommends: ${recommended_service})` : ''}`
       );
     } catch (err) {
       console.error(`[qualifier] AI call failed for "${lead.business_name}": ${err.message}. Skipping.`);

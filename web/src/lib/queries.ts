@@ -29,6 +29,17 @@ export async function getLeadDetail(leadId: string) {
   };
 }
 
+export type SiteSignals = {
+  mobileFriendly: boolean;
+  hasTrackingPixel: boolean;
+  hasClearCta: boolean;
+  hasBookingSystem: boolean;
+  hasH1: boolean;
+  hasMetaDescription: boolean;
+  copyrightYear: number | null;
+  looksOutdated: boolean;
+};
+
 export type Lead = {
   id: string;
   business_name: string;
@@ -41,6 +52,8 @@ export type Lead = {
   score_reason: string | null;
   status: string;
   source: string;
+  site_signals: SiteSignals | null;
+  recommended_service: string | null;
   created_at: string;
 };
 

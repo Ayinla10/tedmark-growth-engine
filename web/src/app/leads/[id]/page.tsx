@@ -13,6 +13,21 @@ import { getLeadDetail, getScoringProtocol } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
+// `invert` flips which state counts as "good" (e.g. "Looks outdated" is a
+// warning when true, unlike the other signals which are good when true).
+function SignalBadge({ label, active, invert = false }: { label: string; active: boolean; invert?: boolean }) {
+  const positive = invert ? !active : active;
+  return (
+    <span
+      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+        positive ? "bg-green-500/15 text-green-700 dark:text-green-400" : "bg-surface-2 text-ink-muted"
+      }`}
+    >
+      {label}: {active ? "yes" : "no"}
+    </span>
+  );
+}
+
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [{ lead, proposals }, thread, scoringProtocol] = await Promise.all([
@@ -104,6 +119,29 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <div className="mt-4 pt-4 border-t border-border-c">
                 <p className="text-xs text-ink-muted mb-1">AI reasoning</p>
                 <p className="text-sm text-ink-secondary">{lead.score_reason}</p>
+              </div>
+            ) : null}
+
+            {lead.recommended_service ? (
+              <div className="mt-4 pt-4 border-t border-border-c">
+                <p className="text-xs text-ink-muted mb-1">Recommended service</p>
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-brand/10 text-brand capitalize">
+                  {lead.recommended_service}
+                </span>
+              </div>
+            ) : null}
+
+            {lead.site_signals ? (
+              <div className="mt-4 pt-4 border-t border-border-c">
+                <p className="text-xs text-ink-muted mb-2">Detected site signals</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <SignalBadge label="Mobile-friendly" active={lead.site_signals.mobileFriendly} />
+                  <SignalBadge label="Tracking installed" active={lead.site_signals.hasTrackingPixel} />
+                  <SignalBadge label="Clear CTA" active={lead.site_signals.hasClearCta} />
+                  <SignalBadge label="Booking system" active={lead.site_signals.hasBookingSystem} />
+                  <SignalBadge label="Basic SEO" active={lead.site_signals.hasH1 && lead.site_signals.hasMetaDescription} />
+                  <SignalBadge label="Looks outdated" active={lead.site_signals.looksOutdated} invert />
+                </div>
               </div>
             ) : null}
           </Card>

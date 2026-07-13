@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS leads (
   enriched_at timestamptz,
   qualified_at timestamptz,
   source text NOT NULL DEFAULT 'maps' CHECK (source IN ('maps', 'web', 'linkedin', 'facebook')),
+  site_signals jsonb,
+  recommended_service text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -25,6 +27,8 @@ CREATE TABLE IF NOT EXISTS leads (
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS enriched_at timestamptz;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS qualified_at timestamptz;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'maps';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS site_signals jsonb;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS recommended_service text;
 
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
