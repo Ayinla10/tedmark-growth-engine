@@ -101,6 +101,7 @@ export type ProposalRow = {
   id: string;
   lead_id: string;
   business_name: string;
+  lead_email: string | null;
   services: string[] | null;
   budget_range: string | null;
   content: string | null;
@@ -546,7 +547,7 @@ export async function getProposals(range?: DateRange): Promise<ProposalRow[]> {
   const where = dateClause("p.created_at", range, params);
 
   const res = await pool.query(
-    `SELECT p.*, l.business_name
+    `SELECT p.*, l.business_name, l.email AS lead_email
      FROM proposals p JOIN leads l ON l.id = p.lead_id
      WHERE true${where}
      ORDER BY p.created_at DESC LIMIT 100`,

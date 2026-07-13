@@ -105,6 +105,12 @@ export async function editProposalAction(proposalId: string, content: string) {
   return { ok: Boolean(row) };
 }
 
+export async function sendProposalAction(proposalId: string) {
+  const result = await runAgentCommand("send-proposal", ["--proposal-id", proposalId]);
+  refreshAll();
+  return result;
+}
+
 export async function archiveLeadAction(leadId: string) {
   const row = await archiveLeadDb(leadId);
   refreshAll();

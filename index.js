@@ -8,6 +8,7 @@ import { runProposal } from './agents/proposal.js';
 import { runAnalytics } from './agents/analytics.js';
 import { runCleanKnowledge } from './agents/knowledgeCleaner.js';
 import { runReplyWatcher } from './agents/replyWatcher.js';
+import { runExportProposal, runSendProposal } from './agents/proposalDelivery.js';
 import { runDailyPipeline } from './scripts/dailyPipeline.js';
 
 function parseArgs(argv) {
@@ -157,6 +158,31 @@ async function main() {
       break;
     }
 
+    case 'export-proposal': {
+      const proposalId = args['proposal-id'];
+      const outPath = args.out;
+
+      if (!proposalId || !outPath) {
+        console.error('Usage: node index.js export-proposal --proposal-id <uuid> --out <filepath>');
+        process.exit(1);
+      }
+
+      await runExportProposal({ proposalId, outPath });
+      break;
+    }
+
+    case 'send-proposal': {
+      const proposalId = args['proposal-id'];
+
+      if (!proposalId) {
+        console.error('Usage: node index.js send-proposal --proposal-id <uuid>');
+        process.exit(1);
+      }
+
+      await runSendProposal({ proposalId });
+      break;
+    }
+
     default: {
       console.log('Tedmark AI Growth Engine — CLI');
       console.log('');
@@ -175,6 +201,8 @@ async function main() {
       console.log('  node index.js clean-knowledge --category "Services & Pricing" --text "<raw text>"');
       console.log('  node index.js daily');
       console.log('  node index.js check-replies');
+      console.log('  node index.js export-proposal --proposal-id <uuid> --out <filepath>');
+      console.log('  node index.js send-proposal --proposal-id <uuid>');
       process.exit(command ? 1 : 0);
     }
   }

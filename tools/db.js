@@ -278,6 +278,17 @@ export async function insertProposal(proposal) {
   return result.rows[0];
 }
 
+export async function getProposalById(id) {
+  const result = await query(
+    `SELECT p.*, l.business_name, l.email AS lead_email
+     FROM proposals p
+     JOIN leads l ON l.id = p.lead_id
+     WHERE p.id = $1`,
+    [id]
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function seedScoutProgress(sector, city) {
   await query(
     `INSERT INTO scout_progress (sector, city) VALUES ($1, $2)

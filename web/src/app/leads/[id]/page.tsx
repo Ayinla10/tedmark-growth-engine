@@ -271,7 +271,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                     <p className="text-sm font-medium text-ink capitalize">{p.services?.join(", ") ?? "—"}</p>
                     <p className="text-xs text-ink-muted">{p.budget_range} budget &bull; {formatDate(p.created_at)}</p>
                   </div>
-                  <ProposalModal row={{ ...p, business_name: lead.business_name }} />
+                  <ProposalModal row={{ ...p, business_name: lead.business_name, lead_email: lead.email }} />
                 </div>
               ))}
             </div>

@@ -18,9 +18,9 @@ function getClient() {
   return resend;
 }
 
-export async function sendEmail({ to, from = DEFAULT_FROM, replyTo = DEFAULT_REPLY_TO, subject, text }) {
+export async function sendEmail({ to, from = DEFAULT_FROM, replyTo = DEFAULT_REPLY_TO, subject, text, attachments }) {
   const client = getClient();
-  const result = await client.emails.send({ to, from, replyTo, subject, text });
+  const result = await client.emails.send({ to, from, replyTo, subject, text, attachments });
 
   if (result.error) {
     throw new Error(`Resend rejected the email: ${result.error.message}`);

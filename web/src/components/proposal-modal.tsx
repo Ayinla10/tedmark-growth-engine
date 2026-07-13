@@ -1,15 +1,16 @@
 "use client";
 
-import { Copy, Pencil } from "lucide-react";
+import { Copy, Download, Pencil, Send } from "lucide-react";
 import { useState, useTransition } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { editProposalAction } from "@/lib/actions";
+import { editProposalAction, sendProposalAction } from "@/lib/actions";
 import { Modal, ResultBanner } from "./modal";
 
 export type ProposalPreviewData = {
   id: string;
   business_name: string;
+  lead_email?: string | null;
   services: string[] | null;
   budget_range: string | null;
   content: string | null;
@@ -22,6 +23,7 @@ export function ProposalModal({ row, knowledgeRefs = [] }: { row: ProposalPrevie
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(row.content ?? "");
   const [pending, startTransition] = useTransition();
+  const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; output?: string } | null>(null);
 
   return (
@@ -43,6 +45,12 @@ export function ProposalModal({ row, knowledgeRefs = [] }: { row: ProposalPrevie
             >
               <Copy size={13} /> Copy
             </button>
+            <a
+              href={`/api/proposals/${row.id}/pdf`}
+              className="text-xs flex items-center gap-1 text-ink-secondary hover:text-brand"
+            >
+              <Download size={13} /> Download PDF
+            </a>
             {!editing && (
               <button
                 type="button"
@@ -52,6 +60,22 @@ export function ProposalModal({ row, knowledgeRefs = [] }: { row: ProposalPrevie
                 <Pencil size={13} /> Edit
               </button>
             )}
+            <button
+              type="button"
+              disabled={sending || !row.lead_email}
+              title={row.lead_email ? undefined : "This lead has no email on file"}
+              className="text-xs flex items-center gap-1 text-brand disabled:text-ink-muted disabled:cursor-not-allowed"
+              onClick={() => {
+                setSending(true);
+                startTransition(async () => {
+                  const r = await sendProposalAction(row.id);
+                  setResult({ ok: r.ok, output: r.ok ? `Sent to ${row.lead_email}.` : r.output });
+                  setSending(false);
+                });
+              }}
+            >
+              <Send size={13} /> {sending ? "Sending…" : "Send to lead"}
+            </button>
           </div>
         </div>
 
