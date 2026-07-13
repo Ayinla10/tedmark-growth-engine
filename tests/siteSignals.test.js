@@ -64,5 +64,45 @@ describe('detectSiteSignals', () => {
     assert.equal(signals.hasTrackingPixel, false);
     assert.equal(signals.hasBookingSystem, false);
     assert.equal(signals.hasClearCta, false);
+    assert.equal(signals.hasChatWidget, false);
+    assert.equal(signals.hasEmailCapture, false);
+    assert.equal(signals.hasSocialLinks, false);
+    assert.equal(signals.hasEcommerce, false);
+  });
+
+  test('detects a chat widget from a known provider script', () => {
+    const signals = detectSiteSignals({ html: '<script src="https://embed.tawk.to/abc123"></script>' });
+    assert.equal(signals.hasChatWidget, true);
+  });
+
+  test('detects a chat widget from a WhatsApp click-to-chat link', () => {
+    const signals = detectSiteSignals({ html: '<a href="https://wa.me/233201234567">Chat with us</a>' });
+    assert.equal(signals.hasChatWidget, true);
+  });
+
+  test('detects email capture from an ESP script', () => {
+    const signals = detectSiteSignals({ html: '<form action="https://acme.us1.list-manage.com/subscribe"></form>' });
+    assert.equal(signals.hasEmailCapture, true);
+  });
+
+  test('detects email capture from newsletter keywords when no ESP script is present', () => {
+    const signals = detectSiteSignals({ bodyText: 'Subscribe to our newsletter for updates.' });
+    assert.equal(signals.hasEmailCapture, true);
+  });
+
+  test('detects social links', () => {
+    const signals = detectSiteSignals({ html: '<a href="https://www.instagram.com/acmeclinic">Instagram</a>' });
+    assert.equal(signals.hasSocialLinks, true);
+  });
+
+  test('detects e-commerce integration from a payment processor', () => {
+    const signals = detectSiteSignals({ html: '<script src="https://js.paystack.com/v2/inline.js"></script>' });
+    assert.equal(signals.hasEcommerce, true);
+  });
+
+  test('does not flag e-commerce or social when none are present', () => {
+    const signals = detectSiteSignals({ html: '<p>Just a plain page.</p>', bodyText: 'Welcome to Acme.' });
+    assert.equal(signals.hasEcommerce, false);
+    assert.equal(signals.hasSocialLinks, false);
   });
 });

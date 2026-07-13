@@ -165,6 +165,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                   <SignalBadge label="Clear CTA" active={lead.site_signals.hasClearCta} />
                   <SignalBadge label="Booking system" active={lead.site_signals.hasBookingSystem} />
                   <SignalBadge label="Basic SEO" active={lead.site_signals.hasH1 && lead.site_signals.hasMetaDescription} />
+                  <SignalBadge label="Chat/WhatsApp widget" active={lead.site_signals.hasChatWidget} />
+                  <SignalBadge label="Email capture" active={lead.site_signals.hasEmailCapture} />
+                  <SignalBadge label="Social links" active={lead.site_signals.hasSocialLinks} />
+                  <SignalBadge label="Online ordering" active={lead.site_signals.hasEcommerce} />
                   <SignalBadge label="Looks outdated" active={lead.site_signals.looksOutdated} invert />
                 </div>
               </div>

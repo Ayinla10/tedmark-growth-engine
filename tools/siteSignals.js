@@ -36,6 +36,49 @@ const CTA_KEYWORDS = [
   'buy now',
 ];
 
+// Live-chat / chatbot widgets — if none of these are present, a WhatsApp or
+// website chatbot is a real automation opportunity, not just "nice to have".
+const CHAT_WIDGET_PATTERNS = [
+  /tawk\.to/i,
+  /widget\.intercom\.io/i,
+  /crisp\.chat/i,
+  /tidio(chat)?\.com/i,
+  /js\.driftt\.com/i,
+  /wa\.me\//i,
+  /api\.whatsapp\.com\/send/i,
+];
+
+// Email-capture — a newsletter signup or lead-capture form feeding an ESP.
+// Absence means no automated nurture is possible at all.
+const EMAIL_CAPTURE_PATTERNS = [
+  /mailchimp\.com/i,
+  /list-manage\.com/i,
+  /klaviyo\.com/i,
+  /convertkit\.com/i,
+  /sendinblue\.com|brevo\.com/i,
+  /getresponse\.com/i,
+];
+
+const EMAIL_CAPTURE_KEYWORDS = ['subscribe', 'newsletter', 'join our mailing list', 'sign up for updates'];
+
+const SOCIAL_LINK_PATTERNS = [
+  /facebook\.com\//i,
+  /instagram\.com\//i,
+  /linkedin\.com\/(company|in)\//i,
+  /(twitter|x)\.com\//i,
+  /tiktok\.com\//i,
+];
+
+// Online ordering/payment — common Ghanaian/African payment processors plus
+// the usual e-commerce platforms.
+const ECOMMERCE_PATTERNS = [
+  /cdn\.shopify\.com/i,
+  /woocommerce/i,
+  /paystack\.com/i,
+  /flutterwave\.com/i,
+  /add[\s-]?to[\s-]?cart/i,
+];
+
 export function detectSiteSignals({ html = '', bodyText = '', hasViewportMeta = false, hasH1 = false, hasMetaDescription = false }) {
   const lowerHtml = html.toLowerCase();
   const lowerText = bodyText.toLowerCase();
@@ -43,6 +86,11 @@ export function detectSiteSignals({ html = '', bodyText = '', hasViewportMeta = 
   const hasTrackingPixel = TRACKING_PATTERNS.some((p) => p.test(lowerHtml));
   const hasBookingSystem = BOOKING_PATTERNS.some((p) => p.test(lowerHtml));
   const hasClearCta = CTA_KEYWORDS.some((kw) => lowerText.includes(kw));
+  const hasChatWidget = CHAT_WIDGET_PATTERNS.some((p) => p.test(lowerHtml));
+  const hasEmailCapture =
+    EMAIL_CAPTURE_PATTERNS.some((p) => p.test(lowerHtml)) || EMAIL_CAPTURE_KEYWORDS.some((kw) => lowerText.includes(kw));
+  const hasSocialLinks = SOCIAL_LINK_PATTERNS.some((p) => p.test(lowerHtml));
+  const hasEcommerce = ECOMMERCE_PATTERNS.some((p) => p.test(lowerHtml));
 
   const copyrightMatch = bodyText.match(/(?:©|copyright)\s*(\d{4})/i);
   const copyrightYear = copyrightMatch ? parseInt(copyrightMatch[1], 10) : null;
@@ -59,6 +107,10 @@ export function detectSiteSignals({ html = '', bodyText = '', hasViewportMeta = 
     hasTrackingPixel,
     hasClearCta,
     hasBookingSystem,
+    hasChatWidget,
+    hasEmailCapture,
+    hasSocialLinks,
+    hasEcommerce,
     hasH1,
     hasMetaDescription,
     copyrightYear,

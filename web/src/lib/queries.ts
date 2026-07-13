@@ -34,6 +34,10 @@ export type SiteSignals = {
   hasTrackingPixel: boolean;
   hasClearCta: boolean;
   hasBookingSystem: boolean;
+  hasChatWidget: boolean;
+  hasEmailCapture: boolean;
+  hasSocialLinks: boolean;
+  hasEcommerce: boolean;
   hasH1: boolean;
   hasMetaDescription: boolean;
   copyrightYear: number | null;

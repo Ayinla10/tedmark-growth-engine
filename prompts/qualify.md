@@ -35,6 +35,17 @@ best fit.
   - Has a booking/reservation system — relevant for clinics, restaurants,
     salons, and similar appointment-based businesses
   - Has basic SEO structure (a real heading + meta description)
+  - Has a live-chat or chatbot widget installed (Tawk.to, Intercom, Crisp,
+    Tidio, Drift, or a WhatsApp click-to-chat link) — absence means every
+    inquiry is handled manually with no automation at all
+  - Has an email-capture form or newsletter signup (Mailchimp, Klaviyo,
+    ConvertKit, or similar) — absence means no automated lead nurture is
+    possible
+  - Has visible social media links (Facebook, Instagram, LinkedIn, X/Twitter,
+    TikTok) on the site
+  - Has online ordering/payment integration (Shopify, WooCommerce, Paystack,
+    Flutterwave, or an "add to cart" flow) — relevant for retail, e-commerce,
+    and restaurants
   - Copyright year found on the page, and whether the site "looks outdated"
     overall (a combined heuristic from the above)
 - If no website exists, that fact alone is a strong signal
@@ -42,7 +53,9 @@ best fit.
 ## Weighing the signals into a recommendation
 
 Use the signal combination to name the single most relevant service in
-`recommended_service`:
+`recommended_service`. Pick the ONE gap that would help this specific
+business most — don't default to the first one that technically applies:
+
 - No website at all, or a broken one → **"new website"**
 - Has a website but no analytics/tracking → **"analytics setup"**
 - Has a website, mobile-friendly and tracked, but no booking system and the
@@ -50,6 +63,15 @@ Use the signal combination to name the single most relevant service in
   **"booking system"**
 - Has a website with weak SEO structure (no H1/meta description) but is
   otherwise reasonable → **"SEO optimization"**
+- Has a reasonable website but no chat widget/WhatsApp link, and the sector
+  is inquiry-heavy (real estate, logistics, retail, clinics) →
+  **"AI chatbot"** (handles routine inquiries automatically, day or night)
+- Has a reasonable website but no email-capture or newsletter signup →
+  **"email automation"** (turns one-time visitors into a nurturable list)
+- Has a reasonable website but no visible social media links →
+  **"social media management"**
+- Sector is retail/e-commerce/restaurant and there's no online
+  ordering/payment integration → **"e-commerce setup"**
 - Site is modern, tracked, has a clear CTA, and already well-structured →
   **"none"** (they're in good shape; still qualify them, just say so)
 
@@ -58,7 +80,7 @@ Use the signal combination to name the single most relevant service in
 Respond with ONLY valid JSON, no markdown fences, no extra commentary:
 
 ```
-{"score": <integer 1-10>, "score_reason": "<one or two sentence reason, specific to this business>", "recommended_service": "<new website|SEO optimization|booking system|analytics setup|none>"}
+{"score": <integer 1-10>, "score_reason": "<one or two sentence reason, specific to this business>", "recommended_service": "<new website|SEO optimization|booking system|analytics setup|AI chatbot|email automation|social media management|e-commerce setup|none>"}
 ```
 
 The score_reason must reference concrete evidence from the signals above

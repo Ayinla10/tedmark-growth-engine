@@ -33,6 +33,10 @@ function buildUserMessage(lead, siteData) {
       lines.push(`- Has a clear call-to-action: ${s.hasClearCta ? 'yes' : 'no'}`);
       lines.push(`- Has a booking/reservation system: ${s.hasBookingSystem ? 'yes' : 'no'}`);
       lines.push(`- Has basic SEO structure (H1 heading, meta description): ${s.hasH1 && s.hasMetaDescription ? 'yes' : 'no'}`);
+      lines.push(`- Has a live-chat/chatbot widget or WhatsApp click-to-chat link: ${s.hasChatWidget ? 'yes' : 'no'}`);
+      lines.push(`- Has an email-capture form or newsletter signup: ${s.hasEmailCapture ? 'yes' : 'no'}`);
+      lines.push(`- Has visible social media links: ${s.hasSocialLinks ? 'yes' : 'no'}`);
+      lines.push(`- Has online ordering/payment integration: ${s.hasEcommerce ? 'yes' : 'no'}`);
       lines.push(`- Copyright year found on page: ${s.copyrightYear ?? 'none found'}`);
       lines.push(`- Looks outdated overall: ${s.looksOutdated ? 'yes' : 'no'}`);
     }
