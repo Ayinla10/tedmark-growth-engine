@@ -138,6 +138,7 @@ export type ThreadItem = {
   subject: string | null;
   body: string;
   at: string;
+  classification: string | null;
 };
 
 export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
@@ -148,7 +149,7 @@ export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
       [leadId]
     ),
     pool.query(
-      `SELECT id, body, received_at FROM replies WHERE lead_id = $1 ORDER BY received_at ASC`,
+      `SELECT id, body, received_at, classification FROM replies WHERE lead_id = $1 ORDER BY received_at ASC`,
       [leadId]
     ),
   ]);
@@ -160,6 +161,7 @@ export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
       subject: r.subject,
       body: r.body,
       at: r.sent_at ?? r.created_at,
+      classification: null,
     })),
     ...replies.rows.map((r) => ({
       id: r.id,
@@ -167,6 +169,7 @@ export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
       subject: null,
       body: r.body,
       at: r.received_at,
+      classification: r.classification,
     })),
   ];
 

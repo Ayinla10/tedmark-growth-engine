@@ -15,6 +15,15 @@ export const dynamic = "force-dynamic";
 
 // `invert` flips which state counts as "good" (e.g. "Looks outdated" is a
 // warning when true, unlike the other signals which are good when true).
+const CLASSIFICATION_LABELS: Record<string, { label: string; className: string }> = {
+  interested: { label: "Interested", className: "bg-green-500/15 text-green-700 dark:text-green-400" },
+  needs_info: { label: "Needs info", className: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
+  not_interested: { label: "Not interested", className: "bg-surface-2 text-ink-muted" },
+  out_of_office: { label: "Out of office", className: "bg-surface-2 text-ink-muted" },
+  unsubscribe: { label: "Unsubscribe", className: "bg-red-500/15 text-red-700 dark:text-red-400" },
+  other: { label: "Other", className: "bg-surface-2 text-ink-muted" },
+};
+
 function SignalBadge({ label, active, invert = false }: { label: string; active: boolean; invert?: boolean }) {
   const positive = invert ? !active : active;
   return (
@@ -222,6 +231,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">
                         Draft — not sent yet
                       </p>
+                    ) : null}
+                    {item.kind === "reply" && item.classification && CLASSIFICATION_LABELS[item.classification] ? (
+                      <span
+                        className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mb-1.5 ${CLASSIFICATION_LABELS[item.classification].className}`}
+                      >
+                        {CLASSIFICATION_LABELS[item.classification].label}
+                      </span>
                     ) : null}
                     {item.subject ? <p className="font-semibold mb-1">{item.subject}</p> : null}
                     <p className="whitespace-pre-wrap">{item.body}</p>

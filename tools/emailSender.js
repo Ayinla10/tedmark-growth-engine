@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const DEFAULT_FROM = process.env.EMAIL_FROM || 'Ayinla at Tedmark <onboarding@resend.dev>';
+const DEFAULT_REPLY_TO = process.env.EMAIL_REPLY_TO || undefined;
 
 let resend = null;
 
@@ -17,9 +18,9 @@ function getClient() {
   return resend;
 }
 
-export async function sendEmail({ to, from = DEFAULT_FROM, subject, text }) {
+export async function sendEmail({ to, from = DEFAULT_FROM, replyTo = DEFAULT_REPLY_TO, subject, text }) {
   const client = getClient();
-  const result = await client.emails.send({ to, from, subject, text });
+  const result = await client.emails.send({ to, from, replyTo, subject, text });
 
   if (result.error) {
     throw new Error(`Resend rejected the email: ${result.error.message}`);

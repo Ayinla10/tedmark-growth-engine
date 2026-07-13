@@ -351,4 +351,39 @@ export async function getSearchApiUsageThisMonth(provider) {
   return result.rows[0].n;
 }
 
+export async function findLeadByEmail(email) {
+  const result = await query(
+    `SELECT * FROM leads WHERE lower(email) = lower($1) LIMIT 1`,
+    [email]
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function replyExistsForMessageId(messageId) {
+  if (!messageId) return false;
+  const result = await query(`SELECT id FROM replies WHERE message_id = $1 LIMIT 1`, [messageId]);
+  return result.rows.length > 0;
+}
+
+export async function insertAutoReply({ leadId, outreachId, body, fromEmail, messageId, classification, draftOutreachId }) {
+  const result = await query(
+    `INSERT INTO replies (lead_id, outreach_id, body, from_email, message_id, classification, draft_outreach_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [leadId, outreachId ?? null, body, fromEmail, messageId, classification, draftOutreachId ?? null]
+  );
+  if (outreachId) {
+    await query(`UPDATE outreach SET replied = true WHERE id = $1`, [outreachId]);
+  }
+  return result.rows[0];
+}
+
+export async function getLatestOutreachForLead(leadId) {
+  const result = await query(
+    `SELECT * FROM outreach WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [leadId]
+  );
+  return result.rows[0] ?? null;
+}
+
 export default pool;

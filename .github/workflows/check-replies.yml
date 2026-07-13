@@ -1,0 +1,33 @@
+name: Check for lead replies
+
+on:
+  schedule:
+    # Every 15 minutes — replies deserve a much faster turnaround than the
+    # once-daily discovery/qualify/outreach pipeline.
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  check-replies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check replies
+        run: node index.js check-replies
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          IMAP_HOST: ${{ secrets.IMAP_HOST }}
+          IMAP_PORT: ${{ secrets.IMAP_PORT }}
+          IMAP_USER: ${{ secrets.IMAP_USER }}
+          IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}

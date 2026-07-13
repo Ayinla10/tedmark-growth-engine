@@ -7,6 +7,7 @@ import { runSequencer, startSequencerCron } from './agents/sequencer.js';
 import { runProposal } from './agents/proposal.js';
 import { runAnalytics } from './agents/analytics.js';
 import { runCleanKnowledge } from './agents/knowledgeCleaner.js';
+import { runReplyWatcher } from './agents/replyWatcher.js';
 import { runDailyPipeline } from './scripts/dailyPipeline.js';
 
 function parseArgs(argv) {
@@ -151,6 +152,11 @@ async function main() {
       break;
     }
 
+    case 'check-replies': {
+      await runReplyWatcher();
+      break;
+    }
+
     default: {
       console.log('Tedmark AI Growth Engine — CLI');
       console.log('');
@@ -168,6 +174,7 @@ async function main() {
       console.log('  node index.js analytics');
       console.log('  node index.js clean-knowledge --category "Services & Pricing" --text "<raw text>"');
       console.log('  node index.js daily');
+      console.log('  node index.js check-replies');
       process.exit(command ? 1 : 0);
     }
   }

@@ -71,17 +71,28 @@ CREATE TABLE IF NOT EXISTS proposals (
 
 ALTER TABLE proposals ADD COLUMN IF NOT EXISTS knowledge_ids uuid[] NOT NULL DEFAULT '{}';
 
--- Manually-logged replies (no inbound email/WhatsApp webhook is wired up —
--- this is a human pasting in what a lead wrote back, so it can render as a
--- chat thread instead of only the outreach.replied boolean).
+-- Replies — either pasted in manually, or picked up automatically by the
+-- IMAP reply watcher polling contact@tedmarkdigital.com. Automatic replies
+-- get an AI classification and (usually) an auto-drafted next outreach
+-- message, both left for human approval before anything sends.
 CREATE TABLE IF NOT EXISTS replies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id uuid NOT NULL REFERENCES leads(id),
   outreach_id uuid REFERENCES outreach(id),
   body text NOT NULL,
+  from_email text,
+  message_id text UNIQUE,
+  classification text CHECK (classification IN ('interested', 'not_interested', 'needs_info', 'out_of_office', 'unsubscribe', 'other')),
+  draft_outreach_id uuid REFERENCES outreach(id),
   received_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE replies ADD COLUMN IF NOT EXISTS from_email text;
+ALTER TABLE replies ADD COLUMN IF NOT EXISTS message_id text;
+ALTER TABLE replies ADD COLUMN IF NOT EXISTS classification text;
+ALTER TABLE replies ADD COLUMN IF NOT EXISTS draft_outreach_id uuid REFERENCES outreach(id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_replies_message_id ON replies(message_id) WHERE message_id IS NOT NULL;
 
 -- Tracks how far Scout has paged into Geoapify's results for each
 -- sector+city combination, so daily runs advance to fresh results instead
