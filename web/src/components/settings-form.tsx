@@ -49,6 +49,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
   const [minScore, setMinScore] = useState(initial.outreach_min_score);
   const [daysBetweenSteps, setDaysBetweenSteps] = useState(initial.sequencer_days_between_steps);
   const [maxSteps, setMaxSteps] = useState(initial.sequencer_max_steps);
+  const [idleLogoutMinutes, setIdleLogoutMinutes] = useState(initial.idle_logout_minutes);
 
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; output?: string } | null>(null);
@@ -68,6 +69,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         outreach_min_score: minScore,
         sequencer_days_between_steps: daysBetweenSteps,
         sequencer_max_steps: maxSteps,
+        idle_logout_minutes: idleLogoutMinutes,
       };
       const r = await saveSettingsAction(settings);
       setResult(r);
@@ -165,6 +167,19 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             value={maxSteps}
             onChange={setMaxSteps}
             hint="After this many silent follow-ups, the lead is archived automatically."
+          />
+        </div>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-ink mb-3">Session security</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <NumberField
+            label="Auto-logout after idle (minutes)"
+            value={idleLogoutMinutes}
+            onChange={setIdleLogoutMinutes}
+            min={1}
+            hint="Signs everyone out automatically after this many minutes with no activity in the dashboard."
           />
         </div>
       </div>

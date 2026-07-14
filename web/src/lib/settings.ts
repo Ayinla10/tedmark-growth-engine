@@ -13,6 +13,7 @@ export const SETTINGS_DEFAULTS = {
   outreach_min_score: 6,
   sequencer_days_between_steps: 3,
   sequencer_max_steps: 3,
+  idle_logout_minutes: 15,
 } as const;
 
 export type Settings = {
@@ -28,6 +29,7 @@ export type Settings = {
   outreach_min_score: number;
   sequencer_days_between_steps: number;
   sequencer_max_steps: number;
+  idle_logout_minutes: number;
 };
 
 export async function getSettings(): Promise<Settings> {
