@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
-import { AgentRunButton } from "@/components/agent-run-button";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { OutreachModal } from "@/components/outreach-modal";
+import { OutreachGeneratePanel } from "@/components/outreach-generate-panel";
 import { Card, EmptyState, PageHeader, StatusBadge, Td, Th } from "@/components/ui";
 import { formatDate } from "@/lib/time";
-import { getKnowledgeRefs, getOutreach } from "@/lib/queries";
+import { getKnowledgeRefs, getOutreach, getSignatures } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export default async function OutreachPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { from, to } = await searchParams;
-  const rows = await getOutreach({ from, to });
+  const [rows, signatures] = await Promise.all([getOutreach({ from, to }), getSignatures()]);
   const allKnowledgeIds = [...new Set(rows.flatMap((r) => r.knowledge_ids))];
   const knowledgeRefs = await getKnowledgeRefs(allKnowledgeIds);
   const refsById = new Map(knowledgeRefs.map((r) => [r.id, r]));
@@ -26,15 +26,7 @@ export default async function OutreachPage({
         <PageHeader
           title="Outreach drafts"
           subtitle="Messages written by the Outreach agent."
-          actions={
-            <AgentRunButton
-              label="Generate drafts (score ≥ 6)"
-              runningLabel="Drafting…"
-              variant="primary"
-              action="outreach"
-              limit={10}
-            />
-          }
+          actions={<OutreachGeneratePanel signatures={signatures} />}
         />
 
         <div className="flex justify-end mb-4">

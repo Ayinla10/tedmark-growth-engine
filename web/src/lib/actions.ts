@@ -12,6 +12,10 @@ import {
   insertKnowledgeItemDb,
   updateKnowledgeItemDb,
   deleteKnowledgeItemDb,
+  insertSignatureDb,
+  updateSignatureDb,
+  setDefaultSignatureDb,
+  deleteSignatureDb,
   type KnowledgeItemInput,
 } from "./mutations";
 import { setSetting, type Settings } from "./settings";
@@ -51,11 +55,36 @@ export async function runQualifierAction(limit: number, leadId?: string) {
   return result;
 }
 
-export async function runOutreachAction(limit: number, leadId?: string) {
+export async function runOutreachAction(limit: number, leadId?: string, signatureId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
+  if (signatureId) args.push("--signature-id", signatureId);
   const result = await runAgentCommand("outreach", args);
   refreshAll();
   return result;
+}
+
+export async function createSignatureAction(label: string, body: string, isDefault: boolean) {
+  const row = await insertSignatureDb(label, body, isDefault);
+  revalidatePath("/outreach");
+  return { ok: Boolean(row), signature: row };
+}
+
+export async function updateSignatureAction(id: string, label: string, body: string) {
+  const row = await updateSignatureDb(id, label, body);
+  revalidatePath("/outreach");
+  return { ok: Boolean(row) };
+}
+
+export async function setDefaultSignatureAction(id: string) {
+  const row = await setDefaultSignatureDb(id);
+  revalidatePath("/outreach");
+  return { ok: Boolean(row) };
+}
+
+export async function deleteSignatureAction(id: string) {
+  const row = await deleteSignatureDb(id);
+  revalidatePath("/outreach");
+  return { ok: Boolean(row) };
 }
 
 export async function runSequencerAction() {

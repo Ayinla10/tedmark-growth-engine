@@ -397,4 +397,49 @@ export async function getLatestOutreachForLead(leadId) {
   return result.rows[0] ?? null;
 }
 
+export async function getSignatures() {
+  const result = await query(`SELECT * FROM signatures ORDER BY is_default DESC, created_at ASC`);
+  return result.rows;
+}
+
+export async function getSignatureById(id) {
+  const result = await query(`SELECT * FROM signatures WHERE id = $1`, [id]);
+  return result.rows[0] ?? null;
+}
+
+export async function getDefaultSignature() {
+  const result = await query(`SELECT * FROM signatures WHERE is_default = true LIMIT 1`);
+  return result.rows[0] ?? null;
+}
+
+export async function insertSignature({ label, body, isDefault = false }) {
+  if (isDefault) {
+    await query(`UPDATE signatures SET is_default = false`);
+  }
+  const result = await query(
+    `INSERT INTO signatures (label, body, is_default) VALUES ($1, $2, $3) RETURNING *`,
+    [label, body, isDefault]
+  );
+  return result.rows[0];
+}
+
+export async function updateSignature(id, { label, body }) {
+  const result = await query(
+    `UPDATE signatures SET label = $1, body = $2 WHERE id = $3 RETURNING *`,
+    [label, body, id]
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function setDefaultSignature(id) {
+  await query(`UPDATE signatures SET is_default = false`);
+  const result = await query(`UPDATE signatures SET is_default = true WHERE id = $1 RETURNING *`, [id]);
+  return result.rows[0] ?? null;
+}
+
+export async function deleteSignature(id) {
+  const result = await query(`DELETE FROM signatures WHERE id = $1 RETURNING id`, [id]);
+  return result.rows[0] ?? null;
+}
+
 export default pool;

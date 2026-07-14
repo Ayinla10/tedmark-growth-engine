@@ -17,6 +17,7 @@ import { sendEmail } from '../tools/emailSender.js';
 import { resolveChannel } from '../tools/channel.js';
 import { getSetting } from '../tools/settings.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
+import { resolveSignatureText, applySignature } from '../tools/signature.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,7 +86,7 @@ function parseOutreachResponse(text) {
   return parsed;
 }
 
-export async function runOutreach({ limit, leadId }) {
+export async function runOutreach({ limit, leadId, signatureId }) {
   let leads;
 
   if (leadId) {
@@ -109,8 +110,11 @@ export async function runOutreach({ limit, leadId }) {
 
   console.log(`[outreach] Drafting outreach for ${leads.length} leads...`);
 
-  const outreachPrompt = await loadPrompt();
-  const whatsappPrompt = await loadWhatsappPrompt();
+  const signatureText = await resolveSignatureText(signatureId);
+  console.log(`[outreach] Using signature: "${signatureText}"`);
+
+  const outreachPrompt = applySignature(await loadPrompt(), signatureText);
+  const whatsappPrompt = applySignature(await loadWhatsappPrompt(), signatureText);
   const skillContext = await loadCopywritingSkill();
   const email = await appendKnowledgeContext(buildSystemPrompt(outreachPrompt, skillContext), 'outreach');
   const whatsapp = await appendKnowledgeContext(buildSystemPrompt(whatsappPrompt, skillContext), 'outreach');

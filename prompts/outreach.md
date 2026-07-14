@@ -23,7 +23,7 @@ earn a reply.
 - Never use "I hope this email finds you well" or similar filler openers.
 - Must read like it was written by a real person in Accra, not a template
   or a bot.
-- Sign off with: Ayinla, Tedmark Digital Agency
+- Sign off with exactly: {{SIGNATURE}}
 
 ## Input you will receive
 

@@ -76,7 +76,8 @@ async function main() {
     case 'outreach': {
       const limit = parseInt(args.limit, 10) || 10;
       const leadId = args['lead-id'];
-      await runOutreach({ limit, leadId });
+      const signatureId = args['signature-id'];
+      await runOutreach({ limit, leadId, signatureId });
       break;
     }
 

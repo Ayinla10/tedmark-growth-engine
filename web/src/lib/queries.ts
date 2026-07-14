@@ -302,6 +302,19 @@ export async function getKnowledgeItemById(id: string): Promise<KnowledgeItem | 
   return res.rows[0] ?? null;
 }
 
+export type Signature = {
+  id: string;
+  label: string;
+  body: string;
+  is_default: boolean;
+  created_at: string;
+};
+
+export async function getSignatures(): Promise<Signature[]> {
+  const res = await pool.query(`SELECT * FROM signatures ORDER BY is_default DESC, created_at ASC`);
+  return res.rows;
+}
+
 export type KnowledgeRef = { id: string; title: string; category: string };
 
 // Resolves a list of knowledge_ids (as stored on an outreach/proposal row)

@@ -132,6 +132,36 @@ export async function deleteKnowledgeItemDb(id: string) {
   return res.rows[0] ?? null;
 }
 
+export async function insertSignatureDb(label: string, body: string, isDefault: boolean) {
+  if (isDefault) {
+    await pool.query(`UPDATE signatures SET is_default = false`);
+  }
+  const res = await pool.query(
+    `INSERT INTO signatures (label, body, is_default) VALUES ($1, $2, $3) RETURNING *`,
+    [label, body, isDefault]
+  );
+  return res.rows[0];
+}
+
+export async function updateSignatureDb(id: string, label: string, body: string) {
+  const res = await pool.query(
+    `UPDATE signatures SET label = $1, body = $2 WHERE id = $3 RETURNING *`,
+    [label, body, id]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function setDefaultSignatureDb(id: string) {
+  await pool.query(`UPDATE signatures SET is_default = false`);
+  const res = await pool.query(`UPDATE signatures SET is_default = true WHERE id = $1 RETURNING *`, [id]);
+  return res.rows[0] ?? null;
+}
+
+export async function deleteSignatureDb(id: string) {
+  const res = await pool.query(`DELETE FROM signatures WHERE id = $1 RETURNING id`, [id]);
+  return res.rows[0] ?? null;
+}
+
 export type ThreadItem = {
   id: string;
   kind: "sent" | "draft" | "reply";

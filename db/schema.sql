@@ -141,6 +141,17 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Reusable sign-offs for outreach emails/WhatsApp messages — was previously
+-- hardcoded into the outreach prompts. Whichever one is_default gets used
+-- when a batch is generated without an explicit choice.
+CREATE TABLE IF NOT EXISTS signatures (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  label text NOT NULL,
+  body text NOT NULL,
+  is_default boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- The shared "brain" agents draw on when writing/scoring — company facts,
 -- pricing, sales playbook, case studies, etc. Only published + approved
 -- items are actually injected into agent prompts.

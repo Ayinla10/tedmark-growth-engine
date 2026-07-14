@@ -23,7 +23,7 @@ shrunken email.
   not an email compressed into a text box.
 - Never use "I hope this message finds you well" or similar filler.
 - Must read like a real person in Accra sent it from their phone.
-- Sign off with: - Ayinla, Tedmark Digital Agency
+- Sign off with exactly: - {{SIGNATURE}}
 
 ## Input you will receive
 

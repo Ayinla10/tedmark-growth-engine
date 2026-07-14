@@ -13,6 +13,7 @@ import {
 } from '../tools/db.js';
 import { getSettings } from '../tools/settings.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
+import { resolveSignatureText, applySignature } from '../tools/signature.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,7 +39,7 @@ Rules:
 - Maximum 60 words.
 - No guilt-tripping, no "just following up" filler, no re-explaining everything.
 - One CTA only: reply or book a short call.
-- Sign off with: Ayinla, Tedmark Digital Agency
+- Sign off with exactly: {{SIGNATURE}}
 
 Respond with ONLY valid JSON, no markdown fences:
 {"subject": "<short subject line>", "body": "<email body>"}`;
@@ -94,8 +95,9 @@ export async function runSequencer() {
     return;
   }
 
-  const email = await appendKnowledgeContext(await loadEmailPrompt(), 'sequencer');
-  const whatsapp = await appendKnowledgeContext(await loadWhatsappPrompt(), 'sequencer');
+  const signatureText = await resolveSignatureText();
+  const email = await appendKnowledgeContext(applySignature(await loadEmailPrompt(), signatureText), 'sequencer');
+  const whatsapp = await appendKnowledgeContext(applySignature(await loadWhatsappPrompt(), signatureText), 'sequencer');
   const emailSystemPrompt = email.prompt;
   const whatsappSystemPrompt = whatsapp.prompt;
 

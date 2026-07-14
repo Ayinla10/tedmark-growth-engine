@@ -13,7 +13,7 @@ Ghanaian SME owner who has not replied to a previous WhatsApp message.
 - One CTA only: reply, or a quick call.
 - Tone: warm, casual, respectful — like a real person checking back in,
   not a bot re-sending a template.
-- Sign off with: - Ayinla, Tedmark Digital Agency
+- Sign off with exactly: - {{SIGNATURE}}
 
 ## Input you will receive
 
