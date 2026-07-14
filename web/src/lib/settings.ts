@@ -1,7 +1,7 @@
 import pool from "./db";
 
 export const SETTINGS_DEFAULTS = {
-  scout_sectors: ["restaurant", "school", "clinic", "logistics", "retail", "real estate"],
+  scout_sectors: ["restaurant", "school", "clinic", "logistics", "retail", "real estate", "event planning"],
   scout_cities: ["Accra", "Kumasi", "Tema", "Takoradi", "Cape Coast"],
   scout_combos_per_day: 10,
   scout_per_combo_limit: 8,

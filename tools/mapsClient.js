@@ -28,16 +28,15 @@ function getApiKey() {
   return key;
 }
 
-function resolveCategory(sector) {
+// Pure: returns the Geoapify category for a sector, or null if there's no
+// clean mapping (e.g. "event planning" — Geoapify only has venue/place
+// categories like conference centres, not "event planning company").
+// Callers should skip the Maps API call entirely rather than fall back to
+// a generic category like "commercial", which just returns noisy,
+// irrelevant results and burns quota for no benefit.
+export function resolveSectorCategory(sector) {
   const normalized = sector.trim().toLowerCase();
-  const category = SECTOR_CATEGORIES[normalized];
-
-  if (!category) {
-    console.warn(`[mapsClient] Unrecognized sector "${sector}", defaulting to "commercial" category.`);
-    return 'commercial';
-  }
-
-  return category;
+  return SECTOR_CATEGORIES[normalized] ?? null;
 }
 
 async function geocodeCity(city) {
@@ -80,7 +79,13 @@ function extractContact(properties) {
 }
 
 export async function searchBusinesses({ sector, city, limit = 20, offset = 0 }) {
-  const category = resolveCategory(sector);
+  const category = resolveSectorCategory(sector);
+
+  if (!category) {
+    console.warn(`[mapsClient] No clean Geoapify category for sector "${sector}" — skipping Maps discovery for it (web-search discovery still covers it).`);
+    return [];
+  }
+
   const placeId = await geocodeCity(city);
 
   const params = new URLSearchParams({
