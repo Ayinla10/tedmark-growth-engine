@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS leads (
   status text NOT NULL DEFAULT 'raw' CHECK (status IN ('raw', 'qualified', 'contacted', 'archived')),
   enriched_at timestamptz,
   qualified_at timestamptz,
-  source text NOT NULL DEFAULT 'maps' CHECK (source IN ('maps', 'web', 'linkedin', 'facebook')),
+  source text NOT NULL DEFAULT 'maps' CHECK (source IN ('maps', 'web', 'linkedin', 'facebook', 'directory')),
   site_signals jsonb,
   recommended_service text,
   social_url text,
@@ -33,6 +33,8 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS site_signals jsonb;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS recommended_service text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS social_url text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS discovery_evidence jsonb;
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_source_check;
+ALTER TABLE leads ADD CONSTRAINT leads_source_check CHECK (source IN ('maps', 'web', 'linkedin', 'facebook', 'directory'));
 
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -121,6 +123,21 @@ CREATE TABLE IF NOT EXISTS search_progress (
   last_run_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (sector, city, query_type)
+);
+
+-- Rotation checkpoint for the free BusinessGhana.com directory scrape (see
+-- tools/directoryClient.js). No city dimension here — the directory isn't
+-- filterable by location via URL, only by category — so this is keyed on
+-- the category slug itself, with `sector` kept alongside purely for
+-- grouping/reporting which of our sectors a slug belongs to.
+CREATE TABLE IF NOT EXISTS directory_progress (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  category_slug text NOT NULL UNIQUE,
+  sector text NOT NULL,
+  next_page integer NOT NULL DEFAULT 1,
+  exhausted boolean NOT NULL DEFAULT false,
+  last_run_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- Logs one row per real Search API call, so real monthly usage can be

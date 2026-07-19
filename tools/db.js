@@ -442,4 +442,34 @@ export async function deleteSignature(id) {
   return result.rows[0] ?? null;
 }
 
+export async function seedDirectoryProgress(categorySlug, sector) {
+  await query(
+    `INSERT INTO directory_progress (category_slug, sector) VALUES ($1, $2)
+     ON CONFLICT (category_slug) DO NOTHING`,
+    [categorySlug, sector]
+  );
+}
+
+export async function getNextDirectoryBatch(limit) {
+  const result = await query(
+    `SELECT * FROM directory_progress
+     WHERE exhausted = false
+     ORDER BY last_run_at ASC NULLS FIRST
+     LIMIT $1`,
+    [limit]
+  );
+  return result.rows;
+}
+
+export async function recordDirectoryRun(id, { nextPage, exhausted }) {
+  const result = await query(
+    `UPDATE directory_progress
+     SET next_page = $1, exhausted = $2, last_run_at = now()
+     WHERE id = $3
+     RETURNING *`,
+    [nextPage, exhausted, id]
+  );
+  return result.rows[0];
+}
+
 export default pool;

@@ -1,5 +1,6 @@
 import { runScout } from './agents/scout.js';
 import { runWebScout } from './agents/webScout.js';
+import { runDirectoryScout } from './agents/directoryScout.js';
 import { runQualifier } from './agents/qualifier.js';
 import { runOutreach, runApprove, runSend } from './agents/outreach.js';
 import { runEnricher } from './agents/enricher.js';
@@ -56,6 +57,20 @@ async function main() {
       }
 
       await runWebScout({ sector, city, query, queryType, offset });
+      break;
+    }
+
+    case 'directory-scout': {
+      const sector = args.sector;
+      const categorySlug = args.category;
+      const page = parseInt(args.page, 10) || 1;
+
+      if (!sector || !categorySlug) {
+        console.error('Usage: node index.js directory-scout --sector "restaurant" --category "caterers" --page 1');
+        process.exit(1);
+      }
+
+      await runDirectoryScout({ sector, categorySlug, page });
       break;
     }
 
@@ -190,6 +205,7 @@ async function main() {
       console.log('Available commands:');
       console.log('  node index.js scout --sector "restaurant" --city "Accra" --limit 20');
       console.log('  node index.js web-scout --sector "restaurant" --city "Accra" --query "..." --query-type web --offset 0');
+      console.log('  node index.js directory-scout --sector "restaurant" --category "caterers" --page 1');
       console.log('  node index.js qualify --limit 10');
       console.log('  node index.js enrich --limit 20');
       console.log('  node index.js outreach --limit 10');

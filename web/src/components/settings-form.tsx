@@ -43,6 +43,8 @@ export function SettingsForm({ initial }: { initial: Settings }) {
   const [perComboLimit, setPerComboLimit] = useState(initial.scout_per_combo_limit);
   const [webScoutEnabled, setWebScoutEnabled] = useState(initial.web_scout_enabled);
   const [webScoutCombosPerDay, setWebScoutCombosPerDay] = useState(initial.web_scout_combos_per_day);
+  const [directoryScoutEnabled, setDirectoryScoutEnabled] = useState(initial.directory_scout_enabled);
+  const [directoryScoutCombosPerDay, setDirectoryScoutCombosPerDay] = useState(initial.directory_scout_combos_per_day);
   const [enrichLimit, setEnrichLimit] = useState(initial.enrich_limit);
   const [qualifyLimit, setQualifyLimit] = useState(initial.qualify_limit);
   const [outreachLimit, setOutreachLimit] = useState(initial.outreach_limit);
@@ -63,6 +65,8 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         scout_per_combo_limit: perComboLimit,
         web_scout_enabled: webScoutEnabled,
         web_scout_combos_per_day: webScoutCombosPerDay,
+        directory_scout_enabled: directoryScoutEnabled,
+        directory_scout_combos_per_day: directoryScoutCombosPerDay,
         enrich_limit: enrichLimit,
         qualify_limit: qualifyLimit,
         outreach_limit: outreachLimit,
@@ -132,6 +136,29 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             value={webScoutCombosPerDay}
             onChange={setWebScoutCombosPerDay}
             hint="How many sector x city x query-type combinations to search each day."
+          />
+        </div>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-ink mb-3">Directory discovery (free)</p>
+        <p className="text-xs text-ink-muted mb-3">
+          Finds businesses via BusinessGhana.com&apos;s public directory — no API key, no quota, and tends to surface
+          small/local businesses with no website at all, which Maps and web search often miss.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-ink-secondary block mb-1">Enabled</label>
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" checked={directoryScoutEnabled} onChange={(e) => setDirectoryScoutEnabled(e.target.checked)} />
+              Run directory discovery in the daily pipeline
+            </label>
+          </div>
+          <NumberField
+            label="Directory categories per day"
+            value={directoryScoutCombosPerDay}
+            onChange={setDirectoryScoutCombosPerDay}
+            hint="How many directory categories to page through each day. Not every sector has a matching category (e.g. logistics)."
           />
         </div>
       </div>

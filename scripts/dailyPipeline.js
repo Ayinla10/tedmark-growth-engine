@@ -1,5 +1,6 @@
 import { runScout } from '../agents/scout.js';
 import { runWebScout } from '../agents/webScout.js';
+import { runDirectoryScout } from '../agents/directoryScout.js';
 import { runEnricher } from '../agents/enricher.js';
 import { runQualifier } from '../agents/qualifier.js';
 import { runOutreach } from '../agents/outreach.js';
@@ -12,8 +13,12 @@ import {
   seedSearchProgress,
   getNextSearchBatch,
   recordSearchRun,
+  seedDirectoryProgress,
+  getNextDirectoryBatch,
+  recordDirectoryRun,
 } from '../tools/db.js';
 import { buildQueries } from '../tools/searchQueries.js';
+import { resolveSectorSlugs } from '../tools/directoryParsing.js';
 import { getSettings } from '../tools/settings.js';
 
 async function step(name, fn) {
@@ -107,6 +112,46 @@ async function runWebScoutRotation(settings) {
   }
 }
 
+async function runDirectoryScoutRotation(settings) {
+  if (!settings.directory_scout_enabled) {
+    console.log('[daily-pipeline] Directory discovery is disabled in settings — skipping.');
+    return;
+  }
+
+  const { scout_sectors: sectors, directory_scout_combos_per_day: combosPerDay } = settings;
+
+  for (const sector of sectors) {
+    for (const slug of resolveSectorSlugs(sector)) {
+      await seedDirectoryProgress(slug, sector);
+    }
+  }
+
+  const batch = await getNextDirectoryBatch(combosPerDay);
+
+  if (batch.length === 0) {
+    console.log('[daily-pipeline] Every directory category is exhausted for now, or no sector maps to a directory category.');
+    return;
+  }
+
+  for (const combo of batch) {
+    const result = await step(`Directory-scout: ${combo.category_slug} (${combo.sector}, page ${combo.next_page})`, () =>
+      runDirectoryScout({ sector: combo.sector, categorySlug: combo.category_slug, page: combo.next_page })
+    );
+
+    if (!result) continue;
+
+    const exhausted = result.found === 0;
+    await recordDirectoryRun(combo.id, {
+      nextPage: combo.next_page + 1,
+      exhausted,
+    });
+
+    if (exhausted) {
+      console.log(`[daily-pipeline] Directory category "${combo.category_slug}" is now exhausted — no more listings.`);
+    }
+  }
+}
+
 export async function runDailyPipeline() {
   console.log(`[daily-pipeline] Starting run at ${new Date().toISOString()}`);
 
@@ -115,6 +160,7 @@ export async function runDailyPipeline() {
 
   await runScoutRotation(settings);
   await runWebScoutRotation(settings);
+  await runDirectoryScoutRotation(settings);
 
   await step('Enrich', () => runEnricher({ limit: settings.enrich_limit }));
   await step('Qualify', () => runQualifier({ limit: settings.qualify_limit }));
