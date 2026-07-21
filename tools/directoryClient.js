@@ -20,7 +20,12 @@ export async function fetchDirectoryListings(categorySlug, page = 1) {
   try {
     const browserPage = await browser.newPage();
     const url = page > 1 ? `${BASE_URL}/${categorySlug}?page=${page}` : `${BASE_URL}/${categorySlug}`;
-    await browserPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    // "domcontentloaded" never reliably fires on this site (third-party
+    // ad/tracking scripts appear to hang it) even though the actual listing
+    // content renders within ~15s — wait for the navigation to commit, then
+    // explicitly wait for a listing row (or time out treating it as empty).
+    await browserPage.goto(url, { waitUntil: 'commit', timeout: 30000 });
+    await browserPage.waitForSelector('.all-listings-row', { timeout: 20000 }).catch(() => {});
 
     const rawListings = await browserPage.locator('.all-listings-row').evaluateAll((rows) =>
       rows.map((row) => {
