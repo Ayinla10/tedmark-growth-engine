@@ -11,7 +11,7 @@ export async function runWebScout({ sector, city, query, queryType, offset = 0 }
     results = await searchWeb({ query, offset });
   } catch (err) {
     console.error(`[web-scout] Search failed: ${err.message}`);
-    return { found: 0, saved: 0, skipped: 0 };
+    return { found: 0, saved: 0, skipped: 0, error: err.message };
   }
 
   console.log(`[web-scout] Found ${results.length} results. Processing...`);

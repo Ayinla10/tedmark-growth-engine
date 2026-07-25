@@ -10,7 +10,7 @@ export async function runScout({ sector, city, limit, offset = 0 }) {
     businesses = await searchBusinesses({ sector, city, limit, offset });
   } catch (err) {
     console.error(`[scout] Places search failed: ${err.message}`);
-    return { found: 0, saved: 0, skipped: 0 };
+    return { found: 0, saved: 0, skipped: 0, error: err.message };
   }
 
   console.log(`[scout] Found ${businesses.length} businesses. Processing...`);

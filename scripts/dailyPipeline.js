@@ -54,6 +54,14 @@ async function runScoutRotation(settings) {
 
     if (!result) continue;
 
+    // A failed API call is not the same thing as "no more results" — leave
+    // this combo's progress untouched so it retries at the same offset next
+    // run, instead of silently marking it exhausted and never trying again.
+    if (result.error) {
+      console.warn(`[daily-pipeline] "${combo.sector} in ${combo.city}" failed (${result.error}) — will retry at the same offset next run, not marking exhausted.`);
+      continue;
+    }
+
     const exhausted = result.found < perComboLimit;
     await recordScoutRun(combo.id, {
       nextOffset: combo.next_offset + result.found,
@@ -100,6 +108,11 @@ async function runWebScoutRotation(settings) {
 
     if (!result) continue;
 
+    if (result.error) {
+      console.warn(`[daily-pipeline] "${combo.query_type}: ${combo.sector} in ${combo.city}" failed (${result.error}) — will retry at the same offset next run, not marking exhausted.`);
+      continue;
+    }
+
     const exhausted = result.found === 0;
     await recordSearchRun(combo.id, {
       nextOffset: combo.next_offset + 1,
@@ -139,6 +152,11 @@ async function runDirectoryScoutRotation(settings) {
     );
 
     if (!result) continue;
+
+    if (result.error) {
+      console.warn(`[daily-pipeline] Directory category "${combo.category_slug}" failed (${result.error}) — will retry the same page next run, not marking exhausted.`);
+      continue;
+    }
 
     const exhausted = result.found === 0;
     await recordDirectoryRun(combo.id, {

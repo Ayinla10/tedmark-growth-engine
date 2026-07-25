@@ -13,7 +13,7 @@ export async function runDirectoryScout({ sector, categorySlug, page = 1 }) {
     listings = await fetchDirectoryListings(categorySlug, page);
   } catch (err) {
     console.error(`[directory-scout] Fetch failed: ${err.message}`);
-    return { found: 0, saved: 0, skipped: 0 };
+    return { found: 0, saved: 0, skipped: 0, error: err.message };
   }
 
   console.log(`[directory-scout] Found ${listings.length} listings. Processing...`);
