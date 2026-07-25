@@ -6,7 +6,13 @@ dotenv.config();
 // DeepSeek exposes an OpenAI-compatible API, so we use the openai SDK
 // pointed at DeepSeek's endpoint. Swapping providers later means editing
 // only this file.
-export const LLM_MODEL = 'deepseek-chat';
+//
+// DeepSeek retired the "deepseek-chat" model name in favor of versioned
+// names — "deepseek-v4-flash" is the direct successor (general-purpose,
+// cost-effective), as opposed to "deepseek-v4-pro" (their heavier
+// reasoning tier, not needed for the short structured completions used
+// throughout this codebase).
+export const LLM_MODEL = 'deepseek-v4-flash';
 
 let client = null;
 
