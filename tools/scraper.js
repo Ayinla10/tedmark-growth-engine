@@ -39,6 +39,7 @@ export async function scrapeWebsite(url) {
     const html = await page.content().catch(() => '');
     const hasViewportMeta = await page.locator('meta[name="viewport"]').count().then((c) => c > 0).catch(() => false);
     const hasH1 = await page.locator('h1').count().then((c) => c > 0).catch(() => false);
+    const hasSsl = page.url().startsWith('https://');
 
     const signals = detectSiteSignals({
       html,
@@ -46,6 +47,7 @@ export async function scrapeWebsite(url) {
       hasViewportMeta,
       hasH1,
       hasMetaDescription: Boolean(metaDescription),
+      hasSsl,
     });
 
     return { title, metaDescription, textSnippet, signals };

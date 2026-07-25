@@ -40,6 +40,9 @@ export type SiteSignals = {
   hasEcommerce: boolean;
   hasH1: boolean;
   hasMetaDescription: boolean;
+  hasSsl: boolean | null;
+  cms: string | null;
+  hasBlog: boolean;
   copyrightYear: number | null;
   looksOutdated: boolean;
 };

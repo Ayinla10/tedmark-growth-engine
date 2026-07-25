@@ -37,6 +37,9 @@ function buildUserMessage(lead, siteData) {
       lines.push(`- Has an email-capture form or newsletter signup: ${s.hasEmailCapture ? 'yes' : 'no'}`);
       lines.push(`- Has visible social media links: ${s.hasSocialLinks ? 'yes' : 'no'}`);
       lines.push(`- Has online ordering/payment integration: ${s.hasEcommerce ? 'yes' : 'no'}`);
+      lines.push(`- Has a blog/news section (existing content marketing): ${s.hasBlog ? 'yes' : 'no'}`);
+      lines.push(`- Uses HTTPS/SSL: ${s.hasSsl === null ? 'unknown' : s.hasSsl ? 'yes' : 'no'}`);
+      lines.push(`- CMS/platform detected: ${s.cms ?? 'unknown/custom'}`);
       lines.push(`- Copyright year found on page: ${s.copyrightYear ?? 'none found'}`);
       lines.push(`- Looks outdated overall: ${s.looksOutdated ? 'yes' : 'no'}`);
     }

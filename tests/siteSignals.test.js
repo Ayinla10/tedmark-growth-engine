@@ -105,4 +105,49 @@ describe('detectSiteSignals', () => {
     assert.equal(signals.hasEcommerce, false);
     assert.equal(signals.hasSocialLinks, false);
   });
+
+  test('detects a chat widget from Zendesk, Freshchat, or LiveChat', () => {
+    assert.equal(detectSiteSignals({ html: '<script src="https://acme.zdassets.com/widget.js"></script>' }).hasChatWidget, true);
+    assert.equal(detectSiteSignals({ html: '<script src="https://wchat.freshchat.com/embed.js"></script>' }).hasChatWidget, true);
+    assert.equal(detectSiteSignals({ html: '<script src="https://cdn.livechatinc.com/tracking.js"></script>' }).hasChatWidget, true);
+  });
+
+  test('detects WordPress from wp-content paths', () => {
+    const signals = detectSiteSignals({ html: '<link rel="stylesheet" href="/wp-content/themes/acme/style.css">' });
+    assert.equal(signals.cms, 'WordPress');
+  });
+
+  test('detects Wix, Squarespace, and Webflow from their asset hosts', () => {
+    assert.equal(detectSiteSignals({ html: '<script src="https://static.wixstatic.com/x.js"></script>' }).cms, 'Wix');
+    assert.equal(detectSiteSignals({ html: '<link href="https://static1.squarespace.com/x.css">' }).cms, 'Squarespace');
+    assert.equal(detectSiteSignals({ html: '<script src="https://assets-global.website-files.com/x.js"></script>' }).cms, 'Webflow');
+  });
+
+  test('flags Joomla as looksOutdated even with modern signals otherwise present', () => {
+    const signals = detectSiteSignals({
+      html: '<meta name="generator" content="Joomla! - Open Source Content Management"><script>gtag("config")</script>',
+      bodyText: 'Welcome. Book now. © 2026 Acme.',
+      hasViewportMeta: true,
+      hasH1: true,
+    });
+    assert.equal(signals.cms, 'Joomla');
+    assert.equal(signals.looksOutdated, true);
+  });
+
+  test('returns null cms when no known platform is detected', () => {
+    const signals = detectSiteSignals({ html: '<p>Hand-rolled static HTML.</p>' });
+    assert.equal(signals.cms, null);
+  });
+
+  test('detects a blog/news section', () => {
+    assert.equal(detectSiteSignals({ html: '<a href="/blog">Blog</a>' }).hasBlog, true);
+    assert.equal(detectSiteSignals({ html: '<a href="/news">News</a>' }).hasBlog, true);
+    assert.equal(detectSiteSignals({ html: '<p>No such section here.</p>' }).hasBlog, false);
+  });
+
+  test('passes through hasSsl unchanged (computed by the caller from the page URL)', () => {
+    assert.equal(detectSiteSignals({ hasSsl: true }).hasSsl, true);
+    assert.equal(detectSiteSignals({ hasSsl: false }).hasSsl, false);
+    assert.equal(detectSiteSignals({}).hasSsl, null);
+  });
 });

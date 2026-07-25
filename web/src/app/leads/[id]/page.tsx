@@ -169,6 +169,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                   <SignalBadge label="Email capture" active={lead.site_signals.hasEmailCapture} />
                   <SignalBadge label="Social links" active={lead.site_signals.hasSocialLinks} />
                   <SignalBadge label="Online ordering" active={lead.site_signals.hasEcommerce} />
+                  <SignalBadge label="Blog/news section" active={lead.site_signals.hasBlog} />
+                  {lead.site_signals.hasSsl !== null ? (
+                    <SignalBadge label="HTTPS/SSL" active={lead.site_signals.hasSsl} />
+                  ) : null}
+                  {lead.site_signals.cms ? (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-surface-2 text-ink-secondary">
+                      CMS: {lead.site_signals.cms}
+                    </span>
+                  ) : null}
                   <SignalBadge label="Looks outdated" active={lead.site_signals.looksOutdated} invert />
                 </div>
               </div>

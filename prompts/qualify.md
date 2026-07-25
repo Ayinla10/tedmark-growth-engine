@@ -46,8 +46,15 @@ best fit.
   - Has online ordering/payment integration (Shopify, WooCommerce, Paystack,
     Flutterwave, or an "add to cart" flow) — relevant for retail, e-commerce,
     and restaurants
+  - Has a blog/news section — an existing content-marketing effort, worth
+    noting so you don't recommend something they're already doing
+  - Uses HTTPS/SSL — a site without it is a real trust/security red flag,
+    not just cosmetic (browsers actively warn visitors on non-HTTPS sites)
+  - CMS/platform detected (WordPress, Wix, Squarespace, Webflow, Joomla,
+    Shopify, or "unknown/custom") — Joomla in particular is a strong signal
+    of a genuinely outdated, hard-to-maintain site
   - Copyright year found on the page, and whether the site "looks outdated"
-    overall (a combined heuristic from the above)
+    overall (a combined heuristic from the above, including Joomla)
 - If no website exists, that fact alone is a strong signal
 
 ## Weighing the signals into a recommendation
@@ -57,6 +64,9 @@ Use the signal combination to name the single most relevant service in
 business most — don't default to the first one that technically applies:
 
 - No website at all, or a broken one → **"new website"**
+- Has a website but it runs on Joomla, or has no HTTPS/SSL → **"new website"**
+  (both are fundamental technical/trust problems, not cosmetic ones —
+  outrank the more surface-level gaps below)
 - Has a website but no analytics/tracking → **"analytics setup"**
 - Has a website, mobile-friendly and tracked, but no booking system and the
   sector is appointment-based (clinic, salon, restaurant, etc.) →
@@ -86,5 +96,6 @@ Respond with ONLY valid JSON, no markdown fences, no extra commentary:
 The score_reason must reference concrete evidence from the signals above
 (e.g. "no website found", "site has no viewport meta tag and no tracking
 installed — looks outdated and unmeasured", "site is mobile-friendly and
-tracked but has no booking system for an appointment-based business") —
-never generic filler.
+tracked but has no booking system for an appointment-based business",
+"site runs on Joomla with no HTTPS — a real security and credibility
+risk, not just a design issue") — never generic filler.

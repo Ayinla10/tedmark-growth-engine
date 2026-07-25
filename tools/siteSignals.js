@@ -46,7 +46,29 @@ const CHAT_WIDGET_PATTERNS = [
   /js\.driftt\.com/i,
   /wa\.me\//i,
   /api\.whatsapp\.com\/send/i,
+  /zdassets\.com|zendesk/i,
+  /freshchat\.com/i,
+  /livechatinc\.com|widget\.livechat/i,
+  /connect\.facebook\.net\/.*\/sdk\/xfbml\.customerchat/i,
 ];
+
+// Ordered so a more specific/definitive match (e.g. a CMS-specific admin
+// path or generator meta tag) wins over a looser one. Knowing *which*
+// platform a site runs on lets the qualifier flag a genuinely outdated
+// CMS (Joomla, old WordPress) as a stronger "new website" signal than
+// just "looks outdated" alone.
+const CMS_PATTERNS = [
+  { name: 'WordPress', pattern: /wp-content|wp-includes|generator"[^>]*wordpress/i },
+  { name: 'Wix', pattern: /static\.wixstatic\.com|wix\.com/i },
+  { name: 'Squarespace', pattern: /squarespace\.com|static1\.squarespace/i },
+  { name: 'Webflow', pattern: /webflow\.com|assets-global\.website-files/i },
+  { name: 'Joomla', pattern: /generator"[^>]*joomla|\/media\/jui\//i },
+  { name: 'Shopify', pattern: /cdn\.shopify\.com/i },
+];
+
+// A blog/news section is itself a content-marketing signal — if present,
+// "content marketing" is less of a gap than for a site with none at all.
+const BLOG_PATTERNS = [/\/blog\b/i, /\/news\b/i, />\s*blog\s*<\/a>/i, />\s*news\s*<\/a>/i];
 
 // Email-capture — a newsletter signup or lead-capture form feeding an ESP.
 // Absence means no automated nurture is possible at all.
@@ -79,7 +101,14 @@ const ECOMMERCE_PATTERNS = [
   /add[\s-]?to[\s-]?cart/i,
 ];
 
-export function detectSiteSignals({ html = '', bodyText = '', hasViewportMeta = false, hasH1 = false, hasMetaDescription = false }) {
+export function detectSiteSignals({
+  html = '',
+  bodyText = '',
+  hasViewportMeta = false,
+  hasH1 = false,
+  hasMetaDescription = false,
+  hasSsl = null,
+}) {
   const lowerHtml = html.toLowerCase();
   const lowerText = bodyText.toLowerCase();
 
@@ -91,6 +120,8 @@ export function detectSiteSignals({ html = '', bodyText = '', hasViewportMeta = 
     EMAIL_CAPTURE_PATTERNS.some((p) => p.test(lowerHtml)) || EMAIL_CAPTURE_KEYWORDS.some((kw) => lowerText.includes(kw));
   const hasSocialLinks = SOCIAL_LINK_PATTERNS.some((p) => p.test(lowerHtml));
   const hasEcommerce = ECOMMERCE_PATTERNS.some((p) => p.test(lowerHtml));
+  const cms = CMS_PATTERNS.find((c) => c.pattern.test(lowerHtml))?.name ?? null;
+  const hasBlog = BLOG_PATTERNS.some((p) => p.test(lowerHtml));
 
   const copyrightMatch = bodyText.match(/(?:©|copyright)\s*(\d{4})/i);
   const copyrightYear = copyrightMatch ? parseInt(copyrightMatch[1], 10) : null;
@@ -98,9 +129,10 @@ export function detectSiteSignals({ html = '', bodyText = '', hasViewportMeta = 
   const hasOldCopyright = copyrightYear !== null && currentYear - copyrightYear >= 2;
 
   // A rough "looks outdated" heuristic: not mobile-optimized, no tracking
-  // set up (nobody's measuring it), and either a stale copyright notice or
-  // no heading structure at all.
-  const looksOutdated = !hasViewportMeta && !hasTrackingPixel && (hasOldCopyright || !hasH1);
+  // set up (nobody's measuring it), and either a stale copyright notice, no
+  // heading structure at all, or a CMS (Joomla) that's a strong outdated
+  // signal on its own regardless of the other checks.
+  const looksOutdated = cms === 'Joomla' || (!hasViewportMeta && !hasTrackingPixel && (hasOldCopyright || !hasH1));
 
   return {
     mobileFriendly: hasViewportMeta,
@@ -113,6 +145,9 @@ export function detectSiteSignals({ html = '', bodyText = '', hasViewportMeta = 
     hasEcommerce,
     hasH1,
     hasMetaDescription,
+    hasSsl,
+    cms,
+    hasBlog,
     copyrightYear,
     looksOutdated,
   };
