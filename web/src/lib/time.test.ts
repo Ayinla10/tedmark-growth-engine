@@ -38,8 +38,8 @@ describe("formatDate", () => {
     expect(formatDate(null)).toBe("—");
   });
 
-  it("formats a date in en-GB day/month/year style", () => {
+  it("formats a date with time in en-GB day/month/year, 24h style", () => {
     // Pin the timezone-sensitive formatting by using a UTC-noon timestamp.
-    expect(formatDate("2026-03-05T12:00:00.000Z")).toBe("5 Mar 2026");
+    expect(formatDate("2026-03-05T12:00:00.000Z")).toBe("5 Mar 2026, 12:00");
   });
 });

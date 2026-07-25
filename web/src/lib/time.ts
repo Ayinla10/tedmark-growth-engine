@@ -17,9 +17,11 @@ export function isRecent(iso: string | null, hours = 24): boolean {
 
 export function formatDate(value: string | null): string {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-GB", {
+  return new Date(value).toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
