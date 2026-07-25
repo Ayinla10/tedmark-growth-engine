@@ -32,6 +32,11 @@ async function step(name, fn) {
 }
 
 async function runScoutRotation(settings) {
+  if (!settings.scout_enabled) {
+    console.log('[daily-pipeline] Maps-based Scout discovery is disabled in settings — skipping.');
+    return;
+  }
+
   const { scout_sectors: sectors, scout_cities: cities, scout_combos_per_day: combosPerDay, scout_per_combo_limit: perComboLimit } = settings;
 
   for (const sector of sectors) {

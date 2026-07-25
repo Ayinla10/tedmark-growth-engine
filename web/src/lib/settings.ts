@@ -3,6 +3,7 @@ import pool from "./db";
 export const SETTINGS_DEFAULTS = {
   scout_sectors: ["restaurant", "school", "clinic", "logistics", "retail", "real estate", "event planning"],
   scout_cities: ["Accra", "Kumasi", "Tema", "Takoradi", "Cape Coast"],
+  scout_enabled: true,
   scout_combos_per_day: 10,
   scout_per_combo_limit: 8,
   web_scout_enabled: true,
@@ -21,6 +22,7 @@ export const SETTINGS_DEFAULTS = {
 export type Settings = {
   scout_sectors: string[];
   scout_cities: string[];
+  scout_enabled: boolean;
   scout_combos_per_day: number;
   scout_per_combo_limit: number;
   web_scout_enabled: boolean;

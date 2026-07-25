@@ -39,6 +39,7 @@ function NumberField({
 export function SettingsForm({ initial }: { initial: Settings }) {
   const [sectors, setSectors] = useState(initial.scout_sectors.join(", "));
   const [cities, setCities] = useState(initial.scout_cities.join(", "));
+  const [scoutEnabled, setScoutEnabled] = useState(initial.scout_enabled);
   const [combosPerDay, setCombosPerDay] = useState(initial.scout_combos_per_day);
   const [perComboLimit, setPerComboLimit] = useState(initial.scout_per_combo_limit);
   const [webScoutEnabled, setWebScoutEnabled] = useState(initial.web_scout_enabled);
@@ -61,6 +62,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       const settings: Settings = {
         scout_sectors: sectors.split(",").map((s) => s.trim()).filter(Boolean),
         scout_cities: cities.split(",").map((s) => s.trim()).filter(Boolean),
+        scout_enabled: scoutEnabled,
         scout_combos_per_day: combosPerDay,
         scout_per_combo_limit: perComboLimit,
         web_scout_enabled: webScoutEnabled,
@@ -100,6 +102,12 @@ export function SettingsForm({ initial }: { initial: Settings }) {
 
       <div>
         <p className="text-sm font-semibold text-ink mb-3">How much Scout does per day</p>
+        <div className="mb-4">
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" checked={scoutEnabled} onChange={(e) => setScoutEnabled(e.target.checked)} />
+            Run Maps-based Scout discovery in the daily pipeline
+          </label>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NumberField
             label="Sector+city combinations per day"

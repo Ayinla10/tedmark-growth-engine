@@ -6,6 +6,7 @@ import { query } from './db.js';
 export const SETTINGS_DEFAULTS = {
   scout_sectors: ['restaurant', 'school', 'clinic', 'logistics', 'retail', 'real estate', 'event planning'],
   scout_cities: ['Accra', 'Kumasi', 'Tema', 'Takoradi', 'Cape Coast'],
+  scout_enabled: true,
   scout_combos_per_day: 10,
   scout_per_combo_limit: 8,
   web_scout_enabled: true,

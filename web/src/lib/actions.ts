@@ -171,6 +171,17 @@ export async function saveSettingsAction(settings: Settings) {
   }
 }
 
+export async function setScoutEnabledAction(enabled: boolean) {
+  try {
+    await setSetting("scout_enabled", enabled);
+    revalidatePath("/agents");
+    revalidatePath("/settings");
+    return { ok: true, output: enabled ? "Scout resumed." : "Scout stopped." };
+  } catch (err) {
+    return { ok: false, output: err instanceof Error ? err.message : "Could not update Scout." };
+  }
+}
+
 export async function createKnowledgeItemAction(input: KnowledgeItemInput) {
   try {
     const row = await insertKnowledgeItemDb(input);
