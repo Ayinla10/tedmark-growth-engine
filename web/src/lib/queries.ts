@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import pool from "./db";
+import { getCurrentAgencyId } from "./agency";
 import { KNOWLEDGE_CATEGORIES } from "./knowledge-constants";
 
 const BACKEND_ROOT = process.env.BACKEND_ROOT || "D:\\tedmark-growth-engine";
@@ -287,11 +288,12 @@ export type KnowledgeItem = {
 };
 
 export async function getKnowledgeItems(search?: string): Promise<KnowledgeItem[]> {
-  const params: unknown[] = [];
-  let where = "";
+  const agencyId = await getCurrentAgencyId();
+  const params: unknown[] = [agencyId];
+  let where = " WHERE agency_id = $1";
   if (search) {
     params.push(`%${search}%`);
-    where = ` WHERE title ILIKE $1 OR content ILIKE $1 OR $1 = ANY(tags)`;
+    where += ` AND (title ILIKE $2 OR content ILIKE $2 OR $2 = ANY(tags))`;
   }
   const res = await pool.query(
     `SELECT * FROM knowledge_items${where} ORDER BY updated_at DESC LIMIT 200`,
@@ -314,7 +316,11 @@ export type Signature = {
 };
 
 export async function getSignatures(): Promise<Signature[]> {
-  const res = await pool.query(`SELECT * FROM signatures ORDER BY is_default DESC, created_at ASC`);
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT * FROM signatures WHERE agency_id = $1 ORDER BY is_default DESC, created_at ASC`,
+    [agencyId]
+  );
   return res.rows;
 }
 
@@ -383,8 +389,9 @@ export type KnowledgeItemWithUsage = {
 // metrics, just genuine counts joined off the same knowledge_ids arrays
 // recorded when outreach/proposals were generated.
 export async function getKnowledgeItemsWithUsage(): Promise<KnowledgeItemWithUsage[]> {
-  const res = await pool.query(`
-    SELECT
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT
       ki.id, ki.title, ki.category, ki.status, ki.applicable_agents, ki.updated_at,
       count(DISTINCT o.id)::int AS outreach_count,
       count(DISTINCT p.id)::int AS proposal_count,
@@ -394,9 +401,11 @@ export async function getKnowledgeItemsWithUsage(): Promise<KnowledgeItemWithUsa
     FROM knowledge_items ki
     LEFT JOIN outreach o ON ki.id = ANY(o.knowledge_ids)
     LEFT JOIN proposals p ON ki.id = ANY(p.knowledge_ids)
+    WHERE ki.agency_id = $1
     GROUP BY ki.id
-    ORDER BY (count(DISTINCT o.id) + count(DISTINCT p.id)) DESC, ki.updated_at DESC
-  `);
+    ORDER BY (count(DISTINCT o.id) + count(DISTINCT p.id)) DESC, ki.updated_at DESC`,
+    [agencyId]
+  );
 
   return res.rows.map((r) => ({
     id: r.id,
@@ -425,10 +434,19 @@ export type KnowledgeCategoryStats = {
 // back to the category each id belongs to — done in JS rather than a single
 // gnarly SQL query, since volumes here are small (an internal dashboard).
 export async function getKnowledgeCategoryStats(): Promise<KnowledgeCategoryStats[]> {
+  const agencyId = await getCurrentAgencyId();
   const [items, outreachRows, proposalRows] = await Promise.all([
-    pool.query(`SELECT id, category, length(content) AS len FROM knowledge_items`),
-    pool.query(`SELECT knowledge_ids, created_at FROM outreach WHERE created_at > now() - interval '14 days' AND array_length(knowledge_ids, 1) > 0`),
-    pool.query(`SELECT knowledge_ids, created_at FROM proposals WHERE created_at > now() - interval '14 days' AND array_length(knowledge_ids, 1) > 0`),
+    pool.query(`SELECT id, category, length(content) AS len FROM knowledge_items WHERE agency_id = $1`, [agencyId]),
+    pool.query(
+      `SELECT o.knowledge_ids, o.created_at FROM outreach o JOIN leads l ON l.id = o.lead_id
+       WHERE l.agency_id = $1 AND o.created_at > now() - interval '14 days' AND array_length(o.knowledge_ids, 1) > 0`,
+      [agencyId]
+    ),
+    pool.query(
+      `SELECT p.knowledge_ids, p.created_at FROM proposals p JOIN leads l ON l.id = p.lead_id
+       WHERE l.agency_id = $1 AND p.created_at > now() - interval '14 days' AND array_length(p.knowledge_ids, 1) > 0`,
+      [agencyId]
+    ),
   ]);
 
   const categoryById = new Map<string, string>(items.rows.map((r) => [r.id, r.category]));
@@ -493,7 +511,8 @@ export function dateClause(column: string, range: DateRange | undefined, params:
 }
 
 export async function getLeads(status?: string, range?: DateRange): Promise<Lead[]> {
-  const params: unknown[] = [];
+  const agencyId = await getCurrentAgencyId();
+  const params: unknown[] = [agencyId];
   let where = "";
   if (status) {
     params.push(status);
@@ -502,27 +521,29 @@ export async function getLeads(status?: string, range?: DateRange): Promise<Lead
   where += dateClause("created_at", range, params);
 
   const res = await pool.query(
-    `SELECT * FROM leads WHERE true${where} ORDER BY created_at DESC LIMIT 200`,
+    `SELECT * FROM leads WHERE agency_id = $1${where} ORDER BY created_at DESC LIMIT 200`,
     params
   );
   return res.rows;
 }
 
 export async function getRecentQualifiedLeads(limit = 8): Promise<Lead[]> {
+  const agencyId = await getCurrentAgencyId();
   const res = await pool.query(
-    `SELECT * FROM leads WHERE score IS NOT NULL ORDER BY score DESC, created_at DESC LIMIT $1`,
-    [limit]
+    `SELECT * FROM leads WHERE agency_id = $1 AND score IS NOT NULL ORDER BY score DESC, created_at DESC LIMIT $2`,
+    [agencyId, limit]
   );
   return res.rows;
 }
 
 export async function getQualifiedLeadsFiltered(range?: DateRange): Promise<Lead[]> {
-  const params: unknown[] = [];
+  const agencyId = await getCurrentAgencyId();
+  const params: unknown[] = [agencyId];
   const where = dateClause("qualified_at", range, params);
 
   const res = await pool.query(
     `SELECT * FROM leads
-     WHERE score IS NOT NULL AND status != 'archived'${where}
+     WHERE agency_id = $1 AND score IS NOT NULL AND status != 'archived'${where}
      ORDER BY score DESC, qualified_at DESC
      LIMIT 200`,
     params
@@ -531,13 +552,14 @@ export async function getQualifiedLeadsFiltered(range?: DateRange): Promise<Lead
 }
 
 export async function getOutreach(range?: DateRange): Promise<OutreachRow[]> {
-  const params: unknown[] = [];
+  const agencyId = await getCurrentAgencyId();
+  const params: unknown[] = [agencyId];
   const where = dateClause("o.created_at", range, params);
 
   const res = await pool.query(
     `SELECT o.*, l.business_name, l.email AS lead_email, l.phone AS lead_phone
      FROM outreach o JOIN leads l ON l.id = o.lead_id
-     WHERE true${where}
+     WHERE l.agency_id = $1${where}
      ORDER BY o.created_at DESC LIMIT 200`,
     params
   );
@@ -545,13 +567,14 @@ export async function getOutreach(range?: DateRange): Promise<OutreachRow[]> {
 }
 
 export async function getFollowUps(range?: DateRange): Promise<FollowUpRow[]> {
-  const params: unknown[] = [];
+  const agencyId = await getCurrentAgencyId();
+  const params: unknown[] = [agencyId];
   const where = dateClause("f.scheduled_at", range, params);
 
   const res = await pool.query(
     `SELECT f.*, l.business_name
      FROM follow_ups f JOIN leads l ON l.id = f.lead_id
-     WHERE true${where}
+     WHERE l.agency_id = $1${where}
      ORDER BY f.scheduled_at DESC LIMIT 200`,
     params
   );
@@ -559,13 +582,14 @@ export async function getFollowUps(range?: DateRange): Promise<FollowUpRow[]> {
 }
 
 export async function getProposals(range?: DateRange): Promise<ProposalRow[]> {
-  const params: unknown[] = [];
+  const agencyId = await getCurrentAgencyId();
+  const params: unknown[] = [agencyId];
   const where = dateClause("p.created_at", range, params);
 
   const res = await pool.query(
     `SELECT p.*, l.business_name, l.email AS lead_email
      FROM proposals p JOIN leads l ON l.id = p.lead_id
-     WHERE true${where}
+     WHERE l.agency_id = $1${where}
      ORDER BY p.created_at DESC LIMIT 100`,
     params
   );
@@ -573,10 +597,11 @@ export async function getProposals(range?: DateRange): Promise<ProposalRow[]> {
 }
 
 export async function getSearchApiUsageThisMonth(provider: string): Promise<number> {
+  const agencyId = await getCurrentAgencyId();
   const res = await pool.query(
     `SELECT count(*)::int AS n FROM search_api_usage
-     WHERE provider = $1 AND used_at >= date_trunc('month', now())`,
-    [provider]
+     WHERE agency_id = $1 AND provider = $2 AND used_at >= date_trunc('month', now())`,
+    [agencyId, provider]
   );
   return res.rows[0].n;
 }

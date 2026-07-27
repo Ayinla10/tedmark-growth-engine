@@ -61,33 +61,37 @@ export async function insertLead(lead) {
 // a full formatted address, web-scout gives just the city.
 const BUSINESS_SUFFIX_SQL = '\\s+(ltd|limited|gh|ghana|inc|co|company)\\.?$';
 
-export async function findLeadByNameAndLocation(businessName, location) {
+export async function findLeadByNameAndLocation(businessName, location, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(
     `SELECT * FROM leads
-     WHERE regexp_replace(lower(trim(business_name)), $1, '', 'i') = regexp_replace(lower(trim($2)), $1, '', 'i')
+     WHERE agency_id = $1
+       AND regexp_replace(lower(trim(business_name)), $2, '', 'i') = regexp_replace(lower(trim($3)), $2, '', 'i')
        AND (
-         lower(location) = lower($3)
-         OR location ILIKE '%' || $3 || '%'
-         OR $3 ILIKE '%' || location || '%'
+         lower(location) = lower($4)
+         OR location ILIKE '%' || $4 || '%'
+         OR $4 ILIKE '%' || location || '%'
        )
      LIMIT 1`,
-    [BUSINESS_SUFFIX_SQL, businessName, location]
+    [id, BUSINESS_SUFFIX_SQL, businessName, location]
   );
   return result.rows[0] ?? null;
 }
 
-export async function getRawLeads(limit) {
+export async function getRawLeads(limit, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(
-    `SELECT * FROM leads WHERE status = 'raw' ORDER BY created_at ASC LIMIT $1`,
-    [limit]
+    `SELECT * FROM leads WHERE agency_id = $1 AND status = 'raw' ORDER BY created_at ASC LIMIT $2`,
+    [id, limit]
   );
   return result.rows;
 }
 
-export async function getQualifiedLeads(limit, minScore) {
+export async function getQualifiedLeads(limit, minScore, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(
-    `SELECT * FROM leads WHERE status = 'qualified' AND score >= $1 ORDER BY score DESC LIMIT $2`,
-    [minScore, limit]
+    `SELECT * FROM leads WHERE agency_id = $1 AND status = 'qualified' AND score >= $2 ORDER BY score DESC LIMIT $3`,
+    [id, minScore, limit]
   );
   return result.rows;
 }
@@ -133,14 +137,16 @@ export async function insertOutreach(outreach) {
   return result.rows[0];
 }
 
-export async function getLeadsNeedingContactInfo(limit) {
+export async function getLeadsNeedingContactInfo(limit, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(
     `SELECT * FROM leads
-     WHERE status != 'archived'
+     WHERE agency_id = $1
+       AND status != 'archived'
        AND enriched_at IS NULL
      ORDER BY created_at ASC
-     LIMIT $1`,
-    [limit]
+     LIMIT $2`,
+    [id, limit]
   );
   return result.rows;
 }
@@ -372,10 +378,11 @@ export async function getSearchApiUsageThisMonth(provider, agencyId = null) {
   return result.rows[0].n;
 }
 
-export async function findLeadByEmail(email) {
+export async function findLeadByEmail(email, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(
-    `SELECT * FROM leads WHERE lower(email) = lower($1) LIMIT 1`,
-    [email]
+    `SELECT * FROM leads WHERE agency_id = $1 AND lower(email) = lower($2) LIMIT 1`,
+    [id, email]
   );
   return result.rows[0] ?? null;
 }
