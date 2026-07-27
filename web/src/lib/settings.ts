@@ -1,4 +1,5 @@
 import pool from "./db";
+import { getCurrentAgencyId } from "./agency";
 
 export const SETTINGS_DEFAULTS = {
   scout_sectors: ["restaurant", "school", "clinic", "logistics", "retail", "real estate", "event planning"],
@@ -39,15 +40,17 @@ export type Settings = {
 };
 
 export async function getSettings(): Promise<Settings> {
-  const result = await pool.query("SELECT key, value FROM settings");
+  const agencyId = await getCurrentAgencyId();
+  const result = await pool.query("SELECT key, value FROM settings WHERE agency_id = $1", [agencyId]);
   const stored = Object.fromEntries(result.rows.map((r) => [r.key, r.value]));
   return { ...SETTINGS_DEFAULTS, ...stored } as Settings;
 }
 
 export async function setSetting(key: keyof Settings, value: unknown): Promise<void> {
+  const agencyId = await getCurrentAgencyId();
   await pool.query(
-    `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, now())
-     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
-    [key, JSON.stringify(value)]
+    `INSERT INTO settings (agency_id, key, value, updated_at) VALUES ($1, $2, $3, now())
+     ON CONFLICT (agency_id, key) DO UPDATE SET value = $3, updated_at = now()`,
+    [agencyId, key, JSON.stringify(value)]
   );
 }

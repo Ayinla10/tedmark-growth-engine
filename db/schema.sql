@@ -3,6 +3,38 @@
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- Stage 1 of the multi-tenant SaaS architecture: one row per agency using
+-- the platform. Tedmark itself is agency #1 — nothing changes about how
+-- Tedmark's own data behaves, this just gives every table a tenant
+-- boundary to hang off going forward. Per-agency API credentials
+-- (Geoapify/Brave/DeepSeek/Resend/IMAP keys) live in `credentials` rather
+-- than on this table directly, so a credential rotation never requires a
+-- schema change.
+CREATE TABLE IF NOT EXISTS agencies (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  owner_email text,
+  plan_tier text NOT NULL DEFAULT 'free' CHECK (plan_tier IN ('free', 'paid')),
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Per-agency credentials, kept out of `agencies` itself and out of a
+-- shared `.env` so each agency's Geoapify/Brave/DeepSeek/Resend/IMAP keys
+-- are isolated. `provider` is a free-form key (e.g. 'deepseek',
+-- 'geoapify', 'brave', 'resend', 'imap') and `value` holds whatever shape
+-- that provider needs (a bare string API key, or a small JSON object for
+-- something like IMAP's host/port/user/password).
+CREATE TABLE IF NOT EXISTS credentials (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  agency_id uuid NOT NULL REFERENCES agencies(id),
+  provider text NOT NULL,
+  value jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (agency_id, provider)
+);
+
 CREATE TABLE IF NOT EXISTS leads (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   business_name text NOT NULL,
@@ -216,3 +248,81 @@ CREATE INDEX IF NOT EXISTS idx_follow_ups_lead_id ON follow_ups(lead_id);
 CREATE INDEX IF NOT EXISTS idx_proposals_lead_id ON proposals(lead_id);
 CREATE INDEX IF NOT EXISTS idx_replies_lead_id ON replies(lead_id);
 CREATE INDEX IF NOT EXISTS idx_scout_progress_rotation ON scout_progress(exhausted, last_run_at);
+
+-- ============================================================================
+-- Multi-tenant Stage 1: agency_id backfill for every tenant-scoped table.
+-- Safe to re-run: the DO block only seeds a default agency the very first
+-- time (when `agencies` is empty), the ADD COLUMN/UPDATE/SET NOT NULL
+-- sequence is a no-op once every row already has an agency_id, and the
+-- constraint drop+recreate pairs are idempotent by construction. Child
+-- tables (outreach, follow_ups, proposals, replies) are NOT given their
+-- own agency_id column — they're scoped transitively via lead_id, since
+-- every access path already joins through leads.
+-- ============================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM agencies) THEN
+    INSERT INTO agencies (name, owner_email, plan_tier)
+    VALUES ('Tedmark Digital Agency', 'romaricromaric99@gmail.com', 'paid');
+  END IF;
+END $$;
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE leads SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE leads ALTER COLUMN agency_id SET NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_leads_agency_id ON leads(agency_id);
+
+ALTER TABLE scout_progress ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE scout_progress SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE scout_progress ALTER COLUMN agency_id SET NOT NULL;
+ALTER TABLE scout_progress DROP CONSTRAINT IF EXISTS scout_progress_sector_city_key;
+ALTER TABLE scout_progress DROP CONSTRAINT IF EXISTS scout_progress_agency_sector_city_key;
+ALTER TABLE scout_progress ADD CONSTRAINT scout_progress_agency_sector_city_key UNIQUE (agency_id, sector, city);
+
+ALTER TABLE search_progress ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE search_progress SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE search_progress ALTER COLUMN agency_id SET NOT NULL;
+ALTER TABLE search_progress DROP CONSTRAINT IF EXISTS search_progress_sector_city_query_type_key;
+ALTER TABLE search_progress DROP CONSTRAINT IF EXISTS search_progress_agency_sector_city_query_type_key;
+ALTER TABLE search_progress ADD CONSTRAINT search_progress_agency_sector_city_query_type_key UNIQUE (agency_id, sector, city, query_type);
+
+ALTER TABLE directory_progress ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE directory_progress SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE directory_progress ALTER COLUMN agency_id SET NOT NULL;
+ALTER TABLE directory_progress DROP CONSTRAINT IF EXISTS directory_progress_category_slug_key;
+ALTER TABLE directory_progress DROP CONSTRAINT IF EXISTS directory_progress_agency_category_slug_key;
+ALTER TABLE directory_progress ADD CONSTRAINT directory_progress_agency_category_slug_key UNIQUE (agency_id, category_slug);
+
+ALTER TABLE search_api_usage ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE search_api_usage SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE search_api_usage ALTER COLUMN agency_id SET NOT NULL;
+
+-- settings' primary key changes from a single global `key` to a composite
+-- (agency_id, key) — each agency now gets its own independent settings row
+-- per key, instead of one shared global row.
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE settings SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE settings ALTER COLUMN agency_id SET NOT NULL;
+ALTER TABLE settings DROP CONSTRAINT IF EXISTS settings_pkey;
+ALTER TABLE settings ADD CONSTRAINT settings_pkey PRIMARY KEY (agency_id, key);
+
+ALTER TABLE signatures ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE signatures SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE signatures ALTER COLUMN agency_id SET NOT NULL;
+
+ALTER TABLE knowledge_items ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE knowledge_items SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE knowledge_items ALTER COLUMN agency_id SET NOT NULL;
+
+ALTER TABLE analytics_snapshots ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE analytics_snapshots SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE analytics_snapshots ALTER COLUMN agency_id SET NOT NULL;
+
+-- users.email stays globally unique (a login email is unique across the
+-- whole platform, not per agency) — agency_id just says which agency this
+-- user belongs to. role is unaffected; a future 'super_admin' role (not
+-- tied to any single agency) is Stage 2, not added here.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
+UPDATE users SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
+ALTER TABLE users ALTER COLUMN agency_id SET NOT NULL;

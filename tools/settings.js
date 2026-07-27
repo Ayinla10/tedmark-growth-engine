@@ -1,4 +1,5 @@
 import { query } from './db.js';
+import { getCurrentAgencyId } from './agency.js';
 
 // Every configurable value the agents use, with the defaults that were
 // previously hardcoded. Anything missing from the settings table falls
@@ -21,22 +22,25 @@ export const SETTINGS_DEFAULTS = {
   sequencer_max_steps: 3,
 };
 
-export async function getSettings() {
-  const result = await query('SELECT key, value FROM settings');
+export async function getSettings(agencyId) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  const result = await query('SELECT key, value FROM settings WHERE agency_id = $1', [id]);
   const stored = Object.fromEntries(result.rows.map((r) => [r.key, r.value]));
   return { ...SETTINGS_DEFAULTS, ...stored };
 }
 
-export async function getSetting(key) {
-  const result = await query('SELECT value FROM settings WHERE key = $1', [key]);
+export async function getSetting(key, agencyId) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  const result = await query('SELECT value FROM settings WHERE agency_id = $1 AND key = $2', [id, key]);
   if (result.rows.length === 0) return SETTINGS_DEFAULTS[key];
   return result.rows[0].value;
 }
 
-export async function setSetting(key, value) {
+export async function setSetting(key, value, agencyId) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   await query(
-    `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, now())
-     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
-    [key, JSON.stringify(value)]
+    `INSERT INTO settings (agency_id, key, value, updated_at) VALUES ($1, $2, $3, now())
+     ON CONFLICT (agency_id, key) DO UPDATE SET value = $3, updated_at = now()`,
+    [id, key, JSON.stringify(value)]
   );
 }

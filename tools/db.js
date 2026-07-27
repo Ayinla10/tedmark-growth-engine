@@ -1,5 +1,6 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
+import { getCurrentAgencyId } from './agency.js';
 
 dotenv.config();
 
@@ -38,13 +39,16 @@ export async function insertLead(lead) {
     source = 'maps',
     social_url = null,
     discovery_evidence = null,
+    agency_id = null,
   } = lead;
 
+  const resolvedAgencyId = agency_id ?? (await getCurrentAgencyId());
+
   const result = await query(
-    `INSERT INTO leads (business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'raw')
+    `INSERT INTO leads (agency_id, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'raw')
      RETURNING *`,
-    [business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence ? JSON.stringify(discovery_evidence) : null]
+    [resolvedAgencyId, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence ? JSON.stringify(discovery_evidence) : null]
   );
 
   return result.rows[0];
@@ -289,21 +293,23 @@ export async function getProposalById(id) {
   return result.rows[0] ?? null;
 }
 
-export async function seedScoutProgress(sector, city) {
+export async function seedScoutProgress(sector, city, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   await query(
-    `INSERT INTO scout_progress (sector, city) VALUES ($1, $2)
-     ON CONFLICT (sector, city) DO NOTHING`,
-    [sector, city]
+    `INSERT INTO scout_progress (agency_id, sector, city) VALUES ($1, $2, $3)
+     ON CONFLICT (agency_id, sector, city) DO NOTHING`,
+    [id, sector, city]
   );
 }
 
-export async function getNextScoutBatch(limit) {
+export async function getNextScoutBatch(limit, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(
     `SELECT * FROM scout_progress
-     WHERE exhausted = false
+     WHERE agency_id = $1 AND exhausted = false
      ORDER BY last_run_at ASC NULLS FIRST
-     LIMIT $1`,
-    [limit]
+     LIMIT $2`,
+    [id, limit]
   );
   return result.rows;
 }
@@ -319,21 +325,23 @@ export async function recordScoutRun(id, { nextOffset, exhausted }) {
   return result.rows[0];
 }
 
-export async function seedSearchProgress(sector, city, queryType) {
+export async function seedSearchProgress(sector, city, queryType, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   await query(
-    `INSERT INTO search_progress (sector, city, query_type) VALUES ($1, $2, $3)
-     ON CONFLICT (sector, city, query_type) DO NOTHING`,
-    [sector, city, queryType]
+    `INSERT INTO search_progress (agency_id, sector, city, query_type) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (agency_id, sector, city, query_type) DO NOTHING`,
+    [id, sector, city, queryType]
   );
 }
 
-export async function getNextSearchBatch(limit) {
+export async function getNextSearchBatch(limit, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(
     `SELECT * FROM search_progress
-     WHERE exhausted = false
+     WHERE agency_id = $1 AND exhausted = false
      ORDER BY last_run_at ASC NULLS FIRST
-     LIMIT $1`,
-    [limit]
+     LIMIT $2`,
+    [id, limit]
   );
   return result.rows;
 }
@@ -349,15 +357,17 @@ export async function recordSearchRun(id, { nextOffset, exhausted }) {
   return result.rows[0];
 }
 
-export async function recordSearchApiUsage(provider) {
-  await query(`INSERT INTO search_api_usage (provider) VALUES ($1)`, [provider]);
+export async function recordSearchApiUsage(provider, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  await query(`INSERT INTO search_api_usage (agency_id, provider) VALUES ($1, $2)`, [id, provider]);
 }
 
-export async function getSearchApiUsageThisMonth(provider) {
+export async function getSearchApiUsageThisMonth(provider, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(
     `SELECT count(*)::int AS n FROM search_api_usage
-     WHERE provider = $1 AND used_at >= date_trunc('month', now())`,
-    [provider]
+     WHERE agency_id = $1 AND provider = $2 AND used_at >= date_trunc('month', now())`,
+    [id, provider]
   );
   return result.rows[0].n;
 }
@@ -397,8 +407,9 @@ export async function getLatestOutreachForLead(leadId) {
   return result.rows[0] ?? null;
 }
 
-export async function getSignatures() {
-  const result = await query(`SELECT * FROM signatures ORDER BY is_default DESC, created_at ASC`);
+export async function getSignatures(agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  const result = await query(`SELECT * FROM signatures WHERE agency_id = $1 ORDER BY is_default DESC, created_at ASC`, [id]);
   return result.rows;
 }
 
@@ -407,18 +418,22 @@ export async function getSignatureById(id) {
   return result.rows[0] ?? null;
 }
 
-export async function getDefaultSignature() {
-  const result = await query(`SELECT * FROM signatures WHERE is_default = true LIMIT 1`);
+export async function getDefaultSignature(agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  const result = await query(`SELECT * FROM signatures WHERE agency_id = $1 AND is_default = true LIMIT 1`, [id]);
   return result.rows[0] ?? null;
 }
 
-export async function insertSignature({ label, body, isDefault = false }) {
+export async function insertSignature({ label, body, isDefault = false, agencyId = null }) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  // Only one default signature per agency — clearing is scoped to this
+  // agency alone so it never touches another agency's default.
   if (isDefault) {
-    await query(`UPDATE signatures SET is_default = false`);
+    await query(`UPDATE signatures SET is_default = false WHERE agency_id = $1`, [id]);
   }
   const result = await query(
-    `INSERT INTO signatures (label, body, is_default) VALUES ($1, $2, $3) RETURNING *`,
-    [label, body, isDefault]
+    `INSERT INTO signatures (agency_id, label, body, is_default) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [id, label, body, isDefault]
   );
   return result.rows[0];
 }
@@ -432,9 +447,12 @@ export async function updateSignature(id, { label, body }) {
 }
 
 export async function setDefaultSignature(id) {
-  await query(`UPDATE signatures SET is_default = false`);
   const result = await query(`UPDATE signatures SET is_default = true WHERE id = $1 RETURNING *`, [id]);
-  return result.rows[0] ?? null;
+  const row = result.rows[0];
+  if (row) {
+    await query(`UPDATE signatures SET is_default = false WHERE agency_id = $1 AND id != $2`, [row.agency_id, id]);
+  }
+  return row ?? null;
 }
 
 export async function deleteSignature(id) {
@@ -442,21 +460,23 @@ export async function deleteSignature(id) {
   return result.rows[0] ?? null;
 }
 
-export async function seedDirectoryProgress(categorySlug, sector) {
+export async function seedDirectoryProgress(categorySlug, sector, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   await query(
-    `INSERT INTO directory_progress (category_slug, sector) VALUES ($1, $2)
-     ON CONFLICT (category_slug) DO NOTHING`,
-    [categorySlug, sector]
+    `INSERT INTO directory_progress (agency_id, category_slug, sector) VALUES ($1, $2, $3)
+     ON CONFLICT (agency_id, category_slug) DO NOTHING`,
+    [id, categorySlug, sector]
   );
 }
 
-export async function getNextDirectoryBatch(limit) {
+export async function getNextDirectoryBatch(limit, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(
     `SELECT * FROM directory_progress
-     WHERE exhausted = false
+     WHERE agency_id = $1 AND exhausted = false
      ORDER BY last_run_at ASC NULLS FIRST
-     LIMIT $1`,
-    [limit]
+     LIMIT $2`,
+    [id, limit]
   );
   return result.rows;
 }
