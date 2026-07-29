@@ -4,6 +4,7 @@ import path from 'path';
 import { complete } from '../tools/llm.js';
 import { getLeadById, insertProposal } from '../tools/db.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
+import { fetchReadableContent } from '../tools/jinaReader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -11,7 +12,7 @@ async function loadPrompt() {
   return readFile(path.join(__dirname, '..', 'prompts', 'proposal.md'), 'utf-8');
 }
 
-function buildUserMessage(lead, services, budgetRange) {
+async function buildUserMessage(lead, services, budgetRange) {
   const lines = [
     `Business name: ${lead.business_name}`,
     `Sector: ${lead.sector}`,
@@ -21,6 +22,15 @@ function buildUserMessage(lead, services, budgetRange) {
     `Requested services: ${services.join(', ')}`,
     `Budget range: ${budgetRange}`,
   ];
+
+  // Real page content, so the proposal can reference the business's
+  // actual current site/offerings instead of only the qualifier's signals.
+  if (lead.website_url) {
+    const content = await fetchReadableContent(lead.website_url);
+    if (content) {
+      lines.push(`Website content (via Jina Reader, for concrete details to reference):\n${content}`);
+    }
+  }
 
   return lines.join('\n');
 }
@@ -38,7 +48,7 @@ export async function runProposal({ leadId, services, budgetRange }) {
   console.log(`[proposal] Generating proposal for "${lead.business_name}"...`);
 
   const knowledge = await appendKnowledgeContext(await loadPrompt(), 'proposal');
-  const userMessage = buildUserMessage(lead, services, budgetRange);
+  const userMessage = await buildUserMessage(lead, services, budgetRange);
 
   let content;
   try {

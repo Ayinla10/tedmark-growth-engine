@@ -32,6 +32,11 @@ this business.
 - Website status and score_reason
 - Requested services
 - Budget range (low / mid / high)
+- If they have a website: real page content pulled from it (via Jina
+  Reader). When present, ground "What We Observed About Your Business" in
+  specific real details from it — actual services listed, their own
+  wording — rather than only the qualifier's generic signal summary.
+  Never invent details not present in this content.
 
 ## Output format
 

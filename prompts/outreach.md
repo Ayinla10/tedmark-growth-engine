@@ -30,6 +30,11 @@ earn a reply.
 - Business name, sector, location
 - Whether they have a website, and the qualifier's score_reason (the
   specific gap identified)
+- If they have a website: real page content pulled from it (via Jina
+  Reader). When present, use it to reference something concrete and
+  specific — an actual service they offer, their tagline, a detail only
+  someone who genuinely looked at the site would know — instead of a
+  generic gap. Never invent details not present in this content.
 
 ## Output format
 

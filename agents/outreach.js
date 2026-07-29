@@ -18,6 +18,7 @@ import { resolveChannel } from '../tools/channel.js';
 import { getSetting } from '../tools/settings.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
 import { resolveSignatureText, applySignature } from '../tools/signature.js';
+import { fetchReadableContent } from '../tools/jinaReader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -63,7 +64,7 @@ function buildSystemPrompt(outreachPrompt, skillContext) {
   ].join('\n');
 }
 
-function buildUserMessage(lead) {
+async function buildUserMessage(lead) {
   const lines = [
     `Business name: ${lead.business_name}`,
     `Sector: ${lead.sector}`,
@@ -71,6 +72,18 @@ function buildUserMessage(lead) {
     `Has website: ${lead.website_url ? 'yes' : 'no'}`,
     `Qualifier's finding (score_reason): ${lead.score_reason}`,
   ];
+
+  // Real page content (via Jina Reader), not just the signal summary —
+  // lets the draft reference specific services/offerings instead of only
+  // "no tracking installed" style generic gaps. Best-effort: a failed
+  // fetch just means the draft proceeds without this extra context,
+  // exactly like a failed Playwright scrape already does elsewhere.
+  if (lead.website_url) {
+    const content = await fetchReadableContent(lead.website_url);
+    if (content) {
+      lines.push(`Website content (via Jina Reader, for concrete details to reference):\n${content}`);
+    }
+  }
 
   return lines.join('\n');
 }
@@ -134,7 +147,7 @@ export async function runOutreach({ limit, leadId, signatureId }) {
       continue;
     }
 
-    const userMessage = buildUserMessage(lead);
+    const userMessage = await buildUserMessage(lead);
 
     try {
       if (channel === 'email') {
