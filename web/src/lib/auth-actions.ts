@@ -25,7 +25,7 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
     return { error: "Invalid email or password." };
   }
 
-  const token = await createSession({ id: user.id, email: user.email, name: user.name, role: user.role });
+  const token = await createSession({ id: user.id, email: user.email, name: user.name, role: user.role, agencyId: user.agency_id ?? null });
   await setSessionCookie(token);
   redirect(next.startsWith("/") ? next : "/agents");
 }

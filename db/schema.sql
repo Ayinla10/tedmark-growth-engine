@@ -321,8 +321,14 @@ ALTER TABLE analytics_snapshots ALTER COLUMN agency_id SET NOT NULL;
 
 -- users.email stays globally unique (a login email is unique across the
 -- whole platform, not per agency) — agency_id just says which agency this
--- user belongs to. role is unaffected; a future 'super_admin' role (not
--- tied to any single agency) is Stage 2, not added here.
+-- user belongs to.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS agency_id uuid REFERENCES agencies(id);
-UPDATE users SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL;
-ALTER TABLE users ALTER COLUMN agency_id SET NOT NULL;
+UPDATE users SET agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) WHERE agency_id IS NULL AND role != 'super_admin';
+
+-- Stage 2 (auth & access): a 'super_admin' isn't tied to any single
+-- agency — they can act across all of them (impersonation panel is
+-- Stage 4). Every other role must belong to exactly one agency.
+ALTER TABLE users ALTER COLUMN agency_id DROP NOT NULL;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_agency_required_unless_super_admin;
+ALTER TABLE users ADD CONSTRAINT users_agency_required_unless_super_admin
+  CHECK (agency_id IS NOT NULL OR role = 'super_admin');

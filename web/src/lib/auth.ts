@@ -18,10 +18,13 @@ export type SessionUser = {
   email: string;
   name: string;
   role: string;
+  // null only for role === 'super_admin' — every other role belongs to
+  // exactly one agency (enforced by users_agency_required_unless_super_admin).
+  agencyId: string | null;
 };
 
 export async function createSession(user: SessionUser): Promise<string> {
-  return new SignJWT({ id: user.id, email: user.email, name: user.name, role: user.role })
+  return new SignJWT({ id: user.id, email: user.email, name: user.name, role: user.role, agencyId: user.agencyId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION_SECONDS}s`)
@@ -37,6 +40,7 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
       email: payload.email,
       name: typeof payload.name === "string" ? payload.name : "",
       role: typeof payload.role === "string" ? payload.role : "admin",
+      agencyId: typeof payload.agencyId === "string" ? payload.agencyId : null,
     };
   } catch {
     return null;
@@ -71,7 +75,7 @@ export const SESSION_COOKIE_NAME = SESSION_COOKIE;
 
 export async function findUserByEmail(email: string) {
   const res = await pool.query(
-    `SELECT id, email, password_hash, name, role FROM users WHERE email = $1`,
+    `SELECT id, email, password_hash, name, role, agency_id FROM users WHERE email = $1`,
     [email.toLowerCase().trim()]
   );
   return res.rows[0] ?? null;

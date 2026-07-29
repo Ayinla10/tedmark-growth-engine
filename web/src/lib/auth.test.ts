@@ -6,7 +6,7 @@ beforeAll(() => {
 });
 
 describe("session token round trip", () => {
-  const user = { id: "u1", email: "tedai@gmail.com", name: "Tedmark Admin", role: "admin" };
+  const user = { id: "u1", email: "tedai@gmail.com", name: "Tedmark Admin", role: "admin", agencyId: "agency-1" };
 
   it("signs a token that verifies back to the same user", async () => {
     const token = await createSession(user);
@@ -24,5 +24,12 @@ describe("session token round trip", () => {
     process.env.AUTH_SECRET = "a-completely-different-secret-value";
     expect(await verifySessionToken(token)).toBeNull();
     process.env.AUTH_SECRET = originalSecret;
+  });
+
+  it("round-trips a super_admin session with a null agencyId", async () => {
+    const superAdmin = { id: "u2", email: "root@tedmarkdigital.com", name: "Root", role: "super_admin", agencyId: null };
+    const token = await createSession(superAdmin);
+    const verified = await verifySessionToken(token);
+    expect(verified).toEqual(superAdmin);
   });
 });
