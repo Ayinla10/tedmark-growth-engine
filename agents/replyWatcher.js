@@ -85,7 +85,10 @@ export async function runReplyWatcher() {
     let draftOutreachId = null;
 
     try {
-      const text = await complete({ system: systemPrompt, user: userMessage, maxTokens: 400, json: true });
+      // deepseek-v4-flash spends max_tokens on hidden chain-of-thought before
+      // the answer — 400 left too little margin for longer replies and could
+      // cut off mid-reasoning with empty content (finish_reason "length").
+      const text = await complete({ system: systemPrompt, user: userMessage, maxTokens: 2000, json: true });
       const parsed = parseClassifyResponse(text);
       classification = parsed.classification;
 

@@ -154,7 +154,10 @@ export async function runOutreach({ limit, leadId, signatureId }) {
         const text = await complete({
           system: emailSystemPrompt,
           user: userMessage,
-          maxTokens: 500,
+          // deepseek-v4-flash spends max_tokens on hidden chain-of-thought
+          // before the answer — too tight a budget cuts it off mid-reasoning
+          // with empty content (finish_reason "length"). 2000 leaves room.
+          maxTokens: 2000,
           json: true,
         });
 
@@ -174,7 +177,10 @@ export async function runOutreach({ limit, leadId, signatureId }) {
         const text = await complete({
           system: whatsappSystemPrompt,
           user: userMessage,
-          maxTokens: 250,
+          // deepseek-v4-flash spends max_tokens on hidden chain-of-thought
+          // before the answer — too tight a budget cuts it off mid-reasoning
+          // with empty content (finish_reason "length"). 2000 leaves room.
+          maxTokens: 2000,
           json: true,
         });
 

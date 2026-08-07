@@ -135,7 +135,10 @@ export async function runSequencer() {
         const text = await complete({
           system: emailSystemPrompt,
           user: `Business name: ${candidate.business_name}\nSector: ${candidate.sector}\nLocation: ${candidate.location}\nOriginal subject: ${candidate.subject}\nFollow-up step: ${nextStep} of ${maxSequenceStep}`,
-          maxTokens: 300,
+          // deepseek-v4-flash spends max_tokens on hidden chain-of-thought
+          // before the answer — too tight a budget cuts it off mid-reasoning
+          // with empty content (finish_reason "length"). 2000 leaves room.
+          maxTokens: 2000,
           json: true,
         });
 
@@ -155,7 +158,10 @@ export async function runSequencer() {
         const text = await complete({
           system: whatsappSystemPrompt,
           user: `Business name: ${candidate.business_name}\nSector: ${candidate.sector}\nLocation: ${candidate.location}\nOriginal message topic: ${candidate.subject ?? candidate.body.slice(0, 80)}\nFollow-up step: ${nextStep} of ${maxSequenceStep}`,
-          maxTokens: 150,
+          // deepseek-v4-flash spends max_tokens on hidden chain-of-thought
+          // before the answer — too tight a budget cuts it off mid-reasoning
+          // with empty content (finish_reason "length"). 2000 leaves room.
+          maxTokens: 2000,
           json: true,
         });
 
