@@ -61,6 +61,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               leadId={lead.id}
               showQualify
               showEnrich
+              showDmEnrich
               showGenerateOutreach
               showArchive
             />
@@ -184,7 +185,49 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             ) : null}
           </Card>
 
-          <Card className="p-5 lg:col-span-2">
+          <Card className="p-5 lg:col-span-1">
+            <p className="text-sm font-semibold text-ink mb-3">Decision-maker</p>
+            {lead.dm_name ? (
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">Name</span>
+                  <span className="text-ink font-medium">{lead.dm_name}</span>
+                </div>
+                {lead.dm_title ? (
+                  <div className="flex justify-between">
+                    <span className="text-ink-muted">Title</span>
+                    <span className="text-ink">{lead.dm_title}</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">Email</span>
+                  <span className="text-ink">{lead.dm_email ?? "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">Phone</span>
+                  <span className="text-ink">{lead.dm_phone ?? "—"}</span>
+                </div>
+                {lead.dm_linkedin_url ? (
+                  <div className="flex justify-between">
+                    <span className="text-ink-muted">LinkedIn</span>
+                    <a href={lead.dm_linkedin_url} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline flex items-center gap-1">
+                      Visit <ExternalLink size={12} />
+                    </a>
+                  </div>
+                ) : null}
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">Language</span>
+                  <span className="text-ink">{lead.language}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-ink-muted">
+                No decision-maker found yet. {lead.website_url ? "Click the contact icon above to search the site for one." : "This lead has no website to search."}
+              </p>
+            )}
+          </Card>
+
+          <Card className="p-5 lg:col-span-1">
             <p className="text-sm font-semibold text-ink mb-3">Scoring protocol</p>
             <pre className="text-xs text-ink-secondary whitespace-pre-wrap font-sans leading-relaxed">
               {scoringProtocol || "Scoring guide not found."}

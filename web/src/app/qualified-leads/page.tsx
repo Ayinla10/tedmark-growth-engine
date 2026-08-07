@@ -90,6 +90,7 @@ export default async function QualifiedLeadsPage({
                         <LeadRowActions
                           leadId={lead.id}
                           showQualify
+                          showDmEnrich
                           showGenerateOutreach={(lead.score ?? 0) >= 6}
                           showArchive
                         />

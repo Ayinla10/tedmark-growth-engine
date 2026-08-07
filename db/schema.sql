@@ -81,6 +81,21 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS next_action_due date;
 CREATE INDEX IF NOT EXISTS idx_leads_pipeline_stage ON leads(pipeline_stage);
 CREATE INDEX IF NOT EXISTS idx_leads_next_action_due ON leads(next_action_due);
 
+-- Decision-maker enrichment: separate from the business-level email/phone
+-- above, these identify a specific person to reach at the business —
+-- pulled from the site's About/Team/Contact content via Jina Reader +
+-- DeepSeek extraction (agents/dmEnrich.js). Never guessed; left null when
+-- the source content doesn't name a real person.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS dm_name text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS dm_title text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS dm_email text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS dm_phone text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS dm_linkedin_url text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS language text NOT NULL DEFAULT 'EN';
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_language_check;
+ALTER TABLE leads ADD CONSTRAINT leads_language_check CHECK (language IN ('EN', 'FR'));
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS dm_enriched_at timestamptz;
+
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id uuid NOT NULL REFERENCES leads(id),

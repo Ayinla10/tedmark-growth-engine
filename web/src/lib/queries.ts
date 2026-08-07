@@ -82,6 +82,12 @@ export type Lead = {
   pipeline_stage: string;
   next_action: string | null;
   next_action_due: string | null;
+  dm_name: string | null;
+  dm_title: string | null;
+  dm_email: string | null;
+  dm_phone: string | null;
+  dm_linkedin_url: string | null;
+  language: string;
 };
 
 export const PIPELINE_STAGES = [

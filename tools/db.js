@@ -171,6 +171,38 @@ export async function updateLeadContact(id, { email, phone }) {
   return result.rows[0];
 }
 
+export async function getLeadsNeedingDmEnrichment(limit, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  const result = await query(
+    `SELECT * FROM leads
+     WHERE agency_id = $1
+       AND status != 'archived'
+       AND website_url IS NOT NULL
+       AND dm_enriched_at IS NULL
+     ORDER BY created_at ASC
+     LIMIT $2`,
+    [id, limit]
+  );
+  return result.rows;
+}
+
+export async function updateLeadDecisionMaker(id, { dmName, dmTitle, dmEmail, dmPhone, dmLinkedinUrl, language }) {
+  const result = await query(
+    `UPDATE leads
+     SET dm_name = COALESCE($1, dm_name),
+         dm_title = COALESCE($2, dm_title),
+         dm_email = COALESCE($3, dm_email),
+         dm_phone = COALESCE($4, dm_phone),
+         dm_linkedin_url = COALESCE($5, dm_linkedin_url),
+         language = COALESCE($6, language),
+         dm_enriched_at = now()
+     WHERE id = $7
+     RETURNING *`,
+    [dmName ?? null, dmTitle ?? null, dmEmail ?? null, dmPhone ?? null, dmLinkedinUrl ?? null, language ?? null, id]
+  );
+  return result.rows[0];
+}
+
 export async function hasOutreachForLead(leadId) {
   const result = await query(
     `SELECT 1 FROM outreach WHERE lead_id = $1 LIMIT 1`,

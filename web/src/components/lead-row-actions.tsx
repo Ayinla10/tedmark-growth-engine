@@ -1,10 +1,11 @@
 "use client";
 
-import { Archive, Mail, ShieldCheck, Wrench } from "lucide-react";
+import { Archive, Mail, ShieldCheck, User, Wrench } from "lucide-react";
 import { useState, useTransition } from "react";
 import {
   runQualifierAction,
   runEnricherAction,
+  runDmEnrichAction,
   runOutreachAction,
   archiveLeadAction,
 } from "@/lib/actions";
@@ -14,12 +15,14 @@ export function LeadRowActions({
   leadId,
   showQualify = false,
   showEnrich = false,
+  showDmEnrich = false,
   showGenerateOutreach = false,
   showArchive = true,
 }: {
   leadId: string;
   showQualify?: boolean;
   showEnrich?: boolean;
+  showDmEnrich?: boolean;
   showGenerateOutreach?: boolean;
   showArchive?: boolean;
 }) {
@@ -56,6 +59,17 @@ export function LeadRowActions({
           className="p-1.5 rounded-md text-ink-muted hover:text-brand hover:bg-surface-2 disabled:opacity-50"
         >
           <Wrench size={15} />
+        </button>
+      )}
+      {showDmEnrich && (
+        <button
+          type="button"
+          title="Find decision-maker contact"
+          disabled={pending}
+          onClick={() => run("enrich-dm", () => runDmEnrichAction(1, leadId))}
+          className="p-1.5 rounded-md text-ink-muted hover:text-brand hover:bg-surface-2 disabled:opacity-50"
+        >
+          <User size={15} />
         </button>
       )}
       {showGenerateOutreach && (
