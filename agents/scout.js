@@ -2,7 +2,7 @@ import { searchBusinesses } from '../tools/mapsClient.js';
 import { checkWebsiteExists } from '../tools/scraper.js';
 import { insertLead, findLeadByNameAndLocation } from '../tools/db.js';
 
-export async function runScout({ sector, city, limit, offset = 0 }) {
+export async function runScout({ sector, city, limit, offset = 0, country = 'GH' }) {
   console.log(`[scout] Searching for "${sector}" businesses in "${city}" (limit ${limit}, offset ${offset})...`);
 
   let businesses;
@@ -44,6 +44,7 @@ export async function runScout({ sector, city, limit, offset = 0 }) {
         website_url: hasWebsite ? business.website : null,
         phone: business.phone,
         email: null,
+        country,
       });
 
       saved += 1;

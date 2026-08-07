@@ -31,8 +31,8 @@ async function loadEmailsSkill() {
 
 async function loadEmailPrompt() {
   const base = `You are writing a short follow-up email on behalf of Ayinla at Tedmark
-Digital Agency, a digital services company in Accra, Ghana, to a Ghanaian
-SME owner who has not replied to a previous outreach email.
+Digital Agency, a digital services company in Accra, Ghana, to an SME
+owner who has not replied to a previous outreach email.
 
 Rules:
 - Much shorter and softer than a first email — a gentle nudge, not a pitch.

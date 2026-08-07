@@ -36,13 +36,14 @@ async function main() {
       const sector = args.sector;
       const city = args.city;
       const limit = parseInt(args.limit, 10) || 20;
+      const country = (args.country || 'GH').toUpperCase();
 
       if (!sector || !city) {
-        console.error('Usage: node index.js scout --sector "restaurant" --city "Accra" --limit 20');
+        console.error('Usage: node index.js scout --sector "restaurant" --city "Accra" --limit 20 --country GH');
         process.exit(1);
       }
 
-      await runScout({ sector, city, limit });
+      await runScout({ sector, city, limit, country });
       break;
     }
 
@@ -52,13 +53,14 @@ async function main() {
       const query = args.query;
       const queryType = args['query-type'] || 'web';
       const offset = parseInt(args.offset, 10) || 0;
+      const country = (args.country || 'GH').toUpperCase();
 
       if (!sector || !city || !query) {
-        console.error('Usage: node index.js web-scout --sector "restaurant" --city "Accra" --query "..." --query-type web --offset 0');
+        console.error('Usage: node index.js web-scout --sector "restaurant" --city "Accra" --query "..." --query-type web --offset 0 --country GH');
         process.exit(1);
       }
 
-      await runWebScout({ sector, city, query, queryType, offset });
+      await runWebScout({ sector, city, query, queryType, offset, country });
       break;
     }
 

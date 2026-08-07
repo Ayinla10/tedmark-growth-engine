@@ -40,15 +40,16 @@ export async function insertLead(lead) {
     social_url = null,
     discovery_evidence = null,
     agency_id = null,
+    country = 'GH',
   } = lead;
 
   const resolvedAgencyId = agency_id ?? (await getCurrentAgencyId());
 
   const result = await query(
-    `INSERT INTO leads (agency_id, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'raw')
+    `INSERT INTO leads (agency_id, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence, status, country)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'raw', $11)
      RETURNING *`,
-    [resolvedAgencyId, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence ? JSON.stringify(discovery_evidence) : null]
+    [resolvedAgencyId, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence ? JSON.stringify(discovery_evidence) : null, country]
   );
 
   return result.rows[0];

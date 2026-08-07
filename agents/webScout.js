@@ -3,7 +3,7 @@ import { resolveCandidate } from '../tools/searchQueries.js';
 import { checkWebsiteExists } from '../tools/scraper.js';
 import { insertLead, findLeadByNameAndLocation } from '../tools/db.js';
 
-export async function runWebScout({ sector, city, query, queryType, offset = 0 }) {
+export async function runWebScout({ sector, city, query, queryType, offset = 0, country = 'GH' }) {
   console.log(`[web-scout] Searching (${queryType}): "${query}" (offset ${offset})...`);
 
   let results;
@@ -62,6 +62,7 @@ export async function runWebScout({ sector, city, query, queryType, offset = 0 }
         email: candidate.email,
         source: queryType === 'web' ? 'web' : queryType,
         social_url: candidate.socialUrl,
+        country,
         discovery_evidence: {
           query,
           title: result.title,

@@ -27,7 +27,7 @@ best fit.
 - If a website exists: page title, meta description, a text snippet scraped
   from the homepage, and a set of detected site signals:
   - Mobile-friendly (has a viewport meta tag) — sites without this look
-    broken on phones, which matters a lot in Ghana's mobile-first market
+    broken on phones, which matters a lot in mobile-first markets
   - Has analytics/tracking installed — if absent, the business likely isn't
     measuring anything about their site's performance
   - Has a clear call-to-action — a real "book now" / "contact us" / "get a

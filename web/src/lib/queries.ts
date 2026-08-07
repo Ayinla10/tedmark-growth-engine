@@ -95,6 +95,7 @@ export type Lead = {
   icp_fit: number | null;
   icp_total: number | null;
   icp_reasoning: string | null;
+  country: string;
 };
 
 export const PIPELINE_STAGES = [

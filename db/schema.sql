@@ -119,6 +119,12 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_reasoning text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_scored_at timestamptz;
 CREATE INDEX IF NOT EXISTS idx_leads_icp_total ON leads(icp_total);
 
+-- Geographic expansion: which country a lead is in, driving phone-number
+-- normalization rules and proposal currency (tools/countries.js). Defaults
+-- to 'GH' since every existing lead was discovered there.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS country text NOT NULL DEFAULT 'GH';
+CREATE INDEX IF NOT EXISTS idx_leads_country ON leads(country);
+
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id uuid NOT NULL REFERENCES leads(id),

@@ -1,33 +1,32 @@
 import { chromium } from 'playwright';
 import { promises as dns } from 'dns';
 import { extractEmails as extractEmailsShared } from './emailUtils.js';
+import { getCountry, DEFAULT_COUNTRY } from './countries.js';
 
-// Ghana mobile prefixes (after +233): MTN, Vodafone/Telecel, AirtelTigo ranges.
-const GH_MOBILE_PREFIXES = ['20', '23', '24', '25', '26', '27', '28', '50', '53', '54', '55', '56', '57', '59'];
-
-export function normalizeGhanaPhone(raw) {
+export function normalizePhone(raw, countryCode = DEFAULT_COUNTRY) {
   if (!raw) return null;
 
+  const country = getCountry(countryCode);
   let digits = String(raw).replace(/\D/g, '');
 
-  if (digits.startsWith('233')) {
-    digits = digits.slice(3);
+  if (digits.startsWith(country.callingCode)) {
+    digits = digits.slice(country.callingCode.length);
   }
-  if (digits.startsWith('0')) {
+  if (country.hasTrunkZero !== false && digits.startsWith('0')) {
     digits = digits.slice(1);
   }
 
-  if (digits.length !== 9) {
+  if (digits.length !== country.nsnLength) {
     return null;
   }
 
-  const e164 = `+233${digits}`;
-  const isMobile = GH_MOBILE_PREFIXES.includes(digits.slice(0, 2));
+  const e164 = `+${country.callingCode}${digits}`;
+  const isMobile = country.mobilePrefixes.includes(digits.slice(0, 2));
 
   return {
     e164,
     isMobile,
-    waLink: `https://wa.me/233${digits}`,
+    waLink: `https://wa.me/${country.callingCode}${digits}`,
   };
 }
 

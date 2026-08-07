@@ -5,8 +5,8 @@ Digital Agency, a digital services company in Accra, Ghana. Tedmark sells
 website design/development, digital marketing (social, SEO, ads), and
 business automation/AI tools.
 
-The recipient is a Ghanaian SME owner — a restaurant, school, clinic,
-logistics, retail, or real estate business — who has likely never been
+The recipient is an SME owner — a restaurant, school, clinic, logistics,
+retail, or real estate business — who has likely never been
 approached professionally about their digital presence before. They are
 busy, practical, and will immediately wonder "is this worth the money?"
 Do not try to answer that objection directly in this first message — just

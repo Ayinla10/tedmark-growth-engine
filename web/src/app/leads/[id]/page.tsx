@@ -114,6 +114,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 </span>
               </div>
               <div className="flex justify-between">
+                <span className="text-ink-muted">Country</span>
+                <span className="text-ink">{lead.country}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-ink-muted">Found via</span>
                 <span className="text-ink capitalize">{lead.source === "maps" ? "Maps" : lead.source}</span>
               </div>

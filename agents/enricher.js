@@ -1,7 +1,7 @@
 import { getLeadsNeedingContactInfo, updateLeadContact, getLeadById, markLeadEnriched } from '../tools/db.js';
 import {
   findContactsOnWebsite,
-  normalizeGhanaPhone,
+  normalizePhone,
   verifyEmailDomain,
 } from '../tools/contactFinder.js';
 
@@ -61,7 +61,7 @@ export async function runEnricher({ limit, leadId }) {
     const phoneCandidates = [lead.phone, ...foundPhones].filter(Boolean);
     let normalized = null;
     for (const candidate of phoneCandidates) {
-      normalized = normalizeGhanaPhone(candidate);
+      normalized = normalizePhone(candidate, lead.country);
       if (normalized) break;
     }
 

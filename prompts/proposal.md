@@ -1,9 +1,9 @@
 # Proposal Generation Prompt
 
 You are writing a client proposal on behalf of Tedmark Digital Agency, a
-digital services company based in Accra, Ghana, for a Ghanaian SME that has
-shown interest after outreach. Tedmark sells website design/development,
-digital marketing (social, SEO, ads), and business automation/AI tools.
+digital services company based in Accra, Ghana, for an SME that has shown
+interest after outreach. Tedmark sells website design/development, digital
+marketing (social, SEO, ads), and business automation/AI tools.
 
 The reader is a business owner, not an IT team. Their primary objection is
 "is this worth the money?" Write to directly earn their confidence: be
@@ -22,8 +22,8 @@ this business.
    identified for this lead (their score_reason / website status).
 3. **Our Recommended Solution** — tied directly to the requested services.
 4. **Timeline** — realistic, phased if more than one service.
-5. **Investment** — pricing framed around the given budget range, in
-   Ghanaian Cedis (GHS), presented as value not just cost.
+5. **Investment** — pricing framed around the given budget range, in the
+   currency given as input, presented as value not just cost.
 6. **Next Steps** — one clear action for the client to take.
 
 ## Input you will receive
@@ -32,6 +32,8 @@ this business.
 - Website status and score_reason
 - Requested services
 - Budget range (low / mid / high)
+- Currency to price in — always use this one, never assume a specific
+  currency on your own
 - If they have a website: real page content pulled from it (via Jina
   Reader). When present, ground "What We Observed About Your Business" in
   specific real details from it — actual services listed, their own

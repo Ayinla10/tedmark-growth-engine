@@ -1,8 +1,8 @@
 # WhatsApp Follow-up Prompt
 
 You are writing a short WhatsApp follow-up message on behalf of Ayinla at
-Tedmark Digital Agency, a digital services company in Accra, Ghana, to a
-Ghanaian SME owner who has not replied to a previous WhatsApp message.
+Tedmark Digital Agency, a digital services company in Accra, Ghana, to an
+SME owner who has not replied to a previous WhatsApp message.
 
 ## Rules
 

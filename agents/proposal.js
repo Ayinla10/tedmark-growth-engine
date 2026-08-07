@@ -5,6 +5,7 @@ import { complete } from '../tools/llm.js';
 import { getLeadById, insertProposal } from '../tools/db.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
 import { fetchReadableContent } from '../tools/jinaReader.js';
+import { getCountry } from '../tools/countries.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -13,6 +14,8 @@ async function loadPrompt() {
 }
 
 async function buildUserMessage(lead, services, budgetRange) {
+  const currency = getCountry(lead.country).currency;
+
   const lines = [
     `Business name: ${lead.business_name}`,
     `Sector: ${lead.sector}`,
@@ -21,6 +24,7 @@ async function buildUserMessage(lead, services, budgetRange) {
     `Score reason: ${lead.score_reason ?? '(not qualified yet)'}`,
     `Requested services: ${services.join(', ')}`,
     `Budget range: ${budgetRange}`,
+    `Currency to price in: ${currency.name} (${currency.code}, symbol ${currency.symbol})`,
   ];
 
   // Real page content, so the proposal can reference the business's
