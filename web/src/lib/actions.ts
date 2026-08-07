@@ -7,6 +7,7 @@ import {
   editOutreachDb,
   editProposalDb,
   archiveLeadDb,
+  updatePipelineDb,
   logReplyDb,
   markWhatsappSentDb,
   insertKnowledgeItemDb,
@@ -143,6 +144,16 @@ export async function sendProposalAction(proposalId: string) {
 export async function archiveLeadAction(leadId: string) {
   const row = await archiveLeadDb(leadId);
   refreshAll();
+  return { ok: Boolean(row) };
+}
+
+export async function updatePipelineAction(
+  leadId: string,
+  fields: { pipelineStage?: string; nextAction?: string | null; nextActionDue?: string | null }
+) {
+  const row = await updatePipelineDb(leadId, fields);
+  refreshAll();
+  revalidatePath(`/leads/${leadId}`);
   return { ok: Boolean(row) };
 }
 

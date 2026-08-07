@@ -15,6 +15,12 @@ export function isRecent(iso: string | null, hours = 24): boolean {
   return Date.now() - new Date(iso).getTime() < hours * 60 * 60 * 1000;
 }
 
+export function toISODateString(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
 export function formatDate(value: string | null): string {
   if (!value) return "—";
   return new Date(value).toLocaleString("en-GB", {

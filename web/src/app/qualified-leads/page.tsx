@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { AgentRunButton } from "@/components/agent-run-button";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { LeadRowActions } from "@/components/lead-row-actions";
+import { PipelineCell } from "@/components/pipeline-cell";
 import { ScoringProtocol } from "@/components/scoring-protocol";
 import { Card, EmptyState, PageHeader, ScoreBadge, Td, Th } from "@/components/ui";
 import { formatDate } from "@/lib/time";
@@ -60,6 +61,7 @@ export default async function QualifiedLeadsPage({
                     <Th>Sector</Th>
                     <Th>Score</Th>
                     <Th>Why this score</Th>
+                    <Th>Pipeline</Th>
                     <Th>Qualified</Th>
                     <Th>Actions</Th>
                   </tr>
@@ -75,6 +77,14 @@ export default async function QualifiedLeadsPage({
                       <Td className="capitalize">{lead.sector ?? "—"}</Td>
                       <Td><ScoreBadge score={lead.score} /></Td>
                       <Td className="text-ink-secondary max-w-md">{lead.score_reason ?? "—"}</Td>
+                      <Td>
+                        <PipelineCell
+                          leadId={lead.id}
+                          pipelineStage={lead.pipeline_stage}
+                          nextAction={lead.next_action}
+                          nextActionDue={lead.next_action_due}
+                        />
+                      </Td>
                       <Td className="text-ink-muted">{formatDate(lead.created_at)}</Td>
                       <Td>
                         <LeadRowActions

@@ -68,6 +68,19 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS discovery_evidence jsonb;
 ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_source_check;
 ALTER TABLE leads ADD CONSTRAINT leads_source_check CHECK (source IN ('maps', 'web', 'linkedin', 'facebook', 'directory'));
 
+-- CRM-grade pipeline tracking: `status` above stays as the automation
+-- lifecycle (raw/qualified/contacted/archived), driven by the agents.
+-- `pipeline_stage` is the separate, human-facing sales stage a rep moves
+-- a lead through by hand, with a next action and due date to track.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS pipeline_stage text NOT NULL DEFAULT 'New';
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_pipeline_stage_check;
+ALTER TABLE leads ADD CONSTRAINT leads_pipeline_stage_check
+  CHECK (pipeline_stage IN ('New', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiating', 'Won', 'Lost'));
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS next_action text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS next_action_due date;
+CREATE INDEX IF NOT EXISTS idx_leads_pipeline_stage ON leads(pipeline_stage);
+CREATE INDEX IF NOT EXISTS idx_leads_next_action_due ON leads(next_action_due);
+
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id uuid NOT NULL REFERENCES leads(id),

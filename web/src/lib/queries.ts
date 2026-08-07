@@ -3,6 +3,13 @@ import path from "path";
 import pool from "./db";
 import { getCurrentAgencyId } from "./agency";
 import { KNOWLEDGE_CATEGORIES } from "./knowledge-constants";
+import { toISODateString } from "./time";
+
+// pg returns `date` columns as JS Date objects, which React can't render
+// directly — normalize to a plain "YYYY-MM-DD" string for every lead row.
+function normalizeLead<T extends { next_action_due?: unknown }>(row: T): T {
+  return { ...row, next_action_due: toISODateString(row.next_action_due) };
+}
 
 const BACKEND_ROOT = process.env.BACKEND_ROOT || "D:\\tedmark-growth-engine";
 
@@ -24,7 +31,7 @@ export async function getLeadDetail(leadId: string) {
   ]);
 
   return {
-    lead: lead.rows[0] ?? null,
+    lead: lead.rows[0] ? normalizeLead(lead.rows[0]) : null,
     proposals: proposals.rows,
     outreach: outreach.rows,
   };
@@ -72,7 +79,20 @@ export type Lead = {
   social_url: string | null;
   discovery_evidence: DiscoveryEvidence | null;
   created_at: string;
+  pipeline_stage: string;
+  next_action: string | null;
+  next_action_due: string | null;
 };
+
+export const PIPELINE_STAGES = [
+  "New",
+  "Contacted",
+  "Qualified",
+  "Proposal Sent",
+  "Negotiating",
+  "Won",
+  "Lost",
+] as const;
 
 export type OutreachRow = {
   id: string;
@@ -524,7 +544,18 @@ export async function getLeads(status?: string, range?: DateRange): Promise<Lead
     `SELECT * FROM leads WHERE agency_id = $1${where} ORDER BY created_at DESC LIMIT 200`,
     params
   );
-  return res.rows;
+  return res.rows.map(normalizeLead);
+}
+
+export async function getDueActions(limit = 8): Promise<Lead[]> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT * FROM leads
+     WHERE agency_id = $1 AND next_action_due IS NOT NULL AND status != 'archived'
+     ORDER BY next_action_due ASC LIMIT $2`,
+    [agencyId, limit]
+  );
+  return res.rows.map(normalizeLead);
 }
 
 export async function getRecentQualifiedLeads(limit = 8): Promise<Lead[]> {
@@ -533,7 +564,7 @@ export async function getRecentQualifiedLeads(limit = 8): Promise<Lead[]> {
     `SELECT * FROM leads WHERE agency_id = $1 AND score IS NOT NULL ORDER BY score DESC, created_at DESC LIMIT $2`,
     [agencyId, limit]
   );
-  return res.rows;
+  return res.rows.map(normalizeLead);
 }
 
 export async function getQualifiedLeadsFiltered(range?: DateRange): Promise<Lead[]> {
@@ -548,7 +579,7 @@ export async function getQualifiedLeadsFiltered(range?: DateRange): Promise<Lead
      LIMIT 200`,
     params
   );
-  return res.rows;
+  return res.rows.map(normalizeLead);
 }
 
 export async function getOutreach(range?: DateRange): Promise<OutreachRow[]> {

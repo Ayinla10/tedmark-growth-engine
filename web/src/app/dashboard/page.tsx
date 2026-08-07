@@ -1,13 +1,19 @@
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { AnimatedBar } from "@/components/animated-bar";
 import { Card, EmptyState, KpiCard, PageHeader, ScoreBadge, StatusBadge, Td, Th } from "@/components/ui";
-import { getKpiSummary, getRecentQualifiedLeads } from "@/lib/queries";
+import { getDueActions, getKpiSummary, getRecentQualifiedLeads } from "@/lib/queries";
 import { formatDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [kpi, recent] = await Promise.all([getKpiSummary(), getRecentQualifiedLeads()]);
+  const [kpi, recent, dueActions] = await Promise.all([
+    getKpiSummary(),
+    getRecentQualifiedLeads(),
+    getDueActions(),
+  ]);
+  const today = new Date().toISOString().slice(0, 10);
 
   const funnelMax = Math.max(kpi.funnel.raw + kpi.funnel.qualified + kpi.funnel.contacted, 1);
   const funnel = [
@@ -33,6 +39,31 @@ export default async function DashboardPage() {
           <KpiCard index={4} label="Replies" value={kpi.replied} />
           <KpiCard index={5} label="Proposals" value={kpi.proposals} />
         </div>
+
+        {dueActions.length > 0 && (
+          <Card index={5} className="p-5 mb-8">
+            <p className="text-sm font-semibold text-ink mb-3">Next actions due</p>
+            <div className="space-y-2">
+              {dueActions.map((lead) => {
+                const overdue = (lead.next_action_due ?? "") < today;
+                return (
+                  <Link
+                    key={lead.id}
+                    href={`/leads/${lead.id}`}
+                    className="flex items-center justify-between text-sm px-3 py-2 rounded-md hover:bg-surface-2/50"
+                  >
+                    <span className="text-ink">{lead.business_name}</span>
+                    <span className="text-ink-secondary">{lead.next_action}</span>
+                    <span className={overdue ? "text-red-400 font-medium" : "text-ink-muted"}>
+                      {lead.next_action_due}
+                      {overdue ? " (overdue)" : ""}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <Card index={6} className="p-5 lg:col-span-1">

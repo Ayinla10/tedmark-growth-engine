@@ -46,6 +46,33 @@ export async function markWhatsappSentDb(outreachId: string) {
   return sent.rows[0];
 }
 
+export async function updatePipelineDb(
+  leadId: string,
+  fields: { pipelineStage?: string; nextAction?: string | null; nextActionDue?: string | null }
+) {
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  if (fields.pipelineStage !== undefined) {
+    params.push(fields.pipelineStage);
+    sets.push(`pipeline_stage = $${params.length}`);
+  }
+  if (fields.nextAction !== undefined) {
+    params.push(fields.nextAction);
+    sets.push(`next_action = $${params.length}`);
+  }
+  if (fields.nextActionDue !== undefined) {
+    params.push(fields.nextActionDue);
+    sets.push(`next_action_due = $${params.length}`);
+  }
+  if (sets.length === 0) return null;
+  params.push(leadId);
+  const res = await pool.query(
+    `UPDATE leads SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
+    params
+  );
+  return res.rows[0] ?? null;
+}
+
 export async function archiveLeadDb(leadId: string) {
   const res = await pool.query(
     `UPDATE leads SET status = 'archived' WHERE id = $1 RETURNING *`,
