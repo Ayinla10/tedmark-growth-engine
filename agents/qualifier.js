@@ -109,7 +109,11 @@ export async function runQualifier({ limit, leadId }) {
       const text = await complete({
         system: systemPrompt,
         user: userMessage,
-        maxTokens: 300,
+        // deepseek-v4-flash emits hidden chain-of-thought (reasoning_content)
+        // that counts against max_tokens before the actual JSON answer —
+        // a budget too tight for the reasoning cuts the response off with
+        // finish_reason "length" and empty content. 2000 leaves headroom.
+        maxTokens: 2000,
         json: true,
       });
 

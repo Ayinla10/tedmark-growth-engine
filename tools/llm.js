@@ -49,5 +49,13 @@ export async function complete({ system, user, maxTokens = 1024, json = false })
     ],
   });
 
+  if (process.env.LLM_DEBUG) {
+    const choice = response.choices?.[0];
+    const reasoning = choice?.message?.reasoning_content;
+    console.error(
+      `[llm-debug] finish_reason=${choice?.finish_reason} maxTokens=${maxTokens} reasoning_len=${reasoning ? reasoning.length : 0} content_len=${(choice?.message?.content ?? '').length} usage=${JSON.stringify(response.usage)}`
+    );
+  }
+
   return response.choices?.[0]?.message?.content ?? '';
 }
