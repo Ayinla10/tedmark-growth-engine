@@ -96,6 +96,29 @@ ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_language_check;
 ALTER TABLE leads ADD CONSTRAINT leads_language_check CHECK (language IN ('EN', 'FR'));
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS dm_enriched_at timestamptz;
 
+-- Multi-dimensional ICP (Ideal Customer Profile) scoring: Budget,
+-- Authority, Need, Urgency, Fit — each 1-5, scored by the ICP scorer
+-- agent (agents/icpScorer.js) from the qualifier's findings, DM
+-- enrichment, and sector. Separate from `score` above, which measures
+-- website/digital-presence opportunity, not sales-readiness.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_budget smallint;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_authority smallint;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_need smallint;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_urgency smallint;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_fit smallint;
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_icp_range_check;
+ALTER TABLE leads ADD CONSTRAINT leads_icp_range_check CHECK (
+  (icp_budget IS NULL OR icp_budget BETWEEN 1 AND 5) AND
+  (icp_authority IS NULL OR icp_authority BETWEEN 1 AND 5) AND
+  (icp_need IS NULL OR icp_need BETWEEN 1 AND 5) AND
+  (icp_urgency IS NULL OR icp_urgency BETWEEN 1 AND 5) AND
+  (icp_fit IS NULL OR icp_fit BETWEEN 1 AND 5)
+);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_total smallint;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_reasoning text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS icp_scored_at timestamptz;
+CREATE INDEX IF NOT EXISTS idx_leads_icp_total ON leads(icp_total);
+
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id uuid NOT NULL REFERENCES leads(id),

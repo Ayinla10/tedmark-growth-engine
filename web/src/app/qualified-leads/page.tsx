@@ -61,6 +61,7 @@ export default async function QualifiedLeadsPage({
                     <Th>Sector</Th>
                     <Th>Score</Th>
                     <Th>Why this score</Th>
+                    <Th>ICP</Th>
                     <Th>Pipeline</Th>
                     <Th>Qualified</Th>
                     <Th>Actions</Th>
@@ -78,6 +79,15 @@ export default async function QualifiedLeadsPage({
                       <Td><ScoreBadge score={lead.score} /></Td>
                       <Td className="text-ink-secondary max-w-md">{lead.score_reason ?? "—"}</Td>
                       <Td>
+                        {lead.icp_total !== null ? (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand/10 text-brand">
+                            {lead.icp_total}/25
+                          </span>
+                        ) : (
+                          <span className="text-ink-muted text-xs">—</span>
+                        )}
+                      </Td>
+                      <Td>
                         <PipelineCell
                           leadId={lead.id}
                           pipelineStage={lead.pipeline_stage}
@@ -91,6 +101,7 @@ export default async function QualifiedLeadsPage({
                           leadId={lead.id}
                           showQualify
                           showDmEnrich
+                          showIcpScore
                           showGenerateOutreach={(lead.score ?? 0) >= 6}
                           showArchive
                         />

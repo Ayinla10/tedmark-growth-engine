@@ -5,6 +5,7 @@ import { runQualifier } from './agents/qualifier.js';
 import { runOutreach, runApprove, runSend } from './agents/outreach.js';
 import { runEnricher } from './agents/enricher.js';
 import { runDmEnrich } from './agents/dmEnrich.js';
+import { runIcpScorer } from './agents/icpScorer.js';
 import { runSequencer, startSequencerCron } from './agents/sequencer.js';
 import { runProposal } from './agents/proposal.js';
 import { runAnalytics } from './agents/analytics.js';
@@ -93,6 +94,13 @@ async function main() {
       const limit = parseInt(args.limit, 10) || 20;
       const leadId = args['lead-id'];
       await runDmEnrich({ limit, leadId });
+      break;
+    }
+
+    case 'icp-score': {
+      const limit = parseInt(args.limit, 10) || 20;
+      const leadId = args['lead-id'];
+      await runIcpScorer({ limit, leadId });
       break;
     }
 
@@ -217,6 +225,7 @@ async function main() {
       console.log('  node index.js qualify --limit 10');
       console.log('  node index.js enrich --limit 20');
       console.log('  node index.js enrich-dm --limit 20');
+      console.log('  node index.js icp-score --limit 20');
       console.log('  node index.js outreach --limit 10');
       console.log('  node index.js approve --outreach-id <uuid>');
       console.log('  node index.js send --outreach-id <uuid> [--to email@example.com]');

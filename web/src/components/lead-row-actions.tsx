@@ -1,11 +1,12 @@
 "use client";
 
-import { Archive, Mail, ShieldCheck, User, Wrench } from "lucide-react";
+import { Archive, Mail, ShieldCheck, Target, User, Wrench } from "lucide-react";
 import { useState, useTransition } from "react";
 import {
   runQualifierAction,
   runEnricherAction,
   runDmEnrichAction,
+  runIcpScoreAction,
   runOutreachAction,
   archiveLeadAction,
 } from "@/lib/actions";
@@ -16,6 +17,7 @@ export function LeadRowActions({
   showQualify = false,
   showEnrich = false,
   showDmEnrich = false,
+  showIcpScore = false,
   showGenerateOutreach = false,
   showArchive = true,
 }: {
@@ -23,6 +25,7 @@ export function LeadRowActions({
   showQualify?: boolean;
   showEnrich?: boolean;
   showDmEnrich?: boolean;
+  showIcpScore?: boolean;
   showGenerateOutreach?: boolean;
   showArchive?: boolean;
 }) {
@@ -70,6 +73,17 @@ export function LeadRowActions({
           className="p-1.5 rounded-md text-ink-muted hover:text-brand hover:bg-surface-2 disabled:opacity-50"
         >
           <User size={15} />
+        </button>
+      )}
+      {showIcpScore && (
+        <button
+          type="button"
+          title="Score sales readiness (ICP)"
+          disabled={pending}
+          onClick={() => run("icp-score", () => runIcpScoreAction(1, leadId))}
+          className="p-1.5 rounded-md text-ink-muted hover:text-brand hover:bg-surface-2 disabled:opacity-50"
+        >
+          <Target size={15} />
         </button>
       )}
       {showGenerateOutreach && (

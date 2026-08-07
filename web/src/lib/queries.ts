@@ -88,6 +88,13 @@ export type Lead = {
   dm_phone: string | null;
   dm_linkedin_url: string | null;
   language: string;
+  icp_budget: number | null;
+  icp_authority: number | null;
+  icp_need: number | null;
+  icp_urgency: number | null;
+  icp_fit: number | null;
+  icp_total: number | null;
+  icp_reasoning: string | null;
 };
 
 export const PIPELINE_STAGES = [

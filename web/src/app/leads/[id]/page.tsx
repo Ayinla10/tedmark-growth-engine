@@ -62,6 +62,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               showQualify
               showEnrich
               showDmEnrich
+              showIcpScore
               showGenerateOutreach
               showArchive
             />
@@ -234,6 +235,42 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             </pre>
           </Card>
         </div>
+
+        {lead.icp_total !== null ? (
+          <Card className="p-5 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-ink">ICP score (sales readiness)</p>
+              <span className="text-sm font-semibold px-2.5 py-0.5 rounded-full bg-brand/10 text-brand">
+                {lead.icp_total}/25
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-3">
+              <div className="text-center">
+                <p className="text-xs text-ink-muted">Budget</p>
+                <p className="text-lg font-semibold text-ink">{lead.icp_budget}/5</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-ink-muted">Authority</p>
+                <p className="text-lg font-semibold text-ink">{lead.icp_authority}/5</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-ink-muted">Need</p>
+                <p className="text-lg font-semibold text-ink">{lead.icp_need}/5</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-ink-muted">Urgency</p>
+                <p className="text-lg font-semibold text-ink">{lead.icp_urgency}/5</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-ink-muted">Fit</p>
+                <p className="text-lg font-semibold text-ink">{lead.icp_fit}/5</p>
+              </div>
+            </div>
+            {lead.icp_reasoning ? (
+              <p className="text-sm text-ink-secondary">{lead.icp_reasoning}</p>
+            ) : null}
+          </Card>
+        ) : null}
 
         {lead.discovery_evidence ? (
           <Card className="p-5 mb-6">

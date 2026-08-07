@@ -56,6 +56,13 @@ export async function runDmEnrichAction(limit: number, leadId?: string) {
   return result;
 }
 
+export async function runIcpScoreAction(limit: number, leadId?: string) {
+  const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
+  const result = await runAgentCommand("icp-score", args);
+  refreshAll();
+  return result;
+}
+
 export async function runQualifierAction(limit: number, leadId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   const result = await runAgentCommand("qualify", args);

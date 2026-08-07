@@ -203,6 +203,40 @@ export async function updateLeadDecisionMaker(id, { dmName, dmTitle, dmEmail, dm
   return result.rows[0];
 }
 
+export async function getLeadsNeedingIcpScore(limit, agencyId = null) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  const result = await query(
+    `SELECT * FROM leads
+     WHERE agency_id = $1
+       AND status != 'archived'
+       AND score IS NOT NULL
+       AND icp_scored_at IS NULL
+     ORDER BY score DESC, created_at ASC
+     LIMIT $2`,
+    [id, limit]
+  );
+  return result.rows;
+}
+
+export async function updateLeadIcpScore(id, { budget, authority, need, urgency, fit, reasoning }) {
+  const total = budget + authority + need + urgency + fit;
+  const result = await query(
+    `UPDATE leads
+     SET icp_budget = $1,
+         icp_authority = $2,
+         icp_need = $3,
+         icp_urgency = $4,
+         icp_fit = $5,
+         icp_total = $6,
+         icp_reasoning = $7,
+         icp_scored_at = now()
+     WHERE id = $8
+     RETURNING *`,
+    [budget, authority, need, urgency, fit, total, reasoning ?? null, id]
+  );
+  return result.rows[0];
+}
+
 export async function hasOutreachForLead(leadId) {
   const result = await query(
     `SELECT 1 FROM outreach WHERE lead_id = $1 LIMIT 1`,
