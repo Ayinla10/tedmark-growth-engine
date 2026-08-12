@@ -86,26 +86,31 @@ async function classifyIntent(text) {
   }
 }
 
-async function handleCommand(intent, chatId, agencyId) {
+async function reply(link, chatId, text) {
+  await sendMessage(chatId, text);
+  await recordTelegramMessage(link.id, 'outbound', text);
+}
+
+async function handleCommand(link, intent, chatId, agencyId) {
   if (intent === 'status') {
     const summary = await getTelegramStatusSummary(agencyId);
-    await sendMessage(chatId, formatStatus(summary));
+    await reply(link, chatId, formatStatus(summary));
   } else if (intent === 'leads') {
-    await sendMessage(chatId, await formatTopLeads(agencyId));
+    await reply(link, chatId, await formatTopLeads(agencyId));
   } else if (intent === 'pause') {
     await setSetting('scout_enabled', false, agencyId);
     await setSetting('web_scout_enabled', false, agencyId);
     await setSetting('directory_scout_enabled', false, agencyId);
-    await sendMessage(chatId, 'Discovery paused. No new leads will be found until you /resume.');
+    await reply(link, chatId, 'Discovery paused. No new leads will be found until you /resume.');
   } else if (intent === 'resume') {
     await setSetting('scout_enabled', true, agencyId);
     await setSetting('web_scout_enabled', true, agencyId);
     await setSetting('directory_scout_enabled', true, agencyId);
-    await sendMessage(chatId, 'Discovery resumed.');
+    await reply(link, chatId, 'Discovery resumed.');
   } else if (intent === 'help') {
-    await sendMessage(chatId, HELP_TEXT);
+    await reply(link, chatId, HELP_TEXT);
   } else {
-    await sendMessage(chatId, "I didn't understand that. Send /help to see what I can do.");
+    await reply(link, chatId, "I didn't understand that. Send /help to see what I can do.");
   }
 }
 
@@ -153,7 +158,7 @@ async function handleMessage(msg) {
     intent = await classifyIntent(text);
   }
 
-  await handleCommand(intent, chatId, link.agency_id);
+  await handleCommand(link, intent, chatId, link.agency_id);
 }
 
 async function handleCallbackQuery(cb) {
