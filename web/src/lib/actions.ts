@@ -8,6 +8,9 @@ import {
   editProposalDb,
   archiveLeadDb,
   updatePipelineDb,
+  generateTelegramLinkCodeDb,
+  updateTelegramNotificationLevelDb,
+  unlinkTelegramDb,
   logReplyDb,
   markWhatsappSentDb,
   insertKnowledgeItemDb,
@@ -20,6 +23,7 @@ import {
   type KnowledgeItemInput,
 } from "./mutations";
 import { setSetting, type Settings } from "./settings";
+import { getSession } from "./auth";
 
 function refreshAll() {
   revalidatePath("/agents");
@@ -153,6 +157,29 @@ export async function sendProposalAction(proposalId: string) {
   const result = await runAgentCommand("send-proposal", ["--proposal-id", proposalId]);
   refreshAll();
   return result;
+}
+
+export async function generateTelegramLinkCodeAction(): Promise<{ ok: boolean; code?: string }> {
+  const session = await getSession();
+  if (!session) return { ok: false };
+  const code = await generateTelegramLinkCodeDb(session.id, session.agencyId);
+  return { ok: true, code };
+}
+
+export async function updateTelegramNotificationLevelAction(level: string) {
+  const session = await getSession();
+  if (!session) return { ok: false };
+  await updateTelegramNotificationLevelDb(session.id, level);
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function unlinkTelegramAction() {
+  const session = await getSession();
+  if (!session) return { ok: false };
+  await unlinkTelegramDb(session.id);
+  revalidatePath("/settings");
+  return { ok: true };
 }
 
 export async function archiveLeadAction(leadId: string) {

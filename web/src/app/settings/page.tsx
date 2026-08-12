@@ -2,9 +2,11 @@ import { readFileSync } from "fs";
 import path from "path";
 import { AppShell } from "@/components/app-shell";
 import { SettingsForm } from "@/components/settings-form";
+import { TelegramLinkCard } from "@/components/telegram-link-card";
 import { Card, PageHeader } from "@/components/ui";
 import { getSettings } from "@/lib/settings";
-import { getSearchApiUsageThisMonth } from "@/lib/queries";
+import { getSearchApiUsageThisMonth, getTelegramLinkForUser } from "@/lib/queries";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,7 @@ const KEYS: { name: string; env: string; purpose: string }[] = [
   { name: "Geoapify Places", env: "GEOAPIFY_API_KEY", purpose: "Scout agent business discovery" },
   { name: "Brave Search", env: "BRAVE_SEARCH_API_KEY", purpose: "Web-scout search discovery (dorks, LinkedIn/Facebook snippets)" },
   { name: "Resend", env: "RESEND_API_KEY", purpose: "Sending approved outreach emails" },
+  { name: "Telegram Bot", env: "TELEGRAM_BOT_TOKEN", purpose: "Telegram control layer — notifications, approvals, status commands" },
   { name: "PostgreSQL", env: "DATABASE_URL", purpose: "Lead and pipeline storage" },
 ];
 
@@ -33,7 +36,12 @@ function readBackendEnv(): Record<string, boolean> {
 
 export default async function SettingsPage() {
   const backendEnv = readBackendEnv();
-  const [settings, braveUsage] = await Promise.all([getSettings(), getSearchApiUsageThisMonth("brave")]);
+  const session = await getSession();
+  const [settings, braveUsage, telegramLink] = await Promise.all([
+    getSettings(),
+    getSearchApiUsageThisMonth("brave"),
+    session ? getTelegramLinkForUser(session.id) : Promise.resolve(null),
+  ]);
   const braveFreeQuota = 1000; // Brave's ~$5/month free credit at $5/1,000 queries.
   const braveUsagePct = Math.min(100, Math.round((braveUsage / braveFreeQuota) * 100));
 
@@ -48,6 +56,10 @@ export default async function SettingsPage() {
         <Card className="p-5 mb-6">
           <SettingsForm initial={settings} />
         </Card>
+
+        <div className="mb-6">
+          <TelegramLinkCard link={telegramLink} botUsername="TedmarkControlBot" />
+        </div>
 
         <Card className="p-5 mb-6">
           <p className="text-sm font-semibold text-ink mb-1">Brave Search API usage this month</p>

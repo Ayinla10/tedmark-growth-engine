@@ -11,6 +11,7 @@ import {
   getLatestOutreachForLead,
   insertOutreach,
 } from '../tools/db.js';
+import { notifyTelegram, notifyTelegramApproval } from '../tools/telegramNotify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -104,6 +105,22 @@ export async function runReplyWatcher() {
       }
 
       console.log(`[reply-watcher] "${lead.business_name}" reply classified as ${classification}${draftOutreachId ? ' — draft created' : ''}.`);
+
+      const isPositive = classification === 'interested' || classification === 'needs_info';
+      await notifyTelegram(
+        lead.agency_id,
+        isPositive ? 'IMPORTANT' : 'INFO',
+        `*REPLY RECEIVED*\n\n*${lead.business_name}* replied — classified as *${classification}*.\n\n"${replyText.slice(0, 300)}"`
+      );
+
+      if (draftOutreachId) {
+        await notifyTelegramApproval(
+          lead.agency_id,
+          `*APPROVAL REQUIRED*\n\nReply-based draft for *${lead.business_name}*:\n\n${parsed.next_message}`,
+          'outreach',
+          draftOutreachId
+        );
+      }
     } catch (err) {
       console.error(`[reply-watcher] Classification failed for "${lead.business_name}": ${err.message}`);
     }

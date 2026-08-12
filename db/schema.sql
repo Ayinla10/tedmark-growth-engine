@@ -142,6 +142,78 @@ CREATE TABLE IF NOT EXISTS api_usage (
 CREATE INDEX IF NOT EXISTS idx_api_usage_agency_created ON api_usage(agency_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_api_usage_provider ON api_usage(provider);
 
+-- Telegram control layer.
+--
+-- Linking is deliberately two-step and short-lived (section 40 of the
+-- spec this was built from): the dashboard generates a one-time code tied
+-- to an authenticated user, the user sends that code to the bot, and only
+-- then does a telegram_chat_id get bound to a user/agency. We never trust
+-- a Telegram username or chat ID on its own.
+CREATE TABLE IF NOT EXISTS telegram_link_codes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id),
+  agency_id uuid REFERENCES agencies(id),
+  code text NOT NULL UNIQUE,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_telegram_link_codes_code ON telegram_link_codes(code);
+
+-- One Telegram chat can link to exactly one user/agency, and one user can
+-- have at most one active link — enforced by the unique constraints below,
+-- not just application logic, so a data leak here fails loud in Postgres
+-- rather than silently in a forgotten code path.
+CREATE TABLE IF NOT EXISTS telegram_links (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id),
+  agency_id uuid REFERENCES agencies(id),
+  telegram_chat_id bigint NOT NULL UNIQUE,
+  telegram_user_id bigint NOT NULL,
+  telegram_username text,
+  -- Below this level, routine notifications are suppressed. ACTION_REQUIRED
+  -- and CRITICAL always send regardless of this setting (approvals must
+  -- always reach a human).
+  min_notification_level text NOT NULL DEFAULT 'INFO'
+    CHECK (min_notification_level IN ('LOW', 'INFO', 'IMPORTANT', 'ACTION_REQUIRED', 'CRITICAL')),
+  active boolean NOT NULL DEFAULT true,
+  linked_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_telegram_links_chat_id ON telegram_links(telegram_chat_id);
+
+-- Every inbound/outbound Telegram message, for conversation context
+-- (section 70 — "why?" should resolve against the last thing sent) and as
+-- an audit trail of what the bot said/did on the owner's behalf.
+CREATE TABLE IF NOT EXISTS telegram_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  telegram_link_id uuid NOT NULL REFERENCES telegram_links(id),
+  direction text NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  body text NOT NULL,
+  -- Free-form context for "why?" follow-ups and approval resolution —
+  -- e.g. {"kind": "approval_request", "outreach_id": "..."}.
+  context jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_telegram_messages_link_created ON telegram_messages(telegram_link_id, created_at);
+
+-- Telegram inline-button callback_data is capped at 64 bytes by the
+-- platform, so a self-contained signed payload doesn't fit — instead the
+-- button carries only a short random token, and the actual action/target
+-- lives here. Also gives us "current state" + "already used" checks
+-- (section 43 of the spec this was built from: an old button must not
+-- execute a stale action) essentially for free.
+CREATE TABLE IF NOT EXISTS telegram_callback_tokens (
+  token text PRIMARY KEY,
+  telegram_link_id uuid NOT NULL REFERENCES telegram_links(id),
+  action text NOT NULL,
+  target_id uuid,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_telegram_callback_tokens_expires ON telegram_callback_tokens(expires_at);
+
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id uuid NOT NULL REFERENCES leads(id),

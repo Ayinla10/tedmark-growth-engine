@@ -73,6 +73,24 @@ export async function updatePipelineDb(
   return res.rows[0] ?? null;
 }
 
+export async function generateTelegramLinkCodeDb(userId: string, agencyId: string | null): Promise<string> {
+  const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+  await pool.query(
+    `INSERT INTO telegram_link_codes (user_id, agency_id, code, expires_at)
+     VALUES ($1, $2, $3, now() + interval '10 minutes')`,
+    [userId, agencyId, code]
+  );
+  return code;
+}
+
+export async function updateTelegramNotificationLevelDb(userId: string, level: string) {
+  await pool.query(`UPDATE telegram_links SET min_notification_level = $1 WHERE user_id = $2`, [level, userId]);
+}
+
+export async function unlinkTelegramDb(userId: string) {
+  await pool.query(`UPDATE telegram_links SET active = false WHERE user_id = $1`, [userId]);
+}
+
 export async function archiveLeadDb(leadId: string) {
   const res = await pool.query(
     `UPDATE leads SET status = 'archived' WHERE id = $1 RETURNING *`,

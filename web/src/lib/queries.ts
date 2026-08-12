@@ -162,8 +162,10 @@ export type KpiSummary = {
 };
 
 export async function getKpiSummary(): Promise<KpiSummary> {
+  const agencyId = await getCurrentAgencyId();
   const [leads, outreach, proposals, followUps] = await Promise.all([
-    pool.query(`
+    pool.query(
+      `
       SELECT
         count(*)::int AS total,
         count(*) FILTER (WHERE created_at::date = now()::date)::int AS today,
@@ -173,15 +175,35 @@ export async function getKpiSummary(): Promise<KpiSummary> {
         count(*) FILTER (WHERE status = 'archived')::int AS archived,
         round(avg(score) FILTER (WHERE score IS NOT NULL), 1)::float AS avg_score
       FROM leads
-    `),
-    pool.query(`
+      WHERE agency_id = $1
+    `,
+      [agencyId]
+    ),
+    pool.query(
+      `
       SELECT
-        count(*) FILTER (WHERE status = 'draft')::int AS drafts,
-        count(*) FILTER (WHERE replied)::int AS replied
-      FROM outreach
-    `),
-    pool.query(`SELECT count(*)::int AS total FROM proposals`),
-    pool.query(`SELECT count(*) FILTER (WHERE status = 'pending')::int AS pending FROM follow_ups`),
+        count(*) FILTER (WHERE o.status = 'draft')::int AS drafts,
+        count(*) FILTER (WHERE o.replied)::int AS replied
+      FROM outreach o
+      JOIN leads l ON l.id = o.lead_id
+      WHERE l.agency_id = $1
+    `,
+      [agencyId]
+    ),
+    pool.query(
+      `SELECT count(*)::int AS total
+       FROM proposals p
+       JOIN leads l ON l.id = p.lead_id
+       WHERE l.agency_id = $1`,
+      [agencyId]
+    ),
+    pool.query(
+      `SELECT count(*) FILTER (WHERE f.status = 'pending')::int AS pending
+       FROM follow_ups f
+       JOIN leads l ON l.id = f.lead_id
+       WHERE l.agency_id = $1`,
+      [agencyId]
+    ),
   ]);
 
   const l = leads.rows[0];
@@ -681,6 +703,21 @@ export async function getApiUsageSummary(
     .sort((a, b) => a.day.localeCompare(b.day));
 
   return { byProvider, daily };
+}
+
+export type TelegramLink = {
+  id: string;
+  telegram_username: string | null;
+  min_notification_level: string;
+  linked_at: string;
+};
+
+export async function getTelegramLinkForUser(userId: string): Promise<TelegramLink | null> {
+  const res = await pool.query(
+    `SELECT id, telegram_username, min_notification_level, linked_at FROM telegram_links WHERE user_id = $1 AND active = true`,
+    [userId]
+  );
+  return res.rows[0] ?? null;
 }
 
 export async function getOutreach(range?: DateRange): Promise<OutreachRow[]> {

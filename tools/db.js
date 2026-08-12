@@ -238,6 +238,125 @@ export async function updateLeadIcpScore(id, { budget, authority, need, urgency,
   return result.rows[0];
 }
 
+export async function getTelegramStatusSummary(agencyId) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  const [leads, outreach, proposals, dueActions] = await Promise.all([
+    query(
+      `SELECT
+         count(*)::int AS total,
+         count(*) FILTER (WHERE created_at::date = now()::date)::int AS today,
+         count(*) FILTER (WHERE status = 'raw')::int AS raw,
+         count(*) FILTER (WHERE status = 'qualified')::int AS qualified,
+         count(*) FILTER (WHERE status = 'contacted')::int AS contacted,
+         round(avg(score) FILTER (WHERE score IS NOT NULL), 1)::float AS avg_score
+       FROM leads WHERE agency_id = $1`,
+      [id]
+    ),
+    query(
+      `SELECT
+         count(*) FILTER (WHERE o.status = 'draft')::int AS drafts,
+         count(*) FILTER (WHERE o.status = 'sent' AND o.created_at::date = now()::date)::int AS sent_today,
+         count(*) FILTER (WHERE o.replied)::int AS replied
+       FROM outreach o JOIN leads l ON l.id = o.lead_id WHERE l.agency_id = $1`,
+      [id]
+    ),
+    query(
+      `SELECT count(*)::int AS total FROM proposals p JOIN leads l ON l.id = p.lead_id WHERE l.agency_id = $1`,
+      [id]
+    ),
+    query(
+      `SELECT count(*)::int AS n FROM leads
+       WHERE agency_id = $1 AND next_action_due IS NOT NULL AND next_action_due <= now()::date AND status != 'archived'`,
+      [id]
+    ),
+  ]);
+
+  return {
+    leadsTotal: leads.rows[0].total,
+    leadsToday: leads.rows[0].today,
+    raw: leads.rows[0].raw,
+    qualified: leads.rows[0].qualified,
+    contacted: leads.rows[0].contacted,
+    avgScore: leads.rows[0].avg_score,
+    drafts: outreach.rows[0].drafts,
+    sentToday: outreach.rows[0].sent_today,
+    replied: outreach.rows[0].replied,
+    proposals: proposals.rows[0].total,
+    dueOrOverdue: dueActions.rows[0].n,
+  };
+}
+
+export async function findUserForTelegramLink(email) {
+  if (email) {
+    const result = await query(`SELECT id, email, agency_id FROM users WHERE email = $1`, [email]);
+    return result.rows[0] ?? null;
+  }
+  const result = await query(`SELECT id, email, agency_id FROM users`);
+  if (result.rows.length !== 1) return null; // ambiguous — caller must pass --email
+  return result.rows[0];
+}
+
+export async function createTelegramLinkCode(userId, agencyId) {
+  const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+  await query(
+    `INSERT INTO telegram_link_codes (user_id, agency_id, code, expires_at)
+     VALUES ($1, $2, $3, now() + interval '10 minutes')`,
+    [userId, agencyId, code]
+  );
+  return code;
+}
+
+export async function consumeTelegramLinkCode(code, telegramChatId, telegramUserId, telegramUsername) {
+  const codeRow = await query(
+    `SELECT * FROM telegram_link_codes WHERE code = $1 AND used_at IS NULL AND expires_at > now()`,
+    [code]
+  );
+  const row = codeRow.rows[0];
+  if (!row) return null;
+
+  await query(`UPDATE telegram_link_codes SET used_at = now() WHERE id = $1`, [row.id]);
+
+  const result = await query(
+    `INSERT INTO telegram_links (user_id, agency_id, telegram_chat_id, telegram_user_id, telegram_username)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (user_id) DO UPDATE SET
+       telegram_chat_id = $3, telegram_user_id = $4, telegram_username = $5, active = true, linked_at = now()
+     RETURNING *`,
+    [row.user_id, row.agency_id, telegramChatId, telegramUserId, telegramUsername ?? null]
+  );
+  return result.rows[0];
+}
+
+export async function getTelegramLinkByChatId(chatId) {
+  const result = await query(`SELECT * FROM telegram_links WHERE telegram_chat_id = $1 AND active = true`, [chatId]);
+  return result.rows[0] ?? null;
+}
+
+export async function getActiveTelegramLinksForAgency(agencyId) {
+  const result = await query(`SELECT * FROM telegram_links WHERE agency_id = $1 AND active = true`, [agencyId]);
+  return result.rows;
+}
+
+export async function getAgencyIdsWithActiveTelegramLinks() {
+  const result = await query(`SELECT DISTINCT agency_id FROM telegram_links WHERE active = true AND agency_id IS NOT NULL`);
+  return result.rows.map((r) => r.agency_id);
+}
+
+export async function recordTelegramMessage(telegramLinkId, direction, body, context = null) {
+  await query(
+    `INSERT INTO telegram_messages (telegram_link_id, direction, body, context) VALUES ($1, $2, $3, $4)`,
+    [telegramLinkId, direction, body, context ? JSON.stringify(context) : null]
+  );
+}
+
+export async function getRecentTelegramMessages(telegramLinkId, limit = 5) {
+  const result = await query(
+    `SELECT * FROM telegram_messages WHERE telegram_link_id = $1 ORDER BY created_at DESC LIMIT $2`,
+    [telegramLinkId, limit]
+  );
+  return result.rows.reverse();
+}
+
 export async function hasOutreachForLead(leadId) {
   const result = await query(
     `SELECT 1 FROM outreach WHERE lead_id = $1 LIMIT 1`,

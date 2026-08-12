@@ -13,6 +13,7 @@ import {
   markPendingFollowUpsSent,
   getLeadById,
 } from '../tools/db.js';
+import { notifyTelegramApproval } from '../tools/telegramNotify.js';
 import { sendEmail } from '../tools/emailSender.js';
 import { resolveChannel } from '../tools/channel.js';
 import { getSetting } from '../tools/settings.js';
@@ -173,6 +174,13 @@ export async function runOutreach({ limit, leadId, signatureId }) {
         });
 
         console.log(`[outreach] Email draft saved for "${lead.business_name}" (outreach id: ${draft.id}) — subject: "${subject}"`);
+
+        await notifyTelegramApproval(
+          lead.agency_id,
+          `*APPROVAL REQUIRED*\n\nEmail draft for *${lead.business_name}*\n\n*Subject:* ${subject}\n\n${body}`,
+          'outreach',
+          draft.id
+        );
       } else {
         const text = await complete({
           system: whatsappSystemPrompt,
@@ -196,6 +204,13 @@ export async function runOutreach({ limit, leadId, signatureId }) {
         });
 
         console.log(`[outreach] WhatsApp draft saved for "${lead.business_name}" (outreach id: ${draft.id}).`);
+
+        await notifyTelegramApproval(
+          lead.agency_id,
+          `*APPROVAL REQUIRED*\n\nWhatsApp draft for *${lead.business_name}*\n\n${body}`,
+          'outreach',
+          draft.id
+        );
       }
     } catch (err) {
       console.error(`[outreach] AI call failed for "${lead.business_name}": ${err.message}. Skipping.`);

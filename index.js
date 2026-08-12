@@ -13,6 +13,8 @@ import { runCleanKnowledge } from './agents/knowledgeCleaner.js';
 import { runReplyWatcher } from './agents/replyWatcher.js';
 import { runExportProposal, runSendProposal } from './agents/proposalDelivery.js';
 import { runDailyPipeline } from './scripts/dailyPipeline.js';
+import { runTelegramBot } from './agents/telegramBot.js';
+import { createTelegramLinkCode, findUserForTelegramLink } from './tools/db.js';
 
 function parseArgs(argv) {
   const args = {};
@@ -217,6 +219,33 @@ async function main() {
       break;
     }
 
+    case 'telegram-bot': {
+      await runTelegramBot();
+      break;
+    }
+
+    case 'telegram-link': {
+      const email = args.email;
+      const user = await findUserForTelegramLink(email);
+
+      if (!user) {
+        console.error(
+          email
+            ? `No user found with email ${email}.`
+            : 'Multiple users exist — specify one with --email you@example.com'
+        );
+        process.exit(1);
+      }
+
+      const code = await createTelegramLinkCode(user.id, user.agency_id);
+      console.log(`Link code: ${code}`);
+      console.log('Expires in 10 minutes.');
+      console.log('');
+      console.log('Send this to the bot in Telegram:');
+      console.log(`  /link ${code}`);
+      break;
+    }
+
     default: {
       console.log('Tedmark AI Growth Engine — CLI');
       console.log('');
@@ -239,6 +268,8 @@ async function main() {
       console.log('  node index.js daily');
       console.log('  node index.js check-replies');
       console.log('  node index.js export-proposal --proposal-id <uuid> --out <filepath>');
+      console.log('  node index.js telegram-link [--email you@example.com]');
+      console.log('  node index.js telegram-bot');
       console.log('  node index.js send-proposal --proposal-id <uuid>');
       process.exit(command ? 1 : 0);
     }
