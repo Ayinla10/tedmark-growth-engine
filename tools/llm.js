@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { recordApiUsage } from './db.js';
 
 dotenv.config();
 
@@ -55,6 +56,17 @@ export async function complete({ system, user, maxTokens = 1024, json = false })
     console.error(
       `[llm-debug] finish_reason=${choice?.finish_reason} maxTokens=${maxTokens} reasoning_len=${reasoning ? reasoning.length : 0} content_len=${(choice?.message?.content ?? '').length} usage=${JSON.stringify(response.usage)}`
     );
+  }
+
+  // Real token counts from the API response, not an estimate — logged so
+  // the cost dashboard reflects what was actually spent, not a guess.
+  if (response.usage) {
+    try {
+      await recordApiUsage('deepseek', LLM_MODEL, 'tokens_in', response.usage.prompt_tokens);
+      await recordApiUsage('deepseek', LLM_MODEL, 'tokens_out', response.usage.completion_tokens);
+    } catch (err) {
+      console.warn(`[llm] Failed to record API usage: ${err.message}`);
+    }
   }
 
   return response.choices?.[0]?.message?.content ?? '';

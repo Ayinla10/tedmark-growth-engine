@@ -5,6 +5,7 @@ import {
   Bot,
   BookOpen,
   Compass,
+  DollarSign,
   FileText,
   HelpCircle,
   History,
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/follow-ups", label: "Follow-ups", icon: History },
   { href: "/proposals", label: "Proposals", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/costs", label: "API Spend", icon: DollarSign },
   { href: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -20,6 +20,14 @@ export const SETTINGS_DEFAULTS = {
   outreach_min_score: 6,
   sequencer_days_between_steps: 3,
   sequencer_max_steps: 3,
+  // Cost rates for the spend dashboard, in USD. Left at 0 until the agency
+  // enters their real rate from their provider's billing page — showing a
+  // guessed number would be worse than showing "not configured".
+  cost_rate_deepseek_input_per_1m: 0,
+  cost_rate_deepseek_output_per_1m: 0,
+  cost_rate_geoapify_per_request: 0,
+  cost_rate_brave_per_request: 0,
+  cost_rate_resend_per_email: 0,
 };
 
 export async function getSettings(agencyId) {

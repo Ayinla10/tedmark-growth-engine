@@ -4,6 +4,7 @@ import pool from "./db";
 import { getCurrentAgencyId } from "./agency";
 import { KNOWLEDGE_CATEGORIES } from "./knowledge-constants";
 import { toISODateString } from "./time";
+import { getSettings } from "./settings";
 
 // pg returns `date` columns as JS Date objects, which React can't render
 // directly — normalize to a plain "YYYY-MM-DD" string for every lead row.
@@ -594,6 +595,92 @@ export async function getQualifiedLeadsFiltered(range?: DateRange): Promise<Lead
     params
   );
   return res.rows.map(normalizeLead);
+}
+
+export type ApiUsageRow = {
+  provider: string;
+  operation: string;
+  unit: string;
+  quantity: number;
+};
+
+export type ApiUsageSummary = {
+  provider: string;
+  requests: number;
+  tokensIn: number;
+  tokensOut: number;
+  estimatedCostUsd: number | null;
+};
+
+export type DailyApiSpend = {
+  day: string;
+  estimatedCostUsd: number;
+};
+
+export async function getApiUsageSummary(
+  range?: DateRange
+): Promise<{ byProvider: ApiUsageSummary[]; daily: DailyApiSpend[] }> {
+  const agencyId = await getCurrentAgencyId();
+  const settings = await getSettings();
+
+  const params: unknown[] = [agencyId];
+  const where = dateClause("created_at", range, params);
+
+  const rows = await pool.query<ApiUsageRow & { created_at: string }>(
+    `SELECT provider, operation, unit, quantity, created_at FROM api_usage
+     WHERE agency_id = $1${where}
+     ORDER BY created_at ASC`,
+    params
+  );
+
+  const rateFor = (provider: string, unit: string): number => {
+    if (provider === "deepseek" && unit === "tokens_in") return settings.cost_rate_deepseek_input_per_1m / 1_000_000;
+    if (provider === "deepseek" && unit === "tokens_out") return settings.cost_rate_deepseek_output_per_1m / 1_000_000;
+    if (provider === "geoapify" && unit === "requests") return settings.cost_rate_geoapify_per_request;
+    if (provider === "brave" && unit === "requests") return settings.cost_rate_brave_per_request;
+    if (provider === "resend" && unit === "requests") return settings.cost_rate_resend_per_email;
+    return 0;
+  };
+
+  const byProviderMap = new Map<string, ApiUsageSummary>();
+  const dailyMap = new Map<string, number>();
+  const configuredRateExists = new Map<string, boolean>();
+
+  for (const row of rows.rows) {
+    const existing = byProviderMap.get(row.provider) ?? {
+      provider: row.provider,
+      requests: 0,
+      tokensIn: 0,
+      tokensOut: 0,
+      estimatedCostUsd: 0,
+    };
+
+    const rate = rateFor(row.provider, row.unit);
+    if (rate > 0) configuredRateExists.set(row.provider, true);
+    const cost = row.quantity * rate;
+
+    if (row.unit === "requests") existing.requests += row.quantity;
+    if (row.unit === "tokens_in") existing.tokensIn += row.quantity;
+    if (row.unit === "tokens_out") existing.tokensOut += row.quantity;
+    existing.estimatedCostUsd = (existing.estimatedCostUsd ?? 0) + cost;
+    byProviderMap.set(row.provider, existing);
+
+    const day = toISODateString(row.created_at) ?? String(row.created_at).slice(0, 10);
+    dailyMap.set(day, (dailyMap.get(day) ?? 0) + cost);
+  }
+
+  const byProvider = Array.from(byProviderMap.values()).map((p) => ({
+    ...p,
+    // Only show a $ figure once a real rate has been entered for this
+    // provider — otherwise it's genuinely unknown, not zero.
+    estimatedCostUsd: configuredRateExists.get(p.provider) ? p.estimatedCostUsd : null,
+  }));
+
+  const daily = Array.from(dailyMap.entries())
+    .map(([day, estimatedCostUsd]) => ({ day, estimatedCostUsd }))
+    .sort((a, b) => a.day.localeCompare(b.day));
+
+  return { byProvider, daily };
 }
 
 export async function getOutreach(range?: DateRange): Promise<OutreachRow[]> {

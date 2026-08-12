@@ -430,9 +430,19 @@ export async function recordSearchRun(id, { nextOffset, exhausted }) {
   return result.rows[0];
 }
 
+export async function recordApiUsage(provider, operation, unit, quantity, agencyId = null) {
+  if (!quantity) return;
+  const id = agencyId ?? (await getCurrentAgencyId());
+  await query(
+    `INSERT INTO api_usage (agency_id, provider, operation, unit, quantity) VALUES ($1, $2, $3, $4, $5)`,
+    [id, provider, operation, unit, quantity]
+  );
+}
+
 export async function recordSearchApiUsage(provider, agencyId = null) {
   const id = agencyId ?? (await getCurrentAgencyId());
   await query(`INSERT INTO search_api_usage (agency_id, provider) VALUES ($1, $2)`, [id, provider]);
+  await recordApiUsage(provider, 'search', 'requests', 1, id);
 }
 
 export async function getSearchApiUsageThisMonth(provider, agencyId = null) {

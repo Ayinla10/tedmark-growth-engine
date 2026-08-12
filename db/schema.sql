@@ -125,6 +125,23 @@ CREATE INDEX IF NOT EXISTS idx_leads_icp_total ON leads(icp_total);
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS country text NOT NULL DEFAULT 'GH';
 CREATE INDEX IF NOT EXISTS idx_leads_country ON leads(country);
 
+-- API spend visibility: one row per real external-API call, logging raw
+-- usage (tokens or request counts — always accurate, never estimated).
+-- Dollar cost is computed at read time from a configurable rate in
+-- `settings`, not stored here, so correcting a rate retroactively
+-- recalculates history instead of requiring a backfill.
+CREATE TABLE IF NOT EXISTS api_usage (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  agency_id uuid NOT NULL REFERENCES agencies(id),
+  provider text NOT NULL,
+  operation text NOT NULL,
+  unit text NOT NULL CHECK (unit IN ('tokens_in', 'tokens_out', 'requests')),
+  quantity integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_api_usage_agency_created ON api_usage(agency_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_api_usage_provider ON api_usage(provider);
+
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id uuid NOT NULL REFERENCES leads(id),

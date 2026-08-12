@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { recordApiUsage } from './db.js';
 
 dotenv.config();
 
@@ -49,6 +50,10 @@ async function geocodeCity(city) {
 
   const res = await fetch(`${GEOCODE_URL}?${params.toString()}`);
   const data = await res.json();
+
+  await recordApiUsage('geoapify', 'geocode', 'requests', 1).catch((err) => {
+    console.warn(`[mapsClient] Could not record API usage: ${err.message}`);
+  });
 
   const result = data.results?.[0];
   if (!result) {
@@ -105,6 +110,10 @@ export async function searchBusinesses({ sector, city, limit = 20, offset = 0 })
   if (!res.ok) {
     throw new Error(`Geoapify Places API error: ${data.message ?? res.statusText}`);
   }
+
+  await recordApiUsage('geoapify', 'places', 'requests', 1).catch((err) => {
+    console.warn(`[mapsClient] Could not record API usage: ${err.message}`);
+  });
 
   const features = data.features ?? [];
 

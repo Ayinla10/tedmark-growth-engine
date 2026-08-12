@@ -53,6 +53,11 @@ export function SettingsForm({ initial }: { initial: Settings }) {
   const [daysBetweenSteps, setDaysBetweenSteps] = useState(initial.sequencer_days_between_steps);
   const [maxSteps, setMaxSteps] = useState(initial.sequencer_max_steps);
   const [idleLogoutMinutes, setIdleLogoutMinutes] = useState(initial.idle_logout_minutes);
+  const [deepseekInputRate, setDeepseekInputRate] = useState(initial.cost_rate_deepseek_input_per_1m);
+  const [deepseekOutputRate, setDeepseekOutputRate] = useState(initial.cost_rate_deepseek_output_per_1m);
+  const [geoapifyRate, setGeoapifyRate] = useState(initial.cost_rate_geoapify_per_request);
+  const [braveRate, setBraveRate] = useState(initial.cost_rate_brave_per_request);
+  const [resendRate, setResendRate] = useState(initial.cost_rate_resend_per_email);
 
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; output?: string } | null>(null);
@@ -76,6 +81,11 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         sequencer_days_between_steps: daysBetweenSteps,
         sequencer_max_steps: maxSteps,
         idle_logout_minutes: idleLogoutMinutes,
+        cost_rate_deepseek_input_per_1m: deepseekInputRate,
+        cost_rate_deepseek_output_per_1m: deepseekOutputRate,
+        cost_rate_geoapify_per_request: geoapifyRate,
+        cost_rate_brave_per_request: braveRate,
+        cost_rate_resend_per_email: resendRate,
       };
       const r = await saveSettingsAction(settings);
       setResult(r);
@@ -215,6 +225,47 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             onChange={setIdleLogoutMinutes}
             min={1}
             hint="Signs everyone out automatically after this many minutes with no activity in the dashboard."
+          />
+        </div>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-ink mb-3">Cost rates (for the API spend dashboard)</p>
+        <p className="text-xs text-ink-muted mb-3">
+          Enter your real per-unit rate from each provider&apos;s billing page. Left at 0, that provider&apos;s cost
+          shows as &quot;not configured&quot; rather than a guessed number — usage counts (tokens/requests) are always
+          tracked and shown regardless.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <NumberField
+            label="DeepSeek input — $ per 1M tokens"
+            value={deepseekInputRate}
+            onChange={setDeepseekInputRate}
+            min={0}
+          />
+          <NumberField
+            label="DeepSeek output — $ per 1M tokens"
+            value={deepseekOutputRate}
+            onChange={setDeepseekOutputRate}
+            min={0}
+          />
+          <NumberField
+            label="Geoapify — $ per request"
+            value={geoapifyRate}
+            onChange={setGeoapifyRate}
+            min={0}
+          />
+          <NumberField
+            label="Brave Search — $ per request"
+            value={braveRate}
+            onChange={setBraveRate}
+            min={0}
+          />
+          <NumberField
+            label="Resend — $ per email"
+            value={resendRate}
+            onChange={setResendRate}
+            min={0}
           />
         </div>
       </div>

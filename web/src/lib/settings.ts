@@ -18,6 +18,11 @@ export const SETTINGS_DEFAULTS = {
   sequencer_days_between_steps: 3,
   sequencer_max_steps: 3,
   idle_logout_minutes: 15,
+  cost_rate_deepseek_input_per_1m: 0,
+  cost_rate_deepseek_output_per_1m: 0,
+  cost_rate_geoapify_per_request: 0,
+  cost_rate_brave_per_request: 0,
+  cost_rate_resend_per_email: 0,
 } as const;
 
 export type Settings = {
@@ -37,6 +42,11 @@ export type Settings = {
   sequencer_days_between_steps: number;
   sequencer_max_steps: number;
   idle_logout_minutes: number;
+  cost_rate_deepseek_input_per_1m: number;
+  cost_rate_deepseek_output_per_1m: number;
+  cost_rate_geoapify_per_request: number;
+  cost_rate_brave_per_request: number;
+  cost_rate_resend_per_email: number;
 };
 
 export async function getSettings(): Promise<Settings> {

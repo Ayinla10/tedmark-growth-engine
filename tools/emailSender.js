@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import dotenv from 'dotenv';
+import { recordApiUsage } from './db.js';
 
 dotenv.config();
 
@@ -25,6 +26,10 @@ export async function sendEmail({ to, from = DEFAULT_FROM, replyTo = DEFAULT_REP
   if (result.error) {
     throw new Error(`Resend rejected the email: ${result.error.message}`);
   }
+
+  await recordApiUsage('resend', 'send_email', 'requests', 1).catch((err) => {
+    console.warn(`[emailSender] Could not record API usage: ${err.message}`);
+  });
 
   return result.data;
 }
