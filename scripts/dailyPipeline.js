@@ -2,7 +2,9 @@ import { runScout } from '../agents/scout.js';
 import { runWebScout } from '../agents/webScout.js';
 import { runDirectoryScout } from '../agents/directoryScout.js';
 import { runEnricher } from '../agents/enricher.js';
+import { runDmEnrich } from '../agents/dmEnrich.js';
 import { runQualifier } from '../agents/qualifier.js';
+import { runIcpScorer } from '../agents/icpScorer.js';
 import { runOutreach } from '../agents/outreach.js';
 import { runSequencer } from '../agents/sequencer.js';
 import { runAnalytics } from '../agents/analytics.js';
@@ -187,6 +189,8 @@ export async function runDailyPipeline() {
 
   await step('Enrich', () => runEnricher({ limit: settings.enrich_limit }));
   await step('Qualify', () => runQualifier({ limit: settings.qualify_limit }));
+  await step('DM enrich', () => runDmEnrich({ limit: settings.dm_enrich_limit }));
+  await step('ICP score', () => runIcpScorer({ limit: settings.icp_score_limit }));
   await step('Outreach drafts', () => runOutreach({ limit: settings.outreach_limit }));
   await step('Sequencer', () => runSequencer());
   await step('Analytics', () => runAnalytics());

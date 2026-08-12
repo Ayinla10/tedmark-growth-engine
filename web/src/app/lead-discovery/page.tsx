@@ -48,6 +48,7 @@ export default async function LeadDiscoveryPage({
                     <Th>Source</Th>
                     <Th>Location</Th>
                     <Th>Website</Th>
+                    <Th>Email</Th>
                     <Th>Phone</Th>
                     <Th>Score</Th>
                     <Th>Status</Th>
@@ -82,6 +83,15 @@ export default async function LeadDiscoveryPage({
                       </Td>
                       <Td className="text-ink-secondary max-w-xs truncate">{lead.location ?? "—"}</Td>
                       <Td>{lead.website_url ? "Yes" : "No"}</Td>
+                      <Td className="text-ink-secondary">
+                        {lead.email ? (
+                          <a href={`mailto:${lead.email}`} className="hover:underline">
+                            {lead.email}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </Td>
                       <Td className="text-ink-secondary">
                         {lead.phone ? (
                           /^\+233[2 5]\d{8}$/.test(lead.phone.replace(/\s/g, "")) ? (

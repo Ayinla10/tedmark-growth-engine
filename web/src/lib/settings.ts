@@ -13,6 +13,8 @@ export const SETTINGS_DEFAULTS = {
   directory_scout_combos_per_day: 3,
   enrich_limit: 80,
   qualify_limit: 80,
+  dm_enrich_limit: 40,
+  icp_score_limit: 40,
   outreach_limit: 30,
   outreach_min_score: 6,
   sequencer_days_between_steps: 3,
@@ -37,6 +39,8 @@ export type Settings = {
   directory_scout_combos_per_day: number;
   enrich_limit: number;
   qualify_limit: number;
+  dm_enrich_limit: number;
+  icp_score_limit: number;
   outreach_limit: number;
   outreach_min_score: number;
   sequencer_days_between_steps: number;

@@ -86,6 +86,45 @@ body {
   color: var(--ink);
 }
 
+/* Baseline styling for every text/date/select/textarea input in the app —
+   without this, native inputs (especially type="date") render as
+   unstyled browser defaults with no visible border, which reads as "not
+   an interactive control" rather than an obvious clickable field. */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border-c);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  color: var(--ink);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgb(from var(--brand) r g b / 0.15);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  filter: var(--date-icon-filter, none);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.dark input[type="date"] {
+  --date-icon-filter: invert(1);
+}
+
 .glass {
   background: rgb(var(--glass-bg) / var(--glass-alpha));
   backdrop-filter: blur(12px);

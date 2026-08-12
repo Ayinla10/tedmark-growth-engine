@@ -48,6 +48,8 @@ export function SettingsForm({ initial }: { initial: Settings }) {
   const [directoryScoutCombosPerDay, setDirectoryScoutCombosPerDay] = useState(initial.directory_scout_combos_per_day);
   const [enrichLimit, setEnrichLimit] = useState(initial.enrich_limit);
   const [qualifyLimit, setQualifyLimit] = useState(initial.qualify_limit);
+  const [dmEnrichLimit, setDmEnrichLimit] = useState(initial.dm_enrich_limit);
+  const [icpScoreLimit, setIcpScoreLimit] = useState(initial.icp_score_limit);
   const [outreachLimit, setOutreachLimit] = useState(initial.outreach_limit);
   const [minScore, setMinScore] = useState(initial.outreach_min_score);
   const [daysBetweenSteps, setDaysBetweenSteps] = useState(initial.sequencer_days_between_steps);
@@ -76,6 +78,8 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         directory_scout_combos_per_day: directoryScoutCombosPerDay,
         enrich_limit: enrichLimit,
         qualify_limit: qualifyLimit,
+        dm_enrich_limit: dmEnrichLimit,
+        icp_score_limit: icpScoreLimit,
         outreach_limit: outreachLimit,
         outreach_min_score: minScore,
         sequencer_days_between_steps: daysBetweenSteps,
@@ -186,6 +190,8 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <NumberField label="Enrich — leads per run" value={enrichLimit} onChange={setEnrichLimit} />
           <NumberField label="Qualify — leads per run" value={qualifyLimit} onChange={setQualifyLimit} />
+          <NumberField label="Find decision-maker — leads per run" value={dmEnrichLimit} onChange={setDmEnrichLimit} />
+          <NumberField label="ICP score — leads per run" value={icpScoreLimit} onChange={setIcpScoreLimit} />
           <NumberField label="Outreach — drafts per run" value={outreachLimit} onChange={setOutreachLimit} />
         </div>
       </div>

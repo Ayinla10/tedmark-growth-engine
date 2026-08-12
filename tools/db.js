@@ -393,8 +393,15 @@ export async function markOutreachSent(id) {
 }
 
 export async function markLeadContacted(id) {
+  // Also advances the human-facing pipeline_stage, but only forward from
+  // 'New' — a lead already moved further along (Qualified, Negotiating,
+  // etc.) by a human shouldn't get silently reset just because another
+  // message went out.
   const result = await query(
-    `UPDATE leads SET status = 'contacted' WHERE id = $1 RETURNING *`,
+    `UPDATE leads SET
+       status = 'contacted',
+       pipeline_stage = CASE WHEN pipeline_stage = 'New' THEN 'Contacted' ELSE pipeline_stage END
+     WHERE id = $1 RETURNING *`,
     [id]
   );
   return result.rows[0];
@@ -469,6 +476,15 @@ export async function insertProposal(proposal) {
      VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
     [lead_id, services, budget_range, content, knowledge_ids]
+  );
+
+  // Advance pipeline_stage forward only — a lead already in Negotiating,
+  // Won, or Lost shouldn't get pulled back to "Proposal Sent" by a second
+  // proposal going out.
+  await query(
+    `UPDATE leads SET pipeline_stage = 'Proposal Sent'
+     WHERE id = $1 AND pipeline_stage IN ('New', 'Contacted', 'Qualified')`,
+    [lead_id]
   );
 
   return result.rows[0];

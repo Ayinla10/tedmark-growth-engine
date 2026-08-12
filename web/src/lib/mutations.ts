@@ -37,7 +37,16 @@ export async function markWhatsappSentDb(outreachId: string) {
     `UPDATE outreach SET status = 'sent', sent_at = now() WHERE id = $1 RETURNING *`,
     [outreachId]
   );
-  await pool.query(`UPDATE leads SET status = 'contacted' WHERE id = $1`, [row.lead_id]);
+  // Advance pipeline_stage forward only, matching the same rule the CLI's
+  // markLeadContacted uses — a lead already moved further along shouldn't
+  // get reset by another message going out.
+  await pool.query(
+    `UPDATE leads SET
+       status = 'contacted',
+       pipeline_stage = CASE WHEN pipeline_stage = 'New' THEN 'Contacted' ELSE pipeline_stage END
+     WHERE id = $1`,
+    [row.lead_id]
+  );
   await pool.query(
     `UPDATE follow_ups SET status = 'sent', sent_at = now() WHERE lead_id = $1 AND status = 'pending'`,
     [row.lead_id]
