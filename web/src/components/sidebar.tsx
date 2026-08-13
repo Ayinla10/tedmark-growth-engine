@@ -12,6 +12,7 @@ import {
   History,
   LayoutDashboard,
   Mail,
+  MessageSquare,
   Settings,
   ShieldCheck,
 } from "lucide-react";
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/costs", label: "API Spend", icon: DollarSign },
   { href: "/business-context", label: "Business Context", icon: Briefcase },
+  { href: "/prompts", label: "System Prompts", icon: MessageSquare },
   { href: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -58,12 +58,13 @@ export default async function LeadDiscoveryPage({
                 </thead>
                 <tbody>
                   {leads.map((lead) => (
-                    <tr key={lead.id} className="table-row-hover border-b border-border-c/50 last:border-0 hover:bg-surface-2/50">
+                    <tr key={lead.id} className="table-row-hover border-b border-border-c/50 last:border-0 hover:bg-surface-2/50 cursor-pointer">
                       <Td className="font-medium">
                         <div className="flex items-center gap-2">
-                          <Link href={`/leads/${lead.id}`} className="text-brand hover:underline">
+                          <Link href={`/leads/${lead.id}`} className="text-brand hover:underline font-semibold">
                             {lead.business_name}
                           </Link>
+                          <span className="text-[10px] text-ink-muted hidden group-hover:inline">→ view details</span>
                           <a
                             href={googleMapsSearchUrl(lead.business_name, lead.location)}
                             target="_blank"
@@ -114,12 +115,20 @@ export default async function LeadDiscoveryPage({
                       <Td><StatusBadge status={lead.status} /></Td>
                       <Td className="text-ink-muted">{formatDate(lead.created_at)}</Td>
                       <Td>
-                        <LeadRowActions
-                          leadId={lead.id}
-                          showQualify={lead.status === "raw"}
-                          showEnrich
-                          showArchive={lead.status !== "archived"}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/leads/${lead.id}`}
+                            className="text-xs px-2.5 py-1 rounded-lg bg-brand/10 text-brand hover:bg-brand/20 transition font-medium whitespace-nowrap"
+                          >
+                            View →
+                          </Link>
+                          <LeadRowActions
+                            leadId={lead.id}
+                            showQualify={lead.status === "raw"}
+                            showEnrich
+                            showArchive={lead.status !== "archived"}
+                          />
+                        </div>
                       </Td>
                     </tr>
                   ))}

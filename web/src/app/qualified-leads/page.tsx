@@ -97,14 +97,22 @@ export default async function QualifiedLeadsPage({
                       </Td>
                       <Td className="text-ink-muted">{formatDate(lead.created_at)}</Td>
                       <Td>
-                        <LeadRowActions
-                          leadId={lead.id}
-                          showQualify
-                          showDmEnrich
-                          showIcpScore
-                          showGenerateOutreach={(lead.score ?? 0) >= 6}
-                          showArchive
-                        />
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/leads/${lead.id}`}
+                            className="text-xs px-2.5 py-1 rounded-lg bg-brand/10 text-brand hover:bg-brand/20 transition font-medium whitespace-nowrap"
+                          >
+                            View →
+                          </Link>
+                          <LeadRowActions
+                            leadId={lead.id}
+                            showQualify
+                            showDmEnrich
+                            showIcpScore
+                            showGenerateOutreach={(lead.score ?? 0) >= 6}
+                            showArchive
+                          />
+                        </div>
                       </Td>
                     </tr>
                   ))}
