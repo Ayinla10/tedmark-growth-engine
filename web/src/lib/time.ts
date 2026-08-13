@@ -1,11 +1,13 @@
-function parseTs(raw: string): Date {
+function parseTs(raw: string | Date): Date {
+  if (raw instanceof Date) return raw;
+  // Postgres string: "2026-08-13 07:23:41.123" — normalize to ISO UTC
   const s = raw.replace(" ", "T");
   return new Date(/[Z+]/.test(s.slice(10)) ? s : s + "Z");
 }
 
-export function timeAgo(iso: string | null): string {
+export function timeAgo(iso: string | Date | null): string {
   if (!iso) return "never";
-  const diffMs = Date.now() - parseTs(iso).getTime();
+  const diffMs = Date.now() - parseTs(iso as string | Date).getTime();
   const mins = Math.floor(diffMs / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
@@ -15,9 +17,9 @@ export function timeAgo(iso: string | null): string {
   return `${days}d ago`;
 }
 
-export function isRecent(iso: string | null, hours = 24): boolean {
+export function isRecent(iso: string | Date | null, hours = 24): boolean {
   if (!iso) return false;
-  return Date.now() - parseTs(iso).getTime() < hours * 60 * 60 * 1000;
+  return Date.now() - parseTs(iso as string | Date).getTime() < hours * 60 * 60 * 1000;
 }
 
 export function toISODateString(value: unknown): string | null {
@@ -26,13 +28,9 @@ export function toISODateString(value: unknown): string | null {
   return String(value).slice(0, 10);
 }
 
-export function formatDate(value: string | null): string {
+export function formatDate(value: string | Date | null): string {
   if (!value) return "—";
-  // Postgres returns "2026-08-13 07:23:41.123" — replace space with T,
-  // then append Z if no explicit timezone, so JS parses it as UTC.
-  const s = String(value).replace(" ", "T");
-  const iso = /[Z+]/.test(s.slice(10)) ? s : s + "Z";
-  return new Date(iso).toLocaleString("en-GB", {
+  return parseTs(value as string | Date).toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -42,9 +40,9 @@ export function formatDate(value: string | null): string {
 }
 
 /** Date only — no time — for date pickers / action-due fields */
-export function formatDateOnly(value: string | null): string {
+export function formatDateOnly(value: string | Date | null): string {
   if (!value) return "—";
-  return new Date(String(value).slice(0, 10)).toLocaleDateString("en-GB", {
+  return parseTs(value as string | Date).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
