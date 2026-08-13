@@ -5,8 +5,15 @@ import { getCurrentAgencyId } from './agency.js';
 // previously hardcoded. Anything missing from the settings table falls
 // back to these, so the system works even before anyone visits Settings.
 export const SETTINGS_DEFAULTS = {
-  scout_sectors: ['restaurant', 'school', 'clinic', 'logistics', 'retail', 'real estate', 'event planning'],
-  scout_cities: ['Accra', 'Kumasi', 'Tema', 'Takoradi', 'Cape Coast'],
+  scout_sectors: [
+    'restaurant', 'school', 'clinic', 'logistics', 'retail', 'real estate',
+    'hotel', 'pharmacy', 'gym', 'law firm', 'beauty salon', 'auto repair',
+    'church', 'construction', 'printing', 'travel agency', 'catering',
+    'supermarket', 'accounting firm', 'daycare', 'event planning',
+    'dental clinic', 'hospital', 'clothing store', 'electronics shop',
+    'furniture store', 'hardware store',
+  ],
+  scout_cities: ['Accra', 'Kumasi', 'Tema', 'Takoradi', 'Cape Coast', 'Tamale', 'Koforidua', 'Sunyani', 'Ho', 'Kasoa'],
   scout_enabled: true,
   scout_combos_per_day: 10,
   scout_per_combo_limit: 8,
@@ -18,7 +25,7 @@ export const SETTINGS_DEFAULTS = {
   qualify_limit: 80,
   dm_enrich_limit: 40,
   icp_score_limit: 40,
-  outreach_limit: 30,
+  outreach_limit: 20,
   outreach_min_score: 6,
   sequencer_days_between_steps: 3,
   sequencer_max_steps: 3,
