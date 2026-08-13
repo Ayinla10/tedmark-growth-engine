@@ -801,6 +801,38 @@ export type BusinessContextRow = {
   updated_at: string;
 };
 
+export type SectorStat = { sector: string; count: number };
+
+export async function getSectorBreakdown(limit = 8): Promise<SectorStat[]> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT sector, count(*)::int AS count
+     FROM leads
+     WHERE agency_id = $1 AND sector IS NOT NULL
+     GROUP BY sector
+     ORDER BY count DESC
+     LIMIT $2`,
+    [agencyId, limit]
+  );
+  return res.rows;
+}
+
+export async function getLeadsTrend(): Promise<{ day: string; found: number; qualified: number }[]> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT
+       to_char(created_at::date, 'Mon DD') AS day,
+       count(*)::int AS found,
+       count(*) FILTER (WHERE score IS NOT NULL)::int AS qualified
+     FROM leads
+     WHERE agency_id = $1 AND created_at >= now() - interval '30 days'
+     GROUP BY created_at::date
+     ORDER BY created_at::date`,
+    [agencyId]
+  );
+  return res.rows;
+}
+
 export async function getBusinessContextForDashboard(): Promise<BusinessContextRow | null> {
   const agencyId = await getCurrentAgencyId();
   const res = await pool.query(

@@ -15,6 +15,10 @@
   --glass-bg: 255 255 255;
   --glass-alpha: 0.6;
   --terminal-bg: #f8fafc;
+  --donut-a: #c7d9f7;
+  --donut-b: #5e9cf0;
+  --donut-c: #0143a0;
+  --donut-d: #e2e8f0;
 }
 
 .dark {
@@ -30,6 +34,10 @@
   --glass-bg: 46 48 55;
   --glass-alpha: 0.7;
   --terminal-bg: #000000;
+  --donut-a: #1e3a5f;
+  --donut-b: #2563a8;
+  --donut-c: #60a5fa;
+  --donut-d: #334155;
 }
 
 /* No init script: default to system preference via media query unless the
@@ -49,6 +57,10 @@
     --glass-bg: 46 48 55;
     --glass-alpha: 0.7;
     --terminal-bg: #000000;
+    --donut-a: #1e3a5f;
+    --donut-b: #2563a8;
+    --donut-c: #60a5fa;
+    --donut-d: #334155;
   }
 }
 
