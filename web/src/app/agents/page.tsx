@@ -8,7 +8,6 @@ import { MotionCard } from "@/components/motion-card";
 import { OrchestrationCanvasLive } from "@/components/orchestration-canvas-live";
 import type { OrchestrationNode } from "@/components/orchestration-canvas";
 import { RunScoutModal } from "@/components/run-scout-modal";
-import { ScoutToggleButton } from "@/components/scout-toggle-button";
 import { TerminalLog } from "@/components/terminal-log";
 import {
   getAgentActivity,
@@ -188,8 +187,7 @@ export default async function AgentsPage() {
             <Waveform bars={52} height={30} color="#818cf8" />
           </div>
           <div className="flex gap-3">
-            <RunScoutModal command />
-            <ScoutToggleButton initialEnabled={settings.scout_enabled} />
+            <RunScoutModal command initialAutoEnabled={settings.scout_enabled} />
             <AgentRunButton
               label="Run Analytics"
               runningLabel="Analyzing…"
