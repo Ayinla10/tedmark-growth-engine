@@ -774,3 +774,36 @@ export async function getSearchApiUsageThisMonth(provider: string): Promise<numb
   );
   return res.rows[0].n;
 }
+
+export type BusinessContextRow = {
+  id: string;
+  agency_id: string;
+  business_name: string | null;
+  industry: string | null;
+  business_model: string | null;
+  products: string[];
+  services: string[];
+  pricing: string | null;
+  location: string | null;
+  target_markets: string[];
+  icp: string | null;
+  customer_segments: string[];
+  acquisition_channels: string[];
+  sales_channels: string[];
+  website: string | null;
+  social_media: Record<string, string>;
+  communication_channels: string[];
+  constraints: string | null;
+  budget: string | null;
+  goals: string | null;
+  updated_at: string;
+};
+
+export async function getBusinessContextForDashboard(): Promise<BusinessContextRow | null> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT * FROM business_context WHERE agency_id = $1`,
+    [agencyId]
+  );
+  return res.rows[0] ?? null;
+}

@@ -4,6 +4,7 @@ import path from 'path';
 import { complete } from '../tools/llm.js';
 import { getLeadById, insertProposal } from '../tools/db.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
+import { getBusinessContext, formatBusinessContextForPrompt } from '../tools/businessContext.js';
 import { fetchReadableContent } from '../tools/jinaReader.js';
 import { getCountry } from '../tools/countries.js';
 
@@ -52,12 +53,15 @@ export async function runProposal({ leadId, services, budgetRange }) {
   console.log(`[proposal] Generating proposal for "${lead.business_name}"...`);
 
   const knowledge = await appendKnowledgeContext(await loadPrompt(), 'proposal');
+  const bizCtx = await getBusinessContext();
+  const bizBlock = formatBusinessContextForPrompt(bizCtx);
+  const proposalSystemPrompt = bizBlock ? `${knowledge.prompt}\n\n${bizBlock}` : knowledge.prompt;
   const userMessage = await buildUserMessage(lead, services, budgetRange);
 
   let content;
   try {
     content = await complete({
-      system: knowledge.prompt,
+      system: proposalSystemPrompt,
       user: userMessage,
       maxTokens: 2000,
     });

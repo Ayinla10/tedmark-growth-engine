@@ -4,6 +4,7 @@ import {
   BarChart3,
   Bot,
   BookOpen,
+  Briefcase,
   Compass,
   DollarSign,
   FileText,
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/proposals", label: "Proposals", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/costs", label: "API Spend", icon: DollarSign },
+  { href: "/business-context", label: "Business Context", icon: Briefcase },
   { href: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

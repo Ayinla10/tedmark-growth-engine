@@ -5,6 +5,7 @@ import { complete } from '../tools/llm.js';
 import { getRawLeads, updateLeadScore, updateLeadSiteSignals, getLeadById } from '../tools/db.js';
 import { scrapeWebsite } from '../tools/scraper.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
+import { getBusinessContext, formatBusinessContextForPrompt } from '../tools/businessContext.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -86,7 +87,10 @@ export async function runQualifier({ limit, leadId }) {
   }
 
   console.log(`[qualifier] Qualifying ${leads.length} leads...`);
-  const { prompt: systemPrompt } = await appendKnowledgeContext(await loadPrompt(), 'qualifier');
+  const { prompt: basePrompt } = await appendKnowledgeContext(await loadPrompt(), 'qualifier');
+  const bizCtx = await getBusinessContext();
+  const bizBlock = formatBusinessContextForPrompt(bizCtx);
+  const systemPrompt = bizBlock ? `${basePrompt}\n\n${bizBlock}` : basePrompt;
 
   for (const lead of leads) {
     let siteData = null;

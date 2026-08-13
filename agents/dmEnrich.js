@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { complete } from '../tools/llm.js';
+import { getBusinessContext, formatBusinessContextForPrompt } from '../tools/businessContext.js';
 import { fetchReadableContent } from '../tools/jinaReader.js';
 import { getLeadsNeedingDmEnrichment, updateLeadDecisionMaker, getLeadById } from '../tools/db.js';
 
@@ -52,7 +53,10 @@ export async function runDmEnrich({ limit, leadId }) {
   }
 
   console.log(`[dm-enrich] Enriching ${leads.length} leads...`);
-  const systemPrompt = await loadPrompt();
+  const basePrompt = await loadPrompt();
+  const bizCtx = await getBusinessContext();
+  const bizBlock = formatBusinessContextForPrompt(bizCtx);
+  const systemPrompt = bizBlock ? `${basePrompt}\n\n${bizBlock}` : basePrompt;
   let found = 0;
 
   for (const lead of leads) {

@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { complete } from '../tools/llm.js';
+import { getBusinessContext, formatBusinessContextForPrompt } from '../tools/businessContext.js';
 import { getLeadsNeedingIcpScore, updateLeadIcpScore, getLeadById } from '../tools/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -66,7 +67,10 @@ export async function runIcpScorer({ limit, leadId }) {
   }
 
   console.log(`[icp-score] Scoring ${leads.length} leads...`);
-  const systemPrompt = await loadPrompt();
+  const basePrompt = await loadPrompt();
+  const bizCtx = await getBusinessContext();
+  const bizBlock = formatBusinessContextForPrompt(bizCtx);
+  const systemPrompt = bizBlock ? `${basePrompt}\n\n${bizBlock}` : basePrompt;
   let scored = 0;
 
   for (const lead of leads) {

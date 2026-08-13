@@ -214,6 +214,45 @@ CREATE TABLE IF NOT EXISTS telegram_callback_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_telegram_callback_tokens_expires ON telegram_callback_tokens(expires_at);
 
+-- Business Context Engine: what Tedmark (or any agency using this system)
+-- actually is, so agents stop re-deriving/guessing it per lead and start
+-- pulling from one real source (tools/businessContext.js). Deliberately
+-- does NOT store `available_agents` or `historical_results` here — both
+-- would go stale the moment an agent is added or a lead is qualified, so
+-- both are computed live instead (see tools/businessContext.js). `crm` is
+-- likewise not a column — it's always "this system," a fixed fact, not a
+-- per-agency setting.
+CREATE TABLE IF NOT EXISTS business_context (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  agency_id uuid NOT NULL UNIQUE REFERENCES agencies(id),
+  business_name text,
+  industry text,
+  business_model text,
+  products text[] NOT NULL DEFAULT '{}',
+  services text[] NOT NULL DEFAULT '{}',
+  pricing text,
+  location text,
+  target_markets text[] NOT NULL DEFAULT '{}',
+  icp text,
+  customer_segments text[] NOT NULL DEFAULT '{}',
+  acquisition_channels text[] NOT NULL DEFAULT '{}',
+  sales_channels text[] NOT NULL DEFAULT '{}',
+  website text,
+  social_media jsonb NOT NULL DEFAULT '{}',
+  communication_channels text[] NOT NULL DEFAULT '{}',
+  constraints text,
+  budget text,
+  goals text,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Real deal value, entered by a human when a lead is marked Won — without
+-- this, "historical results" / revenue in the business context (and
+-- anywhere else) would have to either fabricate a number or omit revenue
+-- entirely. Nullable: not every Won deal will have a value entered.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS deal_value numeric;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS deal_currency text;
+
 CREATE TABLE IF NOT EXISTS outreach (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id uuid NOT NULL REFERENCES leads(id),

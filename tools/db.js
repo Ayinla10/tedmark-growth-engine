@@ -357,6 +357,62 @@ export async function getRecentTelegramMessages(telegramLinkId, limit = 5) {
   return result.rows.reverse();
 }
 
+export async function getBusinessContextRow(agencyId) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+  const result = await query(`SELECT * FROM business_context WHERE agency_id = $1`, [id]);
+  return result.rows[0] ?? null;
+}
+
+export async function getHistoricalResults(agencyId) {
+  const id = agencyId ?? (await getCurrentAgencyId());
+
+  const [leads, outreach, proposals, deals, range] = await Promise.all([
+    query(
+      `SELECT count(*)::int AS total,
+              count(*) FILTER (WHERE status = 'qualified')::int AS qualified,
+              count(*) FILTER (WHERE status = 'contacted')::int AS contacted,
+              round(avg(score) FILTER (WHERE score IS NOT NULL), 1)::float AS avg_score
+       FROM leads WHERE agency_id = $1`,
+      [id]
+    ),
+    query(
+      `SELECT count(*) FILTER (WHERE o.status = 'sent')::int AS sent,
+              count(*) FILTER (WHERE o.replied)::int AS replied
+       FROM outreach o JOIN leads l ON l.id = o.lead_id WHERE l.agency_id = $1`,
+      [id]
+    ),
+    query(
+      `SELECT count(*)::int AS total FROM proposals p JOIN leads l ON l.id = p.lead_id WHERE l.agency_id = $1`,
+      [id]
+    ),
+    query(
+      `SELECT count(*) FILTER (WHERE pipeline_stage = 'Won')::int AS won,
+              count(*) FILTER (WHERE pipeline_stage = 'Lost')::int AS lost,
+              coalesce(sum(deal_value) FILTER (WHERE pipeline_stage = 'Won'), 0)::float AS won_revenue,
+              (array_agg(deal_currency) FILTER (WHERE pipeline_stage = 'Won' AND deal_currency IS NOT NULL))[1] AS currency
+       FROM leads WHERE agency_id = $1`,
+      [id]
+    ),
+    query(`SELECT min(created_at) AS earliest, max(created_at) AS latest FROM leads WHERE agency_id = $1`, [id]),
+  ]);
+
+  return {
+    leadsTotal: leads.rows[0].total,
+    qualified: leads.rows[0].qualified,
+    contacted: leads.rows[0].contacted,
+    avgScore: leads.rows[0].avg_score,
+    outreachSent: outreach.rows[0].sent,
+    replied: outreach.rows[0].replied,
+    proposals: proposals.rows[0].total,
+    dealsWon: deals.rows[0].won,
+    dealsLost: deals.rows[0].lost,
+    wonRevenue: deals.rows[0].won_revenue,
+    revenueCurrency: deals.rows[0].currency,
+    dataFrom: range.rows[0].earliest,
+    dataTo: range.rows[0].latest,
+  };
+}
+
 export async function hasOutreachForLead(leadId) {
   const result = await query(
     `SELECT 1 FROM outreach WHERE lead_id = $1 LIMIT 1`,

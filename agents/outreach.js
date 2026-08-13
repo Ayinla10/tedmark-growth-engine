@@ -18,6 +18,7 @@ import { sendEmail } from '../tools/emailSender.js';
 import { resolveChannel } from '../tools/channel.js';
 import { getSetting } from '../tools/settings.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
+import { getBusinessContext, formatBusinessContextForPrompt } from '../tools/businessContext.js';
 import { resolveSignatureText, applySignature } from '../tools/signature.js';
 import { fetchReadableContent } from '../tools/jinaReader.js';
 
@@ -132,8 +133,10 @@ export async function runOutreach({ limit, leadId, signatureId }) {
   const skillContext = await loadCopywritingSkill();
   const email = await appendKnowledgeContext(buildSystemPrompt(outreachPrompt, skillContext), 'outreach');
   const whatsapp = await appendKnowledgeContext(buildSystemPrompt(whatsappPrompt, skillContext), 'outreach');
-  const emailSystemPrompt = email.prompt;
-  const whatsappSystemPrompt = whatsapp.prompt;
+  const bizCtx = await getBusinessContext();
+  const bizBlock = formatBusinessContextForPrompt(bizCtx);
+  const emailSystemPrompt = bizBlock ? `${email.prompt}\n\n${bizBlock}` : email.prompt;
+  const whatsappSystemPrompt = bizBlock ? `${whatsapp.prompt}\n\n${bizBlock}` : whatsapp.prompt;
 
   for (const lead of leads) {
     if (!leadId && (await hasOutreachForLead(lead.id))) {
