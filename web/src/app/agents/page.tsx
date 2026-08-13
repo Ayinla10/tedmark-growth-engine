@@ -197,9 +197,9 @@ export default async function AgentsPage() {
               className="bg-emerald-500/5 border border-emerald-500/25 text-emerald-400 px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm font-medium hover:bg-emerald-500/15 transition-all disabled:opacity-60"
             />
             <AgentRunButton
-              label="Run Full Sequence"
-              runningLabel="Orchestrating…"
-              action="sequence"
+              label="Run Full Pipeline"
+              runningLabel="Running pipeline… (2–5 min)"
+              action="pipeline"
               icon={<RefreshCw size={15} />}
               className="bg-emerald-500/15 border border-emerald-500/50 text-emerald-400 px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-semibold hover:bg-emerald-500/25 transition-all disabled:opacity-60"
             />

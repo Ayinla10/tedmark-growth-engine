@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useState, useTransition } from "react";
-import { runQualifierAction, runOutreachAction, runSequencerAction, runAnalyticsAction } from "@/lib/actions";
+import { runQualifierAction, runOutreachAction, runSequencerAction, runAnalyticsAction, runFullPipelineAction } from "@/lib/actions";
 import { ResultBanner } from "./modal";
 
-type AgentAction = "qualify" | "outreach" | "sequence" | "analytics";
+type AgentAction = "qualify" | "outreach" | "sequence" | "analytics" | "pipeline";
 
 export function AgentRunButton({
   label,
@@ -37,6 +37,7 @@ export function AgentRunButton({
     if (action === "qualify") return runQualifierAction(limit ?? 10);
     if (action === "outreach") return runOutreachAction(limit ?? 10);
     if (action === "analytics") return runAnalyticsAction();
+    if (action === "pipeline") return runFullPipelineAction();
     return runSequencerAction();
   }
 
@@ -57,7 +58,12 @@ export function AgentRunButton({
         {icon}
         {pending ? (runningLabel ?? "Running…") : label}
       </button>
-      {result ? <ResultBanner ok={result.ok} output={result.output ?? ""} /> : null}
+      {result && (
+        <ResultBanner
+          ok={result.ok}
+          output={result.output && result.output.trim() ? result.output : result.ok ? "Done — check Lead Discovery and Qualified Leads for results." : "Something went wrong. Check the terminal for details."}
+        />
+      )}
     </div>
   );
 }

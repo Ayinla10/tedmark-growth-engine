@@ -112,6 +112,12 @@ export async function runSequencerAction() {
   return result;
 }
 
+export async function runFullPipelineAction() {
+  const result = await runAgentCommand("daily", []);
+  refreshAll();
+  return result;
+}
+
 export async function runAnalyticsAction() {
   const result = await runAgentCommand("analytics", []);
   refreshAll();
