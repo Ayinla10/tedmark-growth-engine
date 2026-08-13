@@ -1,10 +1,12 @@
 import { query } from './db.js';
 import { getCurrentAgencyId } from './agency.js';
+import { getCitiesForCountries } from './countryCities.js';
 
 // Every configurable value the agents use, with the defaults that were
 // previously hardcoded. Anything missing from the settings table falls
 // back to these, so the system works even before anyone visits Settings.
 export const SETTINGS_DEFAULTS = {
+  scout_countries: ['Ghana'],
   scout_sectors: [
     'restaurant', 'school', 'clinic', 'logistics', 'retail', 'real estate',
     'hotel', 'pharmacy', 'gym', 'law firm', 'beauty salon', 'auto repair',
@@ -43,7 +45,16 @@ export async function getSettings(agencyId) {
   const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query('SELECT key, value FROM settings WHERE agency_id = $1', [id]);
   const stored = Object.fromEntries(result.rows.map((r) => [r.key, r.value]));
-  return { ...SETTINGS_DEFAULTS, ...stored };
+  const merged = { ...SETTINGS_DEFAULTS, ...stored };
+
+  // If scout_countries is set, derive scout_cities from it automatically
+  // so the pipeline always uses cities matching the selected countries.
+  if (merged.scout_countries?.length > 0) {
+    const derived = getCitiesForCountries(merged.scout_countries);
+    if (derived.length > 0) merged.scout_cities = derived;
+  }
+
+  return merged;
 }
 
 export async function getSetting(key, agencyId) {

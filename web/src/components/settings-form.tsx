@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { saveSettingsAction } from "@/lib/actions";
 import type { Settings } from "@/lib/settings";
 import { ResultBanner } from "./modal";
+import { CountryPicker } from "./country-picker";
 
 function NumberField({
   label,
@@ -37,8 +38,8 @@ function NumberField({
 }
 
 export function SettingsForm({ initial }: { initial: Settings }) {
+  const [countries, setCountries] = useState<string[]>(initial.scout_countries ?? ["Ghana"]);
   const [sectors, setSectors] = useState(initial.scout_sectors.join(", "));
-  const [cities, setCities] = useState(initial.scout_cities.join(", "));
   const [scoutEnabled, setScoutEnabled] = useState(initial.scout_enabled);
   const [combosPerDay, setCombosPerDay] = useState(initial.scout_combos_per_day);
   const [perComboLimit, setPerComboLimit] = useState(initial.scout_per_combo_limit);
@@ -67,8 +68,10 @@ export function SettingsForm({ initial }: { initial: Settings }) {
   function save() {
     startTransition(async () => {
       const settings: Settings = {
+        scout_countries: countries,
         scout_sectors: sectors.split(",").map((s) => s.trim()).filter(Boolean),
-        scout_cities: cities.split(",").map((s) => s.trim()).filter(Boolean),
+        // Cities are derived from countries server-side — still pass current value so nothing breaks
+        scout_cities: initial.scout_cities,
         scout_enabled: scoutEnabled,
         scout_combos_per_day: combosPerDay,
         scout_per_combo_limit: perComboLimit,
@@ -100,16 +103,12 @@ export function SettingsForm({ initial }: { initial: Settings }) {
     <div className="space-y-6">
       <div>
         <p className="text-sm font-semibold text-ink mb-3">Where Scout looks</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
+          <CountryPicker selected={countries} onChange={setCountries} />
           <div>
             <label className="text-xs text-ink-secondary block mb-1">Target sectors (comma-separated)</label>
             <input type="text" value={sectors} onChange={(e) => setSectors(e.target.value)} className="w-full" />
-            <p className="text-xs text-ink-muted mt-1">e.g. restaurant, school, clinic, logistics, retail, real estate</p>
-          </div>
-          <div>
-            <label className="text-xs text-ink-secondary block mb-1">Target cities (comma-separated)</label>
-            <input type="text" value={cities} onChange={(e) => setCities(e.target.value)} className="w-full" />
-            <p className="text-xs text-ink-muted mt-1">e.g. Accra, Kumasi, Tema, Takoradi, Cape Coast</p>
+            <p className="text-xs text-ink-muted mt-1">e.g. restaurant, school, clinic, hotel, pharmacy, gym</p>
           </div>
         </div>
       </div>
@@ -127,7 +126,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             label="Sector+city combinations per day"
             value={combosPerDay}
             onChange={setCombosPerDay}
-            hint="How many of the sector x city pairs above get scouted each run. Higher = faster coverage, more API usage."
+            hint="How many of the sector × city pairs get scouted each run. Higher = faster coverage, more API usage."
           />
           <NumberField
             label="Businesses fetched per combination"
@@ -142,8 +141,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       <div>
         <p className="text-sm font-semibold text-ink mb-3">Web search discovery</p>
         <p className="text-xs text-ink-muted mb-3">
-          Finds businesses via Google search dorks and LinkedIn/Facebook search snippets, alongside the Maps-based Scout above. Needs a
-          Google Programmable Search API key configured on the server.
+          Finds businesses via Google search dorks and LinkedIn/Facebook search snippets, alongside the Maps-based Scout above.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -157,7 +155,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             label="Search combinations per day"
             value={webScoutCombosPerDay}
             onChange={setWebScoutCombosPerDay}
-            hint="How many sector x city x query-type combinations to search each day."
+            hint="How many sector × city × query-type combinations to search each day."
           />
         </div>
       </div>
@@ -165,8 +163,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       <div>
         <p className="text-sm font-semibold text-ink mb-3">Directory discovery (free)</p>
         <p className="text-xs text-ink-muted mb-3">
-          Finds businesses via BusinessGhana.com&apos;s public directory — no API key, no quota, and tends to surface
-          small/local businesses with no website at all, which Maps and web search often miss.
+          Finds businesses via BusinessGhana.com&apos;s public directory — no API key, no quota.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -180,7 +177,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             label="Directory categories per day"
             value={directoryScoutCombosPerDay}
             onChange={setDirectoryScoutCombosPerDay}
-            hint="How many directory categories to page through each day. Not every sector has a matching category (e.g. logistics)."
+            hint="How many directory categories to page through each day."
           />
         </div>
       </div>
@@ -230,7 +227,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
             value={idleLogoutMinutes}
             onChange={setIdleLogoutMinutes}
             min={1}
-            hint="Signs everyone out automatically after this many minutes with no activity in the dashboard."
+            hint="Signs everyone out automatically after this many minutes with no activity."
           />
         </div>
       </div>
@@ -239,40 +236,14 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         <p className="text-sm font-semibold text-ink mb-3">Cost rates (for the API spend dashboard)</p>
         <p className="text-xs text-ink-muted mb-3">
           Enter your real per-unit rate from each provider&apos;s billing page. Left at 0, that provider&apos;s cost
-          shows as &quot;not configured&quot; rather than a guessed number — usage counts (tokens/requests) are always
-          tracked and shown regardless.
+          shows as &quot;not configured&quot; — usage counts are always tracked regardless.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <NumberField
-            label="DeepSeek input — $ per 1M tokens"
-            value={deepseekInputRate}
-            onChange={setDeepseekInputRate}
-            min={0}
-          />
-          <NumberField
-            label="DeepSeek output — $ per 1M tokens"
-            value={deepseekOutputRate}
-            onChange={setDeepseekOutputRate}
-            min={0}
-          />
-          <NumberField
-            label="Geoapify — $ per request"
-            value={geoapifyRate}
-            onChange={setGeoapifyRate}
-            min={0}
-          />
-          <NumberField
-            label="Brave Search — $ per request"
-            value={braveRate}
-            onChange={setBraveRate}
-            min={0}
-          />
-          <NumberField
-            label="Resend — $ per email"
-            value={resendRate}
-            onChange={setResendRate}
-            min={0}
-          />
+          <NumberField label="DeepSeek input — $ per 1M tokens" value={deepseekInputRate} onChange={setDeepseekInputRate} min={0} />
+          <NumberField label="DeepSeek output — $ per 1M tokens" value={deepseekOutputRate} onChange={setDeepseekOutputRate} min={0} />
+          <NumberField label="Geoapify — $ per request" value={geoapifyRate} onChange={setGeoapifyRate} min={0} />
+          <NumberField label="Brave Search — $ per request" value={braveRate} onChange={setBraveRate} min={0} />
+          <NumberField label="Resend — $ per email" value={resendRate} onChange={setResendRate} min={0} />
         </div>
       </div>
 

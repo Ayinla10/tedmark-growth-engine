@@ -2,6 +2,7 @@ import pool from "./db";
 import { getCurrentAgencyId } from "./agency";
 
 export const SETTINGS_DEFAULTS = {
+  scout_countries: ["Ghana"],
   scout_sectors: ["restaurant", "school", "clinic", "logistics", "retail", "real estate", "event planning"],
   scout_cities: ["Accra", "Kumasi", "Tema", "Takoradi", "Cape Coast"],
   scout_enabled: true,
@@ -28,6 +29,7 @@ export const SETTINGS_DEFAULTS = {
 } as const;
 
 export type Settings = {
+  scout_countries: string[];
   scout_sectors: string[];
   scout_cities: string[];
   scout_enabled: boolean;
