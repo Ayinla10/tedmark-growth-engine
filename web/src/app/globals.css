@@ -98,6 +98,8 @@ body {
   color: var(--ink);
 }
 
+.row-hover:hover { background: var(--surface-2); }
+
 /* Baseline styling for every text/date/select/textarea input in the app —
    without this, native inputs (especially type="date") render as
    unstyled browser defaults with no visible border, which reads as "not

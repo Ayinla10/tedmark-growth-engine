@@ -318,12 +318,10 @@ export default async function DashboardPage() {
                     {recent.map((lead, i) => (
                       <tr
                         key={lead.id}
+                        className="row-hover"
                         style={{
                           borderBottom: i < recent.length - 1 ? "1px solid var(--border-c)" : "none",
-                          transition: "background 0.15s",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                       >
                         <td className="px-5 py-3">
                           <Link
@@ -376,10 +374,8 @@ export default async function DashboardPage() {
                   <Link
                     key={lead.id}
                     href={`/leads/${lead.id}`}
-                    className="flex items-center justify-between px-5 py-3 text-sm"
+                    className="row-hover flex items-center justify-between px-5 py-3 text-sm"
                     style={{ color: "var(--ink)" }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--surface-2)")}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
                   >
                     <span className="font-medium">{lead.business_name}</span>
                     <span style={{ color: "var(--ink-secondary)" }}>{lead.next_action}</span>
