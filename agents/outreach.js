@@ -72,7 +72,9 @@ async function buildUserMessage(lead) {
     `Sector: ${lead.sector}`,
     `Location: ${lead.location}`,
     `Has website: ${lead.website_url ? 'yes' : 'no'}`,
-    `Qualifier's finding (score_reason): ${lead.score_reason}`,
+    `Qualifier summary: ${lead.score_reason}`,
+    `All problems found: ${(lead.problems?.length ? lead.problems : [lead.score_reason]).filter(Boolean).join(' | ')}`,
+    `All services that could help: ${(lead.recommended_services?.length ? lead.recommended_services : [lead.recommended_service]).filter(Boolean).join(', ')}`,
   ];
 
   // Real page content (via Jina Reader), not just the signal summary —

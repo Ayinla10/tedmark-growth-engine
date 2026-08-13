@@ -19,7 +19,8 @@ function buildUserMessage(lead) {
     `Website: ${lead.website_url ? 'yes' : 'no'}`,
     `Qualifier score (1-10, website opportunity): ${lead.score ?? '(none)'}`,
     `Qualifier reasoning: ${lead.score_reason ?? '(none)'}`,
-    `Recommended service: ${lead.recommended_service ?? '(none)'}`,
+    `All problems identified: ${(lead.problems?.length ? lead.problems : [lead.score_reason]).filter(Boolean).join(' | ')}`,
+    `All recommended services: ${(lead.recommended_services?.length ? lead.recommended_services : [lead.recommended_service]).filter(Boolean).join(', ')}`,
   ];
 
   if (lead.dm_name) {

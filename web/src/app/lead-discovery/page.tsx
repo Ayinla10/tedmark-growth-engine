@@ -111,7 +111,16 @@ export default async function LeadDiscoveryPage({
                           "—"
                         )}
                       </Td>
-                      <Td><ScoreBadge score={lead.score} /></Td>
+                      <Td>
+                        <div className="flex items-center gap-1.5">
+                          <ScoreBadge score={lead.score} />
+                          {lead.recommended_services?.length > 0 && (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand/10 text-brand whitespace-nowrap">
+                              {lead.recommended_services.length} services
+                            </span>
+                          )}
+                        </div>
+                      </Td>
                       <Td><StatusBadge status={lead.status} /></Td>
                       <Td className="text-ink-muted">{formatDate(lead.created_at)}</Td>
                       <Td>

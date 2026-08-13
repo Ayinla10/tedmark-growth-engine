@@ -97,17 +97,19 @@ export async function getQualifiedLeads(limit, minScore, agencyId = null) {
   return result.rows;
 }
 
-export async function updateLeadScore(id, score, scoreReason, recommendedService = null) {
+export async function updateLeadScore(id, score, scoreReason, recommendedService = null, recommendedServices = [], problems = []) {
   const result = await query(
     `UPDATE leads
      SET score = $1,
          score_reason = $2,
          recommended_service = $3,
+         recommended_services = $4,
+         problems = $5,
          status = CASE WHEN status = 'raw' THEN 'qualified' ELSE status END,
          qualified_at = now()
-     WHERE id = $4
+     WHERE id = $6
      RETURNING *`,
-    [score, scoreReason, recommendedService, id]
+    [score, scoreReason, recommendedService, recommendedServices, problems, id]
   );
   return result.rows[0];
 }

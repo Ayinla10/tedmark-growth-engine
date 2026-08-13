@@ -62,6 +62,14 @@ function parseScoreResponse(text) {
     throw new Error('Response missing score or score_reason');
   }
 
+  // Normalise to arrays — handle both old single-value and new multi-value responses
+  if (!Array.isArray(parsed.recommended_services)) {
+    parsed.recommended_services = parsed.recommended_service ? [parsed.recommended_service] : [];
+  }
+  if (!Array.isArray(parsed.problems)) {
+    parsed.problems = parsed.score_reason ? [parsed.score_reason] : [];
+  }
+
   return parsed;
 }
 
@@ -121,12 +129,19 @@ export async function runQualifier({ limit, leadId }) {
         json: true,
       });
 
-      const { score, score_reason, recommended_service } = parseScoreResponse(text);
+      const { score, score_reason, recommended_service, recommended_services, problems } = parseScoreResponse(text);
 
-      const updated = await updateLeadScore(lead.id, score, score_reason, recommended_service ?? null);
+      const updated = await updateLeadScore(
+        lead.id, score, score_reason,
+        recommended_service ?? recommended_services[0] ?? null,
+        recommended_services,
+        problems
+      );
 
       console.log(
-        `[qualifier] Scored "${updated.business_name}" -> ${score}/10 — ${score_reason}${recommended_service ? ` (recommends: ${recommended_service})` : ''}`
+        `[qualifier] Scored "${updated.business_name}" -> ${score}/10 — ${score_reason}\n` +
+        `  Problems (${problems.length}): ${problems.map((p, i) => `\n    ${i+1}. ${p}`).join('')}\n` +
+        `  Services (${recommended_services.length}): ${recommended_services.join(', ')}`
       );
     } catch (err) {
       console.error(`[qualifier] AI call failed for "${lead.business_name}": ${err.message}. Skipping.`);

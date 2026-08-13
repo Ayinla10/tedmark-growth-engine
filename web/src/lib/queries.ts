@@ -77,6 +77,8 @@ export type Lead = {
   source: string;
   site_signals: SiteSignals | null;
   recommended_service: string | null;
+  recommended_services: string[];
+  problems: string[];
   social_url: string | null;
   discovery_evidence: DiscoveryEvidence | null;
   created_at: string;

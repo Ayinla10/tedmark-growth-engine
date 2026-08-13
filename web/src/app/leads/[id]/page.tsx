@@ -148,17 +148,35 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
             {lead.score_reason ? (
               <div className="mt-4 pt-4 border-t border-border-c">
-                <p className="text-xs text-ink-muted mb-1">AI reasoning</p>
+                <p className="text-xs text-ink-muted mb-1">AI summary</p>
                 <p className="text-sm text-ink-secondary">{lead.score_reason}</p>
               </div>
             ) : null}
 
-            {lead.recommended_service ? (
+            {lead.problems?.length > 0 ? (
               <div className="mt-4 pt-4 border-t border-border-c">
-                <p className="text-xs text-ink-muted mb-1">Recommended service</p>
-                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-brand/10 text-brand capitalize">
-                  {lead.recommended_service}
-                </span>
+                <p className="text-xs text-ink-muted mb-2">Problems identified ({lead.problems.length})</p>
+                <ul className="space-y-1.5">
+                  {lead.problems.map((p: string, i: number) => (
+                    <li key={i} className="flex gap-2 text-sm text-ink-secondary">
+                      <span className="text-red-400 shrink-0 mt-0.5">✕</span>
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {(lead.recommended_services?.length > 0 || lead.recommended_service) ? (
+              <div className="mt-4 pt-4 border-t border-border-c">
+                <p className="text-xs text-ink-muted mb-2">Services that could help</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(lead.recommended_services?.length ? lead.recommended_services : [lead.recommended_service]).filter(Boolean).map((s: string | null) => (
+                    <span key={s} className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-brand/10 text-brand capitalize">
+                      {s!.replace(/_/g, ' ')}
+                    </span>
+                  ))}
+                </div>
               </div>
             ) : null}
 
