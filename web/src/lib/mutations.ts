@@ -234,7 +234,11 @@ export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
       [leadId]
     ),
     pool.query(
-      `SELECT id, body, received_at, classification FROM replies WHERE lead_id = $1 ORDER BY received_at ASC`,
+      `SELECT r.id, r.body, r.received_at, r.classification, o.message_type AS reply_channel
+       FROM replies r
+       LEFT JOIN outreach o ON o.id = r.outreach_id
+       WHERE r.lead_id = $1
+       ORDER BY r.received_at ASC`,
       [leadId]
     ),
   ]);
@@ -256,7 +260,7 @@ export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
       body: r.body,
       at: r.received_at,
       classification: r.classification,
-      channel: null as null,
+      channel: (r.reply_channel === "whatsapp" ? "whatsapp" : r.reply_channel === "email" ? "email" : null) as "whatsapp" | "email" | null,
     })),
   ];
 

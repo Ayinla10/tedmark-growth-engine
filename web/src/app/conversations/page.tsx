@@ -362,14 +362,19 @@ export default async function ConversationsPage({
                             <div
                               className="rounded-2xl px-4 py-3"
                               style={{
-                                background: isReply ? "var(--surface)"
+                                background: isReply
+                                  ? isWhatsApp
+                                    ? "rgba(34,197,94,0.08)"
+                                    : "var(--surface)"
                                   : isDraft ? "var(--surface-2)"
                                   : "var(--brand)",
                                 color: isSent ? "#fff" : "var(--ink)",
                                 border: isDraft
                                   ? "2px dashed var(--border-c)"
                                   : isReply
-                                  ? "1px solid var(--border-c)"
+                                  ? isWhatsApp
+                                    ? "1px solid rgba(34,197,94,0.30)"
+                                    : "1px solid var(--border-c)"
                                   : "none",
                               }}
                             >
@@ -396,14 +401,42 @@ export default async function ConversationsPage({
                               <p className="text-sm whitespace-pre-wrap leading-relaxed">{item.body}</p>
 
                               {/* Footer row */}
-                              <div className="flex items-center justify-between mt-2 gap-2">
+                              <div className="flex items-center justify-between mt-2 gap-2 flex-wrap">
                                 <p
                                   className="text-[11px]"
                                   style={{ color: isSent ? "rgba(255,255,255,0.6)" : "var(--ink-muted)" }}
                                 >
                                   {formatDate(item.at)}
                                 </p>
-                                {!isReply && (
+                                {isReply ? (
+                                  /* Reply attribution: channel + contact address */
+                                  <p
+                                    className="text-[10px] flex items-center gap-1"
+                                    style={{ color: isWhatsApp ? "rgb(21 128 61)" : "var(--ink-muted)" }}
+                                  >
+                                    {isWhatsApp ? (
+                                      <>
+                                        <MessageCircle size={9} />
+                                        via WhatsApp
+                                        {(selectedConv?.dm_phone ?? selectedConv?.lead_phone) && (
+                                          <span style={{ opacity: 0.75 }}>
+                                            · {selectedConv?.dm_phone ?? selectedConv?.lead_phone}
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : item.channel === "email" ? (
+                                      <>
+                                        <Mail size={9} />
+                                        via Email
+                                        {(selectedConv?.dm_email ?? selectedConv?.lead_email) && (
+                                          <span style={{ opacity: 0.75 }}>
+                                            · {selectedConv?.dm_email ?? selectedConv?.lead_email}
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : null}
+                                  </p>
+                                ) : (
                                   <p
                                     className="text-[10px] flex items-center gap-0.5"
                                     style={{ color: isSent ? "rgba(255,255,255,0.6)" : "var(--ink-muted)" }}
