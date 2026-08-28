@@ -23,7 +23,7 @@ export default async function LoginPage({
         <div className="rounded-3xl border border-emerald-500/15 bg-[#0a0f1e] p-8">
           <h2 className="text-lg font-semibold text-slate-100 mb-1">Sign in</h2>
           <p className="text-sm text-slate-400 mb-6">Sales intelligence hub — authorized access only.</p>
-          <LoginForm next={next ?? "/agents"} />
+          <LoginForm next={next ?? "/home"} />
         </div>
       </div>
     </div>

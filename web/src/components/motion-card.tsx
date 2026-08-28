@@ -1,15 +1,17 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export function MotionCard({
   index = 0,
   className,
+  style,
   children,
 }: {
   index?: number;
   className?: string;
+  style?: CSSProperties;
   children: ReactNode;
 }) {
   return (
@@ -19,6 +21,7 @@ export function MotionCard({
       transition={{ duration: 0.4, delay: index * 0.08, ease: "easeOut" }}
       whileHover={{ y: -4 }}
       className={className}
+      style={style}
     >
       {children}
     </motion.div>

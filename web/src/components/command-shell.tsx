@@ -19,6 +19,7 @@ import type { ReactNode } from "react";
 import { getSession } from "@/lib/auth";
 import { JarvisRing } from "./jarvis-ring";
 import { NotificationsDropdown } from "./notifications-dropdown";
+import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
 const NAV = [
@@ -35,26 +36,24 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-// Immersive dark shell for the AI command center. Deliberately independent
-// of the app theme — the command center is always dark, like the rest of
-// the JARVIS aesthetic on this page.
 export async function CommandShell({ children }: { children: ReactNode }) {
   const user = await getSession();
 
   return (
-    <div className="min-h-screen bg-[#04060d] text-slate-200 flex">
+    <div className="min-h-screen flex" style={{ background: "var(--app-bg)", color: "var(--ink)" }}>
       {/* Sidebar */}
-      <aside className="w-60 shrink-0 border-r border-emerald-500/10 bg-[#060a14] flex flex-col fixed inset-y-0 left-0 z-50">
+      <aside className="w-60 shrink-0 flex flex-col fixed inset-y-0 left-0 z-50"
+        style={{ background: "var(--surface)", borderRight: "1px solid var(--border-c)" }}>
         <div className="px-5 pt-5 pb-4">
           <div className="flex items-center gap-2">
             <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-              <path d="M4 6l9-4 9 4-9 4-9-4z" fill="#22c55e" />
-              <path d="M4 6v8l9 4v-8L4 6z" fill="#16a34a" />
-              <path d="M22 6v8l-9 4v-8l9-4z" fill="#4ade80" />
+              <path d="M4 6l9-4 9 4-9 4-9-4z" fill="#2D6AF7" />
+              <path d="M4 6v8l9 4v-8L4 6z" fill="#1a4fd6" />
+              <path d="M22 6v8l-9 4v-8l9-4z" fill="#6b9fff" />
             </svg>
-            <h1 className="text-lg font-bold text-emerald-400">Tedmark AI</h1>
+            <h1 className="text-lg font-bold" style={{ color: "var(--brand)" }}>Tedmark AI</h1>
           </div>
-          <p className="text-[10px] tracking-[0.25em] text-slate-500 mt-1">SALES INTELLIGENCE HUB</p>
+          <p className="text-[10px] tracking-[0.25em] mt-1" style={{ color: "var(--ink-muted)" }}>SALES INTELLIGENCE HUB</p>
         </div>
 
         <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
@@ -62,11 +61,11 @@ export async function CommandShell({ children }: { children: ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors ${
-                item.active
-                  ? "bg-emerald-500/10 text-emerald-400 border-l-2 border-emerald-400"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
-              }`}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors"
+              style={item.active
+                ? { background: "rgba(45,106,247,0.12)", color: "var(--brand)", borderLeft: "2px solid var(--brand)" }
+                : { color: "var(--ink-muted)" }
+              }
             >
               <item.icon size={17} />
               {item.label}
@@ -77,7 +76,8 @@ export async function CommandShell({ children }: { children: ReactNode }) {
         <div className="px-4 py-3">
           <button
             type="button"
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-emerald-500/40 text-emerald-400 text-sm font-semibold hover:bg-emerald-500/10 transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+            style={{ border: "1px solid rgba(45,106,247,0.4)", color: "var(--brand)" }}
           >
             <Plus size={16} />
             Deploy New Agent
@@ -85,42 +85,49 @@ export async function CommandShell({ children }: { children: ReactNode }) {
         </div>
 
         <div className="px-4 pb-2 space-y-1">
-          <Link href="/help" className="flex items-center gap-3 px-3 py-1.5 rounded-xl text-sm text-slate-400 hover:text-slate-200">
+          <Link href="/help" className="flex items-center gap-3 px-3 py-1.5 rounded-xl text-sm" style={{ color: "var(--ink-muted)" }}>
             <HelpCircle size={16} />
             Help Center
           </Link>
         </div>
 
-        <div className="mx-4 mb-4 rounded-2xl border border-emerald-500/15 bg-[#070d18] p-3">
-          <p className="text-[10px] tracking-[0.2em] text-slate-500 uppercase mb-1.5">System status</p>
-          <p className="text-xs text-emerald-400 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <div className="mx-4 mb-4 rounded-2xl p-3" style={{ border: "1px solid var(--border-c)", background: "var(--surface-2)" }}>
+          <p className="text-[10px] tracking-[0.2em] uppercase mb-1.5" style={{ color: "var(--ink-muted)" }}>System status</p>
+          <p className="text-xs flex items-center gap-1.5" style={{ color: "var(--brand)" }}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--brand)" }} />
             All Systems Operational
           </p>
-          <p className="text-[10px] text-slate-500 mt-1 pl-3">99.98% Uptime</p>
+          <p className="text-[10px] mt-1 pl-3" style={{ color: "var(--ink-muted)" }}>99.98% Uptime</p>
         </div>
       </aside>
 
       {/* Main column */}
       <div className="flex-1 ml-60 flex flex-col min-w-0">
-        <header className="h-16 shrink-0 border-b border-emerald-500/10 bg-[#060a14]/90 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-40">
+        <header className="h-16 shrink-0 flex items-center justify-between px-6 sticky top-0 z-40 backdrop-blur-md"
+          style={{ background: "color-mix(in srgb, var(--surface) 90%, transparent)", borderBottom: "1px solid var(--border-c)" }}>
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--ink-muted)" }} aria-hidden="true" />
             <input
               type="text"
               placeholder="Search agents, leads, tasks..."
-              className="bg-[#0b1120] border border-slate-700/40 rounded-lg pl-9 pr-4 py-1.5 text-sm w-72 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+              className="rounded-lg pl-9 pr-4 py-1.5 text-sm w-72 focus:outline-none focus:ring-2"
+              style={{
+                background: "var(--surface-2)",
+                border: "1px solid var(--border-c)",
+                color: "var(--ink)",
+              }}
             />
           </div>
           <div className="flex items-center gap-5">
-            <div className="flex items-center gap-2 px-3 py-1 bg-indigo-500/15 rounded-full border border-indigo-400/30 text-indigo-300">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full border" style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", color: "#818cf8" }}>
               <JarvisRing size={15} />
               <span className="text-xs font-semibold">Listening</span>
             </div>
-            <div className="text-slate-400">
+            <ThemeToggle />
+            <div style={{ color: "var(--ink-muted)" }}>
               <NotificationsDropdown />
             </div>
-            {user ? <UserMenu user={user} dark /> : null}
+            {user ? <UserMenu user={user} /> : null}
           </div>
         </header>
 

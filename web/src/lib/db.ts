@@ -1,20 +1,17 @@
-import { Pool } from "pg";
+import { neon } from "@neondatabase/serverless";
+import { Pool } from "@neondatabase/serverless";
 
 declare global {
   var pgPool: Pool | undefined;
 }
 
-const rawUrl = process.env.DATABASE_URL ?? "";
-const cleanUrl = rawUrl.replace(/[?&](sslmode|channel_binding)=[^&]*/g, "");
+const connectionString = process.env.DATABASE_URL ?? "";
+
+export const sql = neon(connectionString);
 
 const pool =
   global.pgPool ??
-  new Pool({
-    connectionString: cleanUrl,
-    ssl: { rejectUnauthorized: false },
-    max: 5,
-    allowExitOnIdle: true,
-  });
+  new Pool({ connectionString });
 
 if (process.env.NODE_ENV !== "production") {
   global.pgPool = pool;

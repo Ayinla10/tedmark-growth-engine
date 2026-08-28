@@ -11,12 +11,12 @@ import { getSession } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const KEYS: { name: string; env: string; purpose: string }[] = [
-  { name: "DeepSeek", env: "DEEPSEEK_API_KEY", purpose: "Qualifier, outreach, sequencer, and proposal agents" },
-  { name: "Geoapify Places", env: "GEOAPIFY_API_KEY", purpose: "Scout agent business discovery" },
-  { name: "Brave Search", env: "BRAVE_SEARCH_API_KEY", purpose: "Web-scout search discovery (dorks, LinkedIn/Facebook snippets)" },
+  { name: "DeepSeek", env: "DEEPSEEK_API_KEY", purpose: "AI used to research businesses, draft messages, and prepare proposals" },
+  { name: "Geoapify Places", env: "GEOAPIFY_API_KEY", purpose: "Finding businesses in your target locations" },
+  { name: "Brave Search", env: "BRAVE_SEARCH_API_KEY", purpose: "Web research to find additional business information" },
   { name: "Resend", env: "RESEND_API_KEY", purpose: "Sending approved outreach emails" },
-  { name: "Telegram Bot", env: "TELEGRAM_BOT_TOKEN", purpose: "Telegram control layer — notifications, approvals, status commands" },
-  { name: "PostgreSQL", env: "DATABASE_URL", purpose: "Lead and pipeline storage" },
+  { name: "Telegram Bot", env: "TELEGRAM_BOT_TOKEN", purpose: "Mobile notifications and approvals via Telegram" },
+  { name: "PostgreSQL", env: "DATABASE_URL", purpose: "Storing your opportunities and pipeline data" },
 ];
 
 function readBackendEnv(): Record<string, boolean> {
@@ -50,7 +50,7 @@ export default async function SettingsPage() {
       <section className="p-6 max-w-4xl">
         <PageHeader
           title="Settings"
-          subtitle="Everything the agents use to decide what to do and when."
+          subtitle="Configure how your AI assistant operates — targets, schedule, and integrations."
         />
 
         <Card className="p-5 mb-6">
@@ -83,11 +83,9 @@ export default async function SettingsPage() {
         <Card className="p-5 mb-6 bg-amber-500/5 border-amber-500/20">
           <p className="text-sm font-semibold text-ink mb-1">When it runs automatically</p>
           <p className="text-sm text-ink-secondary">
-            The daily pipeline runs at <span className="font-mono">07:00 Accra time</span> via a
-            scheduled GitHub Actions workflow. That schedule is defined in{" "}
-            <span className="font-mono">.github/workflows/daily-pipeline.yml</span>, not in this
-            database — GitHub doesn&apos;t support reading a schedule from an app, so changing the
-            time means editing that file directly. Ask and it&apos;s a one-line change.
+            The daily pipeline runs automatically at <strong>07:00 Accra time</strong> every day —
+            finding businesses, researching them, drafting messages, and sending follow-ups on your behalf.
+            To change the time, contact your administrator.
           </p>
         </Card>
 
@@ -104,7 +102,6 @@ export default async function SettingsPage() {
                   <div>
                     <p className="text-sm font-medium text-ink">{key.name}</p>
                     <p className="text-xs text-ink-muted">{key.purpose}</p>
-                    <p className="text-xs text-ink-muted font-mono mt-0.5">{key.env}</p>
                   </div>
                   <span
                     className={`text-xs font-medium px-2.5 py-1 rounded-full ${
@@ -122,9 +119,8 @@ export default async function SettingsPage() {
         </Card>
 
         <p className="text-xs text-ink-muted mt-4">
-          To update keys, edit the backend <span className="font-mono">.env</span> file and{" "}
-          <span className="font-mono">web\.env.local</span> (dashboard database access), then restart
-          the affected process.
+          API keys are managed by your administrator and stored securely on the server — they are never
+          visible or editable here.
         </p>
       </section>
     </AppShell>

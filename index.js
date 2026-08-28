@@ -4,6 +4,7 @@ import { runDirectoryScout } from './agents/directoryScout.js';
 import { runQualifier } from './agents/qualifier.js';
 import { runOutreach, runApprove, runSend } from './agents/outreach.js';
 import { runEnricher } from './agents/enricher.js';
+import { insertEnrichEvent, ensureEnrichEventsTable } from './tools/db.js';
 import { runDmEnrich } from './agents/dmEnrich.js';
 import { runIcpScorer } from './agents/icpScorer.js';
 import { runSequencer, startSequencerCron } from './agents/sequencer.js';
@@ -90,7 +91,14 @@ async function main() {
     case 'enrich': {
       const limit = parseInt(args.limit, 10) || 20;
       const leadId = args['lead-id'];
-      await runEnricher({ limit, leadId });
+      await ensureEnrichEventsTable();
+      const emit = leadId
+        ? async (type, message) => {
+            await insertEnrichEvent(leadId, type, message);
+            console.log(`[${type}] ${message}`);
+          }
+        : (type, message) => { console.log(`[${type}] ${message}`); };
+      await runEnricher({ limit, leadId, emit });
       break;
     }
 

@@ -99,6 +99,8 @@ export type Lead = {
   icp_total: number | null;
   icp_reasoning: string | null;
   country: string;
+  enriched_at: string | null;
+  dm_enriched_at: string | null;
 };
 
 export const PIPELINE_STAGES = [
@@ -831,6 +833,22 @@ export async function getLeadsTrend(): Promise<{ day: string; found: number; qua
     [agencyId]
   );
   return res.rows;
+}
+
+export type PipelineStageCount = { pipeline_stage: string; count: number };
+
+export async function getPipelineStageBreakdown(): Promise<PipelineStageCount[]> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT pipeline_stage, count(*)::int AS count
+     FROM leads
+     WHERE agency_id = $1 AND status != 'archived'
+     GROUP BY pipeline_stage`,
+    [agencyId]
+  );
+  // Return in canonical order
+  const byStage = new Map<string, number>(res.rows.map((r) => [r.pipeline_stage, r.count]));
+  return PIPELINE_STAGES.map((s) => ({ pipeline_stage: s, count: byStage.get(s) ?? 0 }));
 }
 
 export async function getBusinessContextForDashboard(): Promise<BusinessContextRow | null> {

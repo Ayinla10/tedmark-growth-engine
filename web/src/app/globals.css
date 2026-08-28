@@ -3,6 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --sidebar-w: 240px;
   --app-bg: #f8fafc;
   --surface: #ffffff;
   --surface-2: #f1f5f9;
@@ -10,34 +11,34 @@
   --ink: #0f172a;
   --ink-secondary: #475569;
   --ink-muted: #64748b;
-  --brand: #0143a0;
+  --brand: #2D6AF7;
   --ai: #7c3aed;
   --glass-bg: 255 255 255;
   --glass-alpha: 0.6;
   --terminal-bg: #f8fafc;
   --donut-a: #c7d9f7;
   --donut-b: #5e9cf0;
-  --donut-c: #0143a0;
+  --donut-c: #2D6AF7;
   --donut-d: #e2e8f0;
 }
 
 .dark {
-  --app-bg: #020617;
-  --surface: #0f172a;
-  --surface-2: #1e293b;
-  --border-c: #334155;
-  --ink: #f1f5f9;
+  --app-bg: #04060d;
+  --surface: #080d1a;
+  --surface-2: #0d1320;
+  --border-c: rgba(45,106,247,0.18);
+  --ink: #e8edf5;
   --ink-secondary: #94a3b8;
   --ink-muted: #64748b;
-  --brand: #60a5fa;
+  --brand: #6b9fff;
   --ai: #a78bfa;
-  --glass-bg: 46 48 55;
-  --glass-alpha: 0.7;
+  --glass-bg: 8 13 26;
+  --glass-alpha: 0.8;
   --terminal-bg: #000000;
   --donut-a: #1e3a5f;
-  --donut-b: #2563a8;
-  --donut-c: #60a5fa;
-  --donut-d: #334155;
+  --donut-b: #2563eb;
+  --donut-c: #6b9fff;
+  --donut-d: #1a2540;
 }
 
 /* No init script: default to system preference via media query unless the
@@ -45,22 +46,22 @@
    applied by theme-toggle.tsx, wins by appearing later in the cascade). */
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --app-bg: #020617;
-    --surface: #0f172a;
-    --surface-2: #1e293b;
-    --border-c: #334155;
-    --ink: #f1f5f9;
+    --app-bg: #04060d;
+    --surface: #080d1a;
+    --surface-2: #0d1320;
+    --border-c: rgba(45,106,247,0.18);
+    --ink: #e8edf5;
     --ink-secondary: #94a3b8;
     --ink-muted: #64748b;
-    --brand: #60a5fa;
+    --brand: #6b9fff;
     --ai: #a78bfa;
-    --glass-bg: 46 48 55;
-    --glass-alpha: 0.7;
+    --glass-bg: 8 13 26;
+    --glass-alpha: 0.8;
     --terminal-bg: #000000;
     --donut-a: #1e3a5f;
     --donut-b: #2563a8;
-    --donut-c: #60a5fa;
-    --donut-d: #334155;
+    --donut-c: #6b9fff;
+    --donut-d: #1a2540;
   }
 }
 
@@ -72,7 +73,7 @@
   --ink: #0f172a;
   --ink-secondary: #475569;
   --ink-muted: #64748b;
-  --brand: #0143a0;
+  --brand: #2D6AF7;
   --ai: #7c3aed;
   --glass-bg: 255 255 255;
   --glass-alpha: 0.6;

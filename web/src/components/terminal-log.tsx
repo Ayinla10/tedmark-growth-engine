@@ -62,10 +62,14 @@ export function TerminalLog({ command = false }: { command?: boolean }) {
     <footer
       className={`fixed bottom-0 right-0 backdrop-blur-xl border-t z-40 overflow-hidden flex flex-col transition-[height] duration-300 ${
         minimized ? "h-9" : "h-56"
-      } ${command ? "left-60 bg-[#04060d]/95 border-sky-500/15" : "left-64 bg-terminal/90 border-border-c"}`}
+      } ${command ? "left-60" : "left-64 bg-terminal/90 border-border-c"}`}
+      style={command ? { background: "color-mix(in srgb, var(--app-bg) 95%, transparent)", borderColor: "var(--border-c)" } : undefined}
     >
       <div className="scanning-line opacity-10 pointer-events-none" />
-      <div className={`flex items-center justify-between px-6 py-2 border-b ${command ? "bg-[#0a0f1e]/60 border-sky-500/15" : "bg-surface-2/40 border-border-c"}`}>
+      <div
+        className={`flex items-center justify-between px-6 py-2 border-b ${command ? "" : "bg-surface-2/40 border-border-c"}`}
+        style={command ? { background: "color-mix(in srgb, var(--surface) 60%, transparent)", borderColor: "var(--border-c)" } : undefined}
+      >
         <div className="flex items-center gap-4">
           <span className={`text-xs font-semibold uppercase tracking-widest ${command ? "text-indigo-300" : "text-ai"}`}>
             Activity log
@@ -110,10 +114,11 @@ export function TerminalLog({ command = false }: { command?: boolean }) {
               <div
                 key={`${event.at}-${i}`}
                 className={`flex items-center gap-4 py-1.5 px-2 border-b transition-colors ${
-                  command ? "border-sky-500/10 hover:bg-white/5" : "border-border-c/50 hover:bg-ink/5"
+                  command ? "" : "border-border-c/50 hover:bg-ink/5"
                 }`}
+              style={command ? { borderColor: "var(--border-c)" } : undefined}
               >
-                <span className={`font-mono opacity-60 whitespace-nowrap ${command ? "text-slate-500" : "text-ink-muted"}`}>
+                <span className={`font-mono opacity-60 whitespace-nowrap ${command ? "" : "text-ink-muted"}`} style={command ? { color: "var(--ink-muted)" } : undefined}>
                   [{new Date(event.at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}]
                 </span>
                 <span
@@ -125,7 +130,7 @@ export function TerminalLog({ command = false }: { command?: boolean }) {
                 >
                   {event.agent}
                 </span>
-                <span className={`font-sans truncate ${command ? "text-slate-300" : "text-ink"}`}>{event.message}</span>
+                <span className={`font-sans truncate ${command ? "" : "text-ink"}`} style={command ? { color: "var(--ink)" } : undefined}>{event.message}</span>
               </div>
             ))
           )}

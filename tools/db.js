@@ -162,14 +162,15 @@ export async function markLeadEnriched(id) {
   return result.rows[0];
 }
 
-export async function updateLeadContact(id, { email, phone }) {
+export async function updateLeadContact(id, { email, phone, website_url }) {
   const result = await query(
     `UPDATE leads
-     SET email = COALESCE($1, email),
-         phone = COALESCE($2, phone)
-     WHERE id = $3
+     SET email       = COALESCE($1, email),
+         phone       = COALESCE($2, phone),
+         website_url = COALESCE($3, website_url)
+     WHERE id = $4
      RETURNING *`,
-    [email ?? null, phone ?? null, id]
+    [email ?? null, phone ?? null, website_url ?? null, id]
   );
   return result.rows[0];
 }
@@ -767,6 +768,40 @@ export async function recordDirectoryRun(id, { nextPage, exhausted }) {
     [nextPage, exhausted, id]
   );
   return result.rows[0];
+}
+
+// ── Enrich events (live streaming feed) ──────────────────────────────────────
+
+export async function ensureEnrichEventsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS enrich_events (
+      id          SERIAL PRIMARY KEY,
+      lead_id     TEXT NOT NULL,
+      type        TEXT NOT NULL DEFAULT 'info',  -- info | found | error | done
+      message     TEXT NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS enrich_events_lead_idx ON enrich_events (lead_id, created_at)`);
+}
+
+export async function insertEnrichEvent(leadId, type, message) {
+  await query(
+    `INSERT INTO enrich_events (lead_id, type, message) VALUES ($1, $2, $3)`,
+    [leadId, type, message]
+  );
+}
+
+export async function getEnrichEvents(leadId, afterId = 0) {
+  const result = await query(
+    `SELECT * FROM enrich_events WHERE lead_id = $1 AND id > $2 ORDER BY id ASC`,
+    [leadId, afterId]
+  );
+  return result.rows;
+}
+
+export async function clearEnrichEvents(leadId) {
+  await query(`DELETE FROM enrich_events WHERE lead_id = $1`, [leadId]);
 }
 
 export default pool;

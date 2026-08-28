@@ -74,8 +74,8 @@ export function OrchestrationCanvas({ nodes }: { nodes: OrchestrationNode[] }) {
         style={{ left: `${CENTER.x}%`, top: `${CENTER.y}%`, transform: "translate(-50%, -50%)", width: "17%" }}
       >
         <JarvisFlowCore />
-        <p className="text-[10px] tracking-[0.25em] text-sky-300/90 font-semibold -mt-1 whitespace-nowrap">J.A.R.V.I.S CORE</p>
-        <p className="text-[9px] text-slate-400 whitespace-nowrap">Listening &middot; Analyzing &middot; Coordinating</p>
+        <p className="text-[10px] tracking-[0.25em] font-semibold -mt-1 whitespace-nowrap" style={{ color: "var(--brand)" }}>J.A.R.V.I.S CORE</p>
+        <p className="text-[9px] whitespace-nowrap" style={{ color: "var(--ink-muted)" }}>Listening &middot; Analyzing &middot; Coordinating</p>
       </div>
 
       {/* Agent nodes */}
@@ -101,21 +101,21 @@ export function OrchestrationCanvas({ nodes }: { nodes: OrchestrationNode[] }) {
               <div className="relative w-full">
                 <span
                   className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center border"
-                  style={{ background: "#0d1220", borderColor: `${node.color}88`, color: node.color }}
+                  style={{ background: "var(--surface-2)", borderColor: `${node.color}88`, color: node.color }}
                 >
                   {node.order}
                 </span>
                 <RobotAgent active={node.status !== "pending"} color={node.color} fluid />
               </div>
-              <p className="text-[13px] font-semibold text-slate-100 mt-1 whitespace-nowrap">{node.name}</p>
-              <p className="text-[11px] font-medium flex items-center gap-1.5" style={{ color: node.status === "pending" ? "#64748b" : node.color }}>
+              <p className="text-[13px] font-semibold mt-1 whitespace-nowrap" style={{ color: "var(--ink)" }}>{node.name}</p>
+              <p className="text-[11px] font-medium flex items-center gap-1.5" style={{ color: node.status === "pending" ? "var(--ink-muted)" : node.color }}>
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${node.status === "inprogress" ? "animate-pulse" : ""}`}
-                  style={{ background: node.status === "pending" ? "#64748b" : node.color }}
+                  style={{ background: node.status === "pending" ? "var(--ink-muted)" : node.color }}
                 />
                 {node.statusLabel}
               </p>
-              <p className="text-[10px] text-slate-400 leading-snug mt-0.5 line-clamp-2 max-w-[140px]">{node.detail}</p>
+              <p className="text-[10px] leading-snug mt-0.5 line-clamp-2 max-w-[140px]" style={{ color: "var(--ink-muted)" }}>{node.detail}</p>
             </motion.div>
           </div>
         );

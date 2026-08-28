@@ -61,7 +61,7 @@ export function AgentRunButton({
       {result && (
         <ResultBanner
           ok={result.ok}
-          output={result.output && result.output.trim() ? result.output : result.ok ? "Done — check Lead Discovery and Qualified Leads for results." : "Something went wrong. Check the terminal for details."}
+          output={result.output && result.output.trim() ? result.output : result.ok ? "Done — check Opportunities for new results." : "Something went wrong. Please try again."}
         />
       )}
     </div>

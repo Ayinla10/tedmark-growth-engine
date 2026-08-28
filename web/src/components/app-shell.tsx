@@ -13,7 +13,15 @@ export async function AppShell({ children }: { children: ReactNode }) {
       <IdleLogout timeoutMinutes={settings.idle_logout_minutes} />
       <Sidebar />
       <Header user={user} />
-      <main className="ml-64 pt-16">{children}</main>
+      {/*
+        margin-left and header left are controlled by the Sidebar's injected <style> block.
+        On desktop (≥768px): margin-left = sidebar width.
+        On mobile (<768px): margin-left = 0 (sidebar is a drawer overlay).
+        The pt-14 accounts for the fixed header height.
+      */}
+      <main className="pt-14 min-w-0 md:ml-[240px]">
+        {children}
+      </main>
     </div>
   );
 }

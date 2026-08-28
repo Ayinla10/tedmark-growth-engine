@@ -9,7 +9,7 @@ export type LoginState = { error?: string };
 export async function loginAction(_prevState: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/agents");
+  const next = String(formData.get("next") ?? "/home");
 
   if (!email || !password) {
     return { error: "Enter your email and password." };
@@ -27,7 +27,7 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
 
   const token = await createSession({ id: user.id, email: user.email, name: user.name, role: user.role, agencyId: user.agency_id ?? null });
   await setSessionCookie(token);
-  redirect(next.startsWith("/") ? next : "/agents");
+  redirect(next.startsWith("/") ? next : "/home");
 }
 
 export async function logoutAction() {

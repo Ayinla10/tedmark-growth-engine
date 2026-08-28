@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "webhook": "node webhook-server.js",
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {

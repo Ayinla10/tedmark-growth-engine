@@ -49,7 +49,7 @@ export async function runScout({ sector, city, limit, offset = 0, country = 'GH'
 
       saved += 1;
       console.log(
-        `[scout] Saved lead: ${lead.business_name} (${lead.id}) — website: ${hasWebsite ? 'yes' : 'no'}`
+        `[scout] Saved lead: ${lead.business_name} (${lead.id}) — phone: ${hasPhone ? 'yes' : 'no'}, website: ${hasWebsite ? 'yes' : 'no'}`
       );
     } catch (err) {
       console.error(`[scout] Failed to save lead "${business.name}": ${err.message}`);

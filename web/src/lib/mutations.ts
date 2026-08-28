@@ -223,12 +223,13 @@ export type ThreadItem = {
   body: string;
   at: string;
   classification: string | null;
+  channel: "whatsapp" | "email" | null;
 };
 
 export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
   const [outreach, replies] = await Promise.all([
     pool.query(
-      `SELECT id, subject, body, sent_at, created_at, status
+      `SELECT id, subject, body, sent_at, created_at, status, message_type
        FROM outreach WHERE lead_id = $1 ORDER BY created_at ASC`,
       [leadId]
     ),
@@ -246,6 +247,7 @@ export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
       body: r.body,
       at: r.sent_at ?? r.created_at,
       classification: null,
+      channel: (r.message_type === "whatsapp" ? "whatsapp" : "email") as "whatsapp" | "email",
     })),
     ...replies.rows.map((r) => ({
       id: r.id,
@@ -254,6 +256,7 @@ export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
       body: r.body,
       at: r.received_at,
       classification: r.classification,
+      channel: null as null,
     })),
   ];
 

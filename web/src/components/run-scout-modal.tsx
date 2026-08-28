@@ -33,7 +33,7 @@ export function RunScoutModal({ command = false, initialAutoEnabled = false }: {
           onClick={() => setOpen(true)}
           className="bg-brand text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm hover:shadow-lg transition-all"
         >
-          <Search size={16} /> Run Scout
+          <Search size={16} /> Find opportunities
         </button>
         <ScoutModal open={open} onClose={() => setOpen(false)} sector={sector} setSector={setSector} city={city} setCity={setCity} limit={limit} setLimit={setLimit} pending={pending} startTransition={startTransition} result={result} setResult={setResult} />
       </>

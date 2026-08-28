@@ -37,10 +37,14 @@ export function ThemeToggle() {
 
   useEffect(() => {
     const stored = localStorage.getItem("tedmark-theme");
-    if (!stored) return;
     const el = document.documentElement;
-    el.classList.toggle("dark", stored === "dark");
-    el.classList.toggle("light", stored === "light");
+    el.classList.remove("light", "dark");
+    if (stored === "light") {
+      el.classList.add("light");
+    } else {
+      el.classList.add("dark");
+      localStorage.setItem("tedmark-theme", "dark");
+    }
     window.dispatchEvent(new Event(THEME_EVENT));
   }, []);
 

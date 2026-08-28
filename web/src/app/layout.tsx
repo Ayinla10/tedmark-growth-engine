@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { ToastProvider } from "@/components/toast";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -19,7 +20,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full`} suppressHydrationWarning>
-      <body className="min-h-full font-sans antialiased" suppressHydrationWarning>{children}</body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function() {
+            var stored = localStorage.getItem('tedmark-theme');
+            var el = document.documentElement;
+            el.classList.remove('light');
+            el.classList.add('dark');
+            if (stored !== 'light') localStorage.setItem('tedmark-theme', 'dark');
+          })();
+        `}} />
+      </head>
+      <body className="min-h-full font-sans antialiased" suppressHydrationWarning>
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }
