@@ -859,3 +859,107 @@ export async function getBusinessContextForDashboard(): Promise<BusinessContextR
   );
   return res.rows[0] ?? null;
 }
+
+export type ConversationItem = {
+  lead_id: string;
+  business_name: string;
+  lead_email: string | null;
+  lead_phone: string | null;
+  pipeline_stage: string;
+  dm_name: string | null;
+  dm_email: string | null;
+  dm_phone: string | null;
+  next_action: string | null;
+  next_action_due: string | null;
+  latest_outreach_id: string | null;
+  message_type: string | null;
+  latest_body: string | null;
+  sent_at: string | null;
+  outreach_status: string | null;
+  has_reply: boolean;
+  latest_reply_body: string | null;
+  reply_at: string | null;
+  classification: string | null;
+  followup_due_at: string | null;
+  followup_step: number | null;
+  draft_count: number;
+};
+
+export async function getConversationList(): Promise<ConversationItem[]> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `WITH latest_outreach AS (
+       SELECT DISTINCT ON (lead_id)
+         lead_id, id, message_type, body, sent_at, status, replied, created_at
+       FROM outreach
+       ORDER BY lead_id, created_at DESC
+     ),
+     latest_reply AS (
+       SELECT DISTINCT ON (lead_id)
+         lead_id, body, received_at, classification
+       FROM replies
+       ORDER BY lead_id, received_at DESC
+     ),
+     pending_followup AS (
+       SELECT DISTINCT ON (lead_id)
+         lead_id, scheduled_at, sequence_step
+       FROM follow_ups
+       WHERE status = 'pending'
+       ORDER BY lead_id, scheduled_at ASC
+     ),
+     draft_counts AS (
+       SELECT lead_id, count(*)::int AS n
+       FROM outreach
+       WHERE status = 'draft'
+       GROUP BY lead_id
+     )
+     SELECT
+       l.id AS lead_id,
+       l.business_name,
+       l.email AS lead_email,
+       l.phone AS lead_phone,
+       l.pipeline_stage,
+       l.dm_name,
+       l.dm_email,
+       l.dm_phone,
+       l.next_action,
+       l.next_action_due,
+       lo.id AS latest_outreach_id,
+       lo.message_type,
+       lo.body AS latest_body,
+       lo.sent_at,
+       lo.status AS outreach_status,
+       COALESCE(lo.replied, false) AS has_reply,
+       lr.body AS latest_reply_body,
+       lr.received_at AS reply_at,
+       lr.classification,
+       pf.scheduled_at AS followup_due_at,
+       pf.sequence_step AS followup_step,
+       COALESCE(dc.n, 0)::int AS draft_count
+     FROM leads l
+     JOIN latest_outreach lo ON lo.lead_id = l.id
+     LEFT JOIN latest_reply lr ON lr.lead_id = l.id
+     LEFT JOIN pending_followup pf ON pf.lead_id = l.id
+     LEFT JOIN draft_counts dc ON dc.lead_id = l.id
+     WHERE l.agency_id = $1
+     ORDER BY GREATEST(
+       COALESCE(lr.received_at, '1970-01-01'::timestamptz),
+       COALESCE(lo.sent_at, lo.created_at, '1970-01-01'::timestamptz)
+     ) DESC NULLS LAST
+     LIMIT 200`,
+    [agencyId]
+  );
+  return res.rows;
+}
+
+export async function getLeadOutreach(leadId: string): Promise<OutreachRow[]> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT o.*, l.business_name, l.email AS lead_email, l.phone AS lead_phone
+     FROM outreach o JOIN leads l ON l.id = o.lead_id
+     WHERE o.lead_id = $1 AND l.agency_id = $2
+     ORDER BY o.created_at ASC`,
+    [leadId, agencyId]
+  );
+  return res.rows;
+}
