@@ -8,10 +8,12 @@ import { ReplyForm } from "@/components/reply-form";
 import {
   getConversationList,
   getLeadOutreach,
+  getLeadFollowUps,
   getKnowledgeRefs,
   type ConversationItem,
   type OutreachRow,
   type KnowledgeRef,
+  type LeadFollowUpEntry,
 } from "@/lib/queries";
 import { getLeadThread } from "@/lib/mutations";
 import { formatDate } from "@/lib/time";
@@ -21,7 +23,7 @@ export const dynamic = "force-dynamic";
 // ─── helpers ───────────────────────────────────────────────────────────────
 
 type ConvState = "draft" | "replied" | "followup_due" | "waiting";
-type FilterKey = "all" | "attention" | "waiting" | "followup" | "interested" | "needs_info";
+type FilterKey = "all" | "attention" | "waiting" | "followup" | "interested" | "objection" | "needs_info";
 
 function convState(item: ConversationItem): ConvState {
   if (item.draft_count > 0) return "draft";
@@ -41,9 +43,9 @@ const CLASSIFICATION_CONFIG: Record<string, { label: string; color: string; bg: 
   interested:     { label: "Interested",     color: "rgb(21 128 61)",  bg: "rgba(34,197,94,0.10)" },
   needs_info:     { label: "Question",       color: "rgb(37 99 235)",  bg: "rgba(59,130,246,0.10)" },
   not_interested: { label: "Not interested", color: "rgb(185 28 28)",  bg: "rgba(239,68,68,0.10)" },
-  out_of_office:  { label: "Out of office",  color: "var(--ink-muted)","bg": "var(--surface-2)" },
+  out_of_office:  { label: "Out of office",  color: "var(--ink-muted)", bg: "var(--surface-2)" },
   unsubscribe:    { label: "Unsubscribing",  color: "rgb(185 28 28)",  bg: "rgba(239,68,68,0.10)" },
-  other:          { label: "Unclear",        color: "var(--ink-muted)","bg": "var(--surface-2)" },
+  other:          { label: "Unclear",        color: "var(--ink-muted)", bg: "var(--surface-2)" },
 };
 
 function applyFilter(items: ConversationItem[], filter: FilterKey): ConversationItem[] {
@@ -52,6 +54,7 @@ function applyFilter(items: ConversationItem[], filter: FilterKey): Conversation
     case "waiting":    return items.filter(c => convState(c) === "waiting");
     case "followup":   return items.filter(c => convState(c) === "followup_due");
     case "interested": return items.filter(c => c.classification === "interested");
+    case "objection":  return items.filter(c => c.classification === "not_interested");
     case "needs_info": return items.filter(c => c.classification === "needs_info");
     default:           return items;
   }
@@ -116,21 +119,37 @@ export default async function ConversationsPage({
   // Per-conversation data when one is selected
   let thread: Awaited<ReturnType<typeof getLeadThread>> = [];
   let outreachRows: OutreachRow[] = [];
+  let leadFollowUps: LeadFollowUpEntry[] = [];
   let selectedConv: ConversationItem | null = null;
   let refsMap = new Map<string, KnowledgeRef>();
 
   if (conv) {
     selectedConv = conversations.find(c => c.lead_id === conv) ?? null;
     if (selectedConv) {
-      [thread, outreachRows] = await Promise.all([
+      [thread, outreachRows, leadFollowUps] = await Promise.all([
         getLeadThread(conv),
         getLeadOutreach(conv),
+        getLeadFollowUps(conv),
       ]);
       const allIds = [...new Set(outreachRows.flatMap(r => r.knowledge_ids))];
       const refs = await getKnowledgeRefs(allIds);
       refsMap = new Map(refs.map(r => [r.id, r]));
     }
   }
+
+  // Merge messages + follow-up events into one sorted timeline
+  type TimelineEntry =
+    | { kind: "message"; data: typeof thread[0]; sortAt: string }
+    | { kind: "followup"; data: LeadFollowUpEntry; sortAt: string };
+
+  const timeline: TimelineEntry[] = [
+    ...thread.map(t => ({ kind: "message" as const, data: t, sortAt: t.at })),
+    ...leadFollowUps.map(f => ({
+      kind: "followup" as const,
+      data: f,
+      sortAt: f.sent_at ?? f.scheduled_at,
+    })),
+  ].sort((a, b) => new Date(a.sortAt).getTime() - new Date(b.sortAt).getTime());
 
   const filtered = applyFilter(conversations, filter);
 
@@ -140,6 +159,7 @@ export default async function ConversationsPage({
     waiting:    conversations.filter(c => convState(c) === "waiting").length,
     followup:   conversations.filter(c => convState(c) === "followup_due").length,
     interested: conversations.filter(c => c.classification === "interested").length,
+    objection:  conversations.filter(c => c.classification === "not_interested").length,
     needs_info: conversations.filter(c => c.classification === "needs_info").length,
   };
 
@@ -149,6 +169,7 @@ export default async function ConversationsPage({
     { key: "waiting",    label: "Waiting" },
     { key: "followup",   label: "Follow-up due" },
     { key: "interested", label: "Interested" },
+    { key: "objection",  label: "Objection" },
     { key: "needs_info", label: "Questions" },
   ];
   const FILTERS = ALL_FILTERS.filter(f => f.key === "all" || f.key === "attention" || counts[f.key] > 0);
@@ -163,6 +184,121 @@ export default async function ConversationsPage({
 
   const convLink = (leadId: string) => `/conversations?conv=${leadId}&filter=${filter}`;
   const filterLink = (f: FilterKey) => conv ? `/conversations?conv=${conv}&filter=${f}` : `/conversations?filter=${f}`;
+
+  // ── Context panel — shared between desktop sidebar and mobile section ────
+  const ContextPanel = selectedConv ? (
+    <div className="flex flex-col gap-4 p-4 w-full">
+      {recAction && (
+        <div
+          className="rounded-xl p-4"
+          style={{ background: "var(--surface)", border: "1px solid var(--border-c)" }}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--ink-muted)" }}>
+            AI Interpretation
+          </p>
+          {classConf && (
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-full mb-2 inline-block"
+              style={{ background: classConf.bg, color: classConf.color }}
+            >
+              {classConf.label}
+            </span>
+          )}
+          <p className="text-sm mb-3" style={{ color: "var(--ink-secondary)" }}>
+            {recAction.interpretation}
+          </p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--ink-muted)" }}>
+            Recommended action
+          </p>
+          <p className="text-sm" style={{ color: "var(--ink)" }}>
+            {recAction.action}
+          </p>
+        </div>
+      )}
+
+      {selectedConv.followup_due_at && (
+        <div
+          className="rounded-xl p-4"
+          style={{ background: "rgba(107,159,255,0.06)", border: "1px solid rgba(107,159,255,0.20)" }}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--brand)" }}>
+            Follow-up queued
+          </p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Clock size={12} style={{ color: "var(--brand)" }} />
+            <p className="text-xs" style={{ color: "var(--ink-secondary)" }}>
+              Step {selectedConv.followup_step ?? 1} · due {formatDate(selectedConv.followup_due_at)}
+            </p>
+          </div>
+          <p className="text-xs" style={{ color: "var(--ink-muted)" }}>
+            No reply since last contact. A follow-up is scheduled.
+          </p>
+        </div>
+      )}
+
+      {selectedConv.next_action && (
+        <div
+          className="rounded-xl p-4"
+          style={{ background: "var(--surface)", border: "1px solid var(--border-c)" }}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--ink-muted)" }}>
+            Next action
+          </p>
+          <p className="text-sm" style={{ color: "var(--ink)" }}>{selectedConv.next_action}</p>
+          {selectedConv.next_action_due && (
+            <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>
+              Due {formatDate(selectedConv.next_action_due)}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div
+        className="rounded-xl p-4"
+        style={{ background: "var(--surface)", border: "1px solid var(--border-c)" }}
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--ink-muted)" }}>
+          Contact
+        </p>
+        <div className="space-y-2.5">
+          {selectedConv.dm_name && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--ink-muted)" }}>Decision-maker</p>
+              <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{selectedConv.dm_name}</p>
+            </div>
+          )}
+          {(selectedConv.dm_email ?? selectedConv.lead_email) && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--ink-muted)" }}>Email</p>
+              <p className="text-xs" style={{ color: "var(--ink)" }}>
+                {selectedConv.dm_email ?? selectedConv.lead_email}
+              </p>
+            </div>
+          )}
+          {(selectedConv.dm_phone ?? selectedConv.lead_phone) && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--ink-muted)" }}>Phone</p>
+              <p className="text-xs" style={{ color: "var(--ink)" }}>
+                {selectedConv.dm_phone ?? selectedConv.lead_phone}
+              </p>
+            </div>
+          )}
+          {!selectedConv.dm_name && !selectedConv.dm_email && !selectedConv.lead_email && !selectedConv.dm_phone && !selectedConv.lead_phone && (
+            <p className="text-xs" style={{ color: "var(--ink-muted)" }}>No contact info on file.</p>
+          )}
+        </div>
+      </div>
+
+      <Link
+        href={`/opportunities/${selectedConv.lead_id}`}
+        className="flex items-center justify-between rounded-xl px-4 py-3"
+        style={{ background: "var(--surface)", border: "1px solid var(--border-c)", color: "var(--brand)" }}
+      >
+        <span className="text-sm font-semibold">View full opportunity</span>
+        <ChevronRight size={15} />
+      </Link>
+    </div>
+  ) : null;
 
   return (
     <AppShell>
@@ -214,6 +350,7 @@ export default async function ConversationsPage({
                 const isSelected = item.lead_id === conv;
                 const preview = item.reply_at ? item.latest_reply_body : item.latest_body;
                 const previewTime = item.reply_at ?? item.sent_at;
+                const contactName = item.dm_name;
 
                 return (
                   <Link
@@ -228,13 +365,14 @@ export default async function ConversationsPage({
                   >
                     {/* Avatar */}
                     <div
-                      className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-[10px] font-bold"
+                      className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-[10px] font-bold mt-0.5"
                       style={{ background: "rgba(107,159,255,0.18)", color: "var(--brand)" }}
                     >
                       {initials(item.business_name)}
                     </div>
 
                     <div className="flex-1 min-w-0">
+                      {/* Row 1: name + time */}
                       <div className="flex items-start justify-between gap-1">
                         <p className="text-sm font-semibold truncate" style={{ color: "var(--ink)" }}>
                           {item.business_name}
@@ -245,15 +383,33 @@ export default async function ConversationsPage({
                           </p>
                         )}
                       </div>
+
+                      {/* Row 2: DM name (if known) */}
+                      {contactName && (
+                        <p className="text-[11px] truncate" style={{ color: "var(--ink-muted)" }}>
+                          {contactName}
+                        </p>
+                      )}
+
+                      {/* Row 3: state badge */}
                       <span
-                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 inline-block"
                         style={{ background: stConf.bg, color: stConf.color }}
                       >
                         {stConf.label}
                       </span>
+
+                      {/* Row 4: message preview */}
                       {preview && (
                         <p className="text-xs mt-1 line-clamp-1" style={{ color: "var(--ink-muted)" }}>
                           {preview}
+                        </p>
+                      )}
+
+                      {/* Row 5: next action */}
+                      {item.next_action && (
+                        <p className="text-[11px] mt-1 truncate" style={{ color: "var(--brand)" }}>
+                          → {item.next_action}
                         </p>
                       )}
                     </div>
@@ -265,7 +421,7 @@ export default async function ConversationsPage({
         </div>
 
         {/* ══ CENTER + RIGHT ════════════════════════════════════════════ */}
-        <div className={`flex-1 flex min-w-0 ${conv ? "flex" : "hidden lg:flex"}`}>
+        <div className={`flex-1 flex flex-col lg:flex-row min-w-0 ${conv ? "flex" : "hidden lg:flex"}`}>
 
           {/* CENTER — Thread */}
           <div
@@ -327,14 +483,39 @@ export default async function ConversationsPage({
                   </div>
                 </div>
 
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ minHeight: 0 }}>
-                  {thread.length === 0 ? (
+                {/* Messages + follow-up events — unified timeline */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ minHeight: 0 }}>
+                  {timeline.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-sm" style={{ color: "var(--ink-muted)" }}>No messages in this thread yet.</p>
                     </div>
                   ) : (
-                    thread.map(item => {
+                    timeline.map(entry => {
+
+                      // ── Follow-up event ──────────────────────────────────
+                      if (entry.kind === "followup") {
+                        const fu = entry.data;
+                        const isSent = fu.status === "sent";
+                        return (
+                          <div key={fu.id} className="flex items-center gap-3 py-1">
+                            <div className="flex-1 h-px" style={{ background: "var(--border-c)" }} />
+                            <p
+                              className="text-[11px] whitespace-nowrap font-medium flex items-center gap-1"
+                              style={{ color: isSent ? "var(--ink-muted)" : "var(--brand)" }}
+                            >
+                              <Clock size={10} />
+                              {isSent
+                                ? `Follow-up step ${fu.sequence_step} sent · ${formatDate(fu.sent_at)}`
+                                : `Follow-up step ${fu.sequence_step} · scheduled ${formatDate(fu.scheduled_at)}`
+                              }
+                            </p>
+                            <div className="flex-1 h-px" style={{ background: "var(--border-c)" }} />
+                          </div>
+                        );
+                      }
+
+                      // ── Message bubble ───────────────────────────────────
+                      const item = entry.data;
                       const isReply = item.kind === "reply";
                       const isDraft = item.kind === "draft";
                       const isSent  = item.kind === "sent";
@@ -347,7 +528,7 @@ export default async function ConversationsPage({
                       return (
                         <div key={item.id} className={`flex ${isReply ? "justify-start" : "justify-end"}`}>
                           <div className="max-w-lg w-full">
-                            {/* Classification badge */}
+                            {/* Classification badge above reply */}
                             {msgClassConf && (
                               <div className="flex justify-start mb-1">
                                 <span
@@ -378,7 +559,7 @@ export default async function ConversationsPage({
                                   : "none",
                               }}
                             >
-                              {/* Draft label + approve button */}
+                              {/* Draft label + approve */}
                               {isDraft && (
                                 <div className="flex items-center justify-between mb-2">
                                   <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#d97706" }}>
@@ -400,7 +581,7 @@ export default async function ConversationsPage({
                               )}
                               <p className="text-sm whitespace-pre-wrap leading-relaxed">{item.body}</p>
 
-                              {/* Footer row */}
+                              {/* Footer: timestamp + channel attribution */}
                               <div className="flex items-center justify-between mt-2 gap-2 flex-wrap">
                                 <p
                                   className="text-[11px]"
@@ -409,7 +590,6 @@ export default async function ConversationsPage({
                                   {formatDate(item.at)}
                                 </p>
                                 {isReply ? (
-                                  /* Reply attribution: channel + contact address */
                                   <p
                                     className="text-[10px] flex items-center gap-1"
                                     style={{ color: isWhatsApp ? "rgb(21 128 61)" : "var(--ink-muted)" }}
@@ -473,127 +653,34 @@ export default async function ConversationsPage({
             )}
           </div>
 
-          {/* RIGHT — Context panel */}
+          {/* RIGHT — Context panel: sidebar on desktop, section below thread on mobile */}
           {selectedConv && (
-            <div
-              className="hidden lg:flex flex-col w-64 xl:w-72 flex-shrink-0 overflow-y-auto p-4 gap-4"
-              style={{ background: "var(--app-bg)" }}
-            >
-              {/* AI interpretation + recommended action */}
-              {recAction && (
-                <div
-                  className="rounded-xl p-4"
-                  style={{ background: "var(--surface)", border: "1px solid var(--border-c)" }}
-                >
-                  <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--ink-muted)" }}>
-                    AI Interpretation
-                  </p>
-                  {classConf && (
-                    <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded-full mb-2 inline-block"
-                      style={{ background: classConf.bg, color: classConf.color }}
-                    >
-                      {classConf.label}
-                    </span>
-                  )}
-                  <p className="text-sm mb-3" style={{ color: "var(--ink-secondary)" }}>
-                    {recAction.interpretation}
-                  </p>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--ink-muted)" }}>
-                    Recommended action
-                  </p>
-                  <p className="text-sm" style={{ color: "var(--ink)" }}>
-                    {recAction.action}
-                  </p>
-                </div>
-              )}
-
-              {/* Follow-up info */}
-              {selectedConv.followup_due_at && (
-                <div
-                  className="rounded-xl p-4"
-                  style={{ background: "rgba(107,159,255,0.06)", border: "1px solid rgba(107,159,255,0.20)" }}
-                >
-                  <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--brand)" }}>
-                    Follow-up queued
-                  </p>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Clock size={12} style={{ color: "var(--brand)" }} />
-                    <p className="text-xs" style={{ color: "var(--ink-secondary)" }}>
-                      Step {selectedConv.followup_step ?? 1} · due {formatDate(selectedConv.followup_due_at)}
-                    </p>
-                  </div>
-                  <p className="text-xs" style={{ color: "var(--ink-muted)" }}>
-                    No reply since last contact. A follow-up is scheduled.
-                  </p>
-                </div>
-              )}
-
-              {/* Next action */}
-              {selectedConv.next_action && (
-                <div
-                  className="rounded-xl p-4"
-                  style={{ background: "var(--surface)", border: "1px solid var(--border-c)" }}
-                >
-                  <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--ink-muted)" }}>
-                    Next action
-                  </p>
-                  <p className="text-sm" style={{ color: "var(--ink)" }}>{selectedConv.next_action}</p>
-                  {selectedConv.next_action_due && (
-                    <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>
-                      Due {formatDate(selectedConv.next_action_due)}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Contact info */}
+            <>
+              {/* Desktop sidebar */}
               <div
-                className="rounded-xl p-4"
-                style={{ background: "var(--surface)", border: "1px solid var(--border-c)" }}
+                className="hidden lg:flex lg:flex-col lg:w-64 xl:w-72 lg:flex-shrink-0 overflow-y-auto"
+                style={{ background: "var(--app-bg)" }}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--ink-muted)" }}>
-                  Contact
-                </p>
-                <div className="space-y-2.5">
-                  {selectedConv.dm_name && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--ink-muted)" }}>Decision-maker</p>
-                      <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{selectedConv.dm_name}</p>
-                    </div>
-                  )}
-                  {(selectedConv.dm_email ?? selectedConv.lead_email) && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--ink-muted)" }}>Email</p>
-                      <p className="text-xs" style={{ color: "var(--ink)" }}>
-                        {selectedConv.dm_email ?? selectedConv.lead_email}
-                      </p>
-                    </div>
-                  )}
-                  {(selectedConv.dm_phone ?? selectedConv.lead_phone) && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide" style={{ color: "var(--ink-muted)" }}>Phone</p>
-                      <p className="text-xs" style={{ color: "var(--ink)" }}>
-                        {selectedConv.dm_phone ?? selectedConv.lead_phone}
-                      </p>
-                    </div>
-                  )}
-                  {!selectedConv.dm_name && !selectedConv.dm_email && !selectedConv.lead_email && !selectedConv.dm_phone && !selectedConv.lead_phone && (
-                    <p className="text-xs" style={{ color: "var(--ink-muted)" }}>No contact info on file.</p>
-                  )}
-                </div>
+                {ContextPanel}
               </div>
 
-              {/* View opportunity */}
-              <Link
-                href={`/opportunities/${selectedConv.lead_id}`}
-                className="flex items-center justify-between rounded-xl px-4 py-3"
-                style={{ background: "var(--surface)", border: "1px solid var(--border-c)", color: "var(--brand)" }}
+              {/* Mobile: shown below thread as a collapsible section */}
+              <div
+                className="lg:hidden border-t"
+                style={{ borderColor: "var(--border-c)", background: "var(--app-bg)" }}
               >
-                <span className="text-sm font-semibold">View full opportunity</span>
-                <ChevronRight size={15} />
-              </Link>
-            </div>
+                <details>
+                  <summary
+                    className="px-4 py-3 text-xs font-semibold cursor-pointer select-none list-none flex items-center justify-between"
+                    style={{ color: "var(--ink-secondary)" }}
+                  >
+                    Context &amp; next steps
+                    <ChevronRight size={14} className="rotate-90" style={{ color: "var(--ink-muted)" }} />
+                  </summary>
+                  {ContextPanel}
+                </details>
+              </div>
+            </>
           )}
         </div>
       </div>

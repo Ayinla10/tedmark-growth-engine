@@ -952,6 +952,26 @@ export async function getConversationList(): Promise<ConversationItem[]> {
   return res.rows;
 }
 
+export type LeadFollowUpEntry = {
+  id: string;
+  sequence_step: number;
+  scheduled_at: string;
+  sent_at: string | null;
+  status: string;
+};
+
+export async function getLeadFollowUps(leadId: string): Promise<LeadFollowUpEntry[]> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT f.id, f.sequence_step, f.scheduled_at, f.sent_at, f.status
+     FROM follow_ups f JOIN leads l ON l.id = f.lead_id
+     WHERE f.lead_id = $1 AND l.agency_id = $2
+     ORDER BY f.scheduled_at ASC`,
+    [leadId, agencyId]
+  );
+  return res.rows;
+}
+
 export async function getLeadOutreach(leadId: string): Promise<OutreachRow[]> {
   const agencyId = await getCurrentAgencyId();
   const res = await pool.query(
