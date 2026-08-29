@@ -108,6 +108,24 @@ export async function archiveLeadDb(leadId: string) {
   return res.rows[0] ?? null;
 }
 
+export async function sendDirectReplyDb(leadId: string, subject: string, body: string) {
+  const res = await pool.query(
+    `INSERT INTO outreach (lead_id, message_type, subject, body, status, sent_at)
+     VALUES ($1, 'email', $2, $3, 'sent', now())
+     RETURNING *`,
+    [leadId, subject, body]
+  );
+  // Advance pipeline stage the same way the send agent does
+  await pool.query(
+    `UPDATE leads SET
+       status = 'contacted',
+       pipeline_stage = CASE WHEN pipeline_stage = 'New' THEN 'Contacted' ELSE pipeline_stage END
+     WHERE id = $1`,
+    [leadId]
+  );
+  return res.rows[0];
+}
+
 export async function logReplyDb(leadId: string, outreachId: string | null, body: string) {
   const res = await pool.query(
     `INSERT INTO replies (lead_id, outreach_id, body) VALUES ($1, $2, $3) RETURNING *`,

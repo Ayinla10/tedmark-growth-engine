@@ -176,6 +176,9 @@ export default async function ConversationsPage({
 
   const outreachById = new Map(outreachRows.map(o => [o.id, o]));
   const latestSentOutreachId = [...thread].reverse().find(t => t.kind === "sent")?.id ?? null;
+  const latestSentSubject = [...thread].reverse().find(t => t.kind === "sent")?.subject ?? null;
+  const replyToEmail = selectedConv?.dm_email ?? selectedConv?.lead_email ?? null;
+  const reSubject = latestSentSubject ? `Re: ${latestSentSubject}` : "";
 
   const state = selectedConv ? convState(selectedConv) : null;
   const stateConf = state ? STATE_CONFIG[state] : null;
@@ -636,17 +639,16 @@ export default async function ConversationsPage({
                   )}
                 </div>
 
-                {/* Reply form */}
+                {/* Compose / log box */}
                 <div
-                  className="px-4 py-4 border-t flex-shrink-0"
-                  style={{ borderColor: "var(--border-c)", background: "var(--surface)" }}
+                  className="px-4 py-3 border-t flex-shrink-0"
+                  style={{ borderColor: "var(--border-c)", background: "var(--app-bg)" }}
                 >
-                  <p className="text-xs mb-2" style={{ color: "var(--ink-muted)" }}>
-                    Log a reply they sent you (email or WhatsApp):
-                  </p>
                   <ReplyForm
                     leadId={selectedConv.lead_id}
                     latestOutreachId={latestSentOutreachId}
+                    toEmail={replyToEmail}
+                    reSubject={reSubject}
                   />
                 </div>
               </>

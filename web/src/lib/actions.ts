@@ -13,6 +13,7 @@ import {
   unlinkTelegramDb,
   logReplyDb,
   markWhatsappSentDb,
+  sendDirectReplyDb,
   insertKnowledgeItemDb,
   updateKnowledgeItemDb,
   deleteKnowledgeItemDb,
@@ -202,6 +203,36 @@ export async function updatePipelineAction(
   refreshAll();
   revalidatePath(`/leads/${leadId}`);
   return { ok: Boolean(row) };
+}
+
+export async function sendDirectReplyAction(
+  leadId: string,
+  toEmail: string,
+  subject: string,
+  body: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { ok: false, error: "RESEND_API_KEY is not configured." };
+
+  const from = process.env.EMAIL_FROM ?? "Tedmark Digital <contact@tedmarkdigital.com>";
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ from, to: [toEmail], subject, text: body }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText);
+    return { ok: false, error: `Email failed: ${err}` };
+  }
+
+  await sendDirectReplyDb(leadId, subject, body);
+  revalidatePath("/conversations");
+  return { ok: true };
 }
 
 export async function logReplyAction(leadId: string, outreachId: string | null, body: string) {
