@@ -34,7 +34,7 @@ export const helpContent: HelpEntry[] = [
     id: "log-out",
     category: "Sidebar",
     title: "\"Log out\" link",
-    body: "Honest answer: doesn't do anything yet — there's no login/account system built, so there's nothing to log out of.",
+    body: "How: click it. Why: ends your session and takes you back to the login screen. Your data stays — nothing is deleted.",
   },
   {
     id: "run-scout",
@@ -112,7 +112,7 @@ export const helpContent: HelpEntry[] = [
     id: "send-outreach",
     category: "Outreach Drafts",
     title: "\"Send\" (inside the preview pop-up, email drafts)",
-    body: "How: only appears after you've approved an email draft. Type in the recipient's email, click Send. Why: actually emails it for real, through a service called Resend. Right now this step will fail because the Resend account isn't connected yet — Approve still works, but Send won't succeed until that's set up.",
+    body: "How: only appears after you've approved an email draft. Type in the recipient's email, click Send. Why: actually emails it for real through Resend. The email arrives in their inbox from the Tedmark address — and if they reply, it shows up automatically in Conversations.",
   },
   {
     id: "send-whatsapp",
@@ -154,7 +154,49 @@ export const helpContent: HelpEntry[] = [
     id: "log-reply",
     category: "Lead detail page",
     title: "Reply box at the bottom of the Conversation",
-    body: "How: paste in whatever the business actually said back to you (copied from your real email or WhatsApp), then click the arrow. Why: there's no automatic connection between this system and your email or WhatsApp inbox — this is how you keep a record of the real back-and-forth in one place, so it shows up in the conversation like a chat.",
+    body: "How: paste in whatever the business said back to you (copied from your email or WhatsApp), then click the arrow. Why: keeps a record of the real back-and-forth in one place. For a proper send-and-receive experience, use the Conversations page instead — it has a full compose box.",
+  },
+  {
+    id: "conversations-page",
+    category: "Conversations",
+    title: "The Conversations page",
+    body: "How: click Conversations in the sidebar. Why: this is the communication workspace — the question it answers is \"who is talking to me and what should I do?\" Every lead with any outreach activity appears here as a card, showing the business name, contact, state (needs approval / reply received / follow-up due / waiting), and a message preview. Click any card to open the thread.",
+  },
+  {
+    id: "conversations-filters",
+    category: "Conversations",
+    title: "Filter tabs (All, Needs attention, Waiting, etc.)",
+    body: "How: click any tab at the top of the list. Why: focuses the list on what matters right now. \"Needs attention\" shows anything with an unapproved draft or an unread reply — start here every day. \"Interested\", \"Questions\", and \"Objection\" filter by how the AI classified the lead's reply.",
+  },
+  {
+    id: "conversations-thread",
+    category: "Conversations",
+    title: "The message thread (centre column)",
+    body: "Shows every message in chronological order — outreach you sent (blue), replies they sent (white/green), AI drafts waiting for approval (dashed border), and follow-up events inline. WhatsApp messages appear with a green tint and show which number they came from; email messages show the address. Scroll up to see older messages; the compose box is always pinned at the bottom.",
+  },
+  {
+    id: "conversations-send-reply",
+    category: "Conversations",
+    title: "\"Send reply\" tab (compose box)",
+    body: "How: the compose box is at the bottom of every open thread. The Send reply tab is active by default when the lead has an email address. Type your message, adjust the subject if needed, and click the send arrow. Why: sends the email directly through Resend and logs it in the thread immediately — no copy-pasting required. If the lead has no email on file, this tab shows a warning and is disabled.",
+  },
+  {
+    id: "conversations-log-inbound",
+    category: "Conversations",
+    title: "\"Log inbound\" tab (compose box)",
+    body: "How: click the Log inbound tab in the compose box, paste what the lead said, click the arrow. Why: for replies that came through WhatsApp or your personal email rather than the system — this logs them so they appear in the thread alongside everything else. Replies that come to contact@tedmarkdigital.com appear automatically and don't need to be pasted.",
+  },
+  {
+    id: "conversations-ai-panel",
+    category: "Conversations",
+    title: "AI interpretation panel (right column)",
+    body: "Not a button — it's a read-only summary. Shows how the AI classified the lead's reply (Interested, Question, Not interested, etc.), what that means in plain English, and the recommended next action. On mobile it appears as a collapsible section below the thread.",
+  },
+  {
+    id: "conversations-auto-replies",
+    category: "Conversations",
+    title: "Why replies appear automatically",
+    body: "The system polls contact@tedmarkdigital.com every few minutes via IMAP. When a lead replies to an outreach email, it's matched by sender address, AI-classified, logged to the thread, and a Telegram notification is sent. If the AI thinks a follow-up message is appropriate, it also creates a draft that appears in the thread awaiting your approval.",
   },
   {
     id: "draft-vs-sent-bubbles",
