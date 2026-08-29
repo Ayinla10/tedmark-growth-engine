@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { loginAction, type LoginState } from "@/lib/auth-actions";
 
 const initialState: LoginState = {};
 
 export function LoginForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
+  const [showPw, setShowPw] = useState(false);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -29,15 +31,25 @@ export function LoginForm({ next }: { next: string }) {
         <label htmlFor="password" className="text-xs text-slate-400 block mb-1.5">
           Password
         </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          className="w-full bg-[#070b16] border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          placeholder="••••••••"
-        />
+        <div className="relative">
+          <input
+            id="password"
+            name="password"
+            type={showPw ? "text" : "password"}
+            required
+            autoComplete="current-password"
+            className="w-full bg-[#070b16] border border-slate-700/50 rounded-lg px-3 py-2 pr-9 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            placeholder="••••••••"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPw(v => !v)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+            aria-label={showPw ? "Hide password" : "Show password"}
+          >
+            {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
       </div>
       {state.error ? <p className="text-xs text-red-400">{state.error}</p> : null}
       <button
