@@ -305,11 +305,11 @@ export default async function ConversationsPage({
 
   return (
     <AppShell>
-      <div className="flex" style={{ background: "var(--app-bg)", minHeight: "100vh" }}>
+      <div className="flex" style={{ background: "var(--app-bg)", height: "calc(100vh - 56px)", overflow: "hidden" }}>
 
         {/* ══ LEFT — Conversation list ══════════════════════════════════ */}
         <div
-          className={conv ? "hidden lg:flex lg:flex-col lg:w-72 lg:flex-shrink-0" : "flex flex-col w-full lg:w-72 lg:flex-shrink-0"}
+          className={conv ? "hidden lg:flex lg:flex-col lg:w-72 lg:flex-shrink-0 h-full" : "flex flex-col w-full lg:w-72 lg:flex-shrink-0 h-full"}
           style={{ borderRight: "1px solid var(--border-c)", background: "var(--surface)" }}
         >
           {/* Header */}
@@ -424,11 +424,11 @@ export default async function ConversationsPage({
         </div>
 
         {/* ══ CENTER + RIGHT ════════════════════════════════════════════ */}
-        <div className={`flex-1 flex flex-col lg:flex-row min-w-0 ${conv ? "flex" : "hidden lg:flex"}`}>
+        <div className={`flex-1 flex flex-col lg:flex-row min-w-0 h-full overflow-hidden ${conv ? "flex" : "hidden lg:flex"}`}>
 
           {/* CENTER — Thread */}
           <div
-            className="flex-1 flex flex-col min-w-0"
+            className="flex-1 flex flex-col min-w-0 h-full overflow-hidden"
             style={{ borderRight: "1px solid var(--border-c)" }}
           >
             {!selectedConv ? (
