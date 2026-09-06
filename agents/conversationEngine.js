@@ -221,10 +221,19 @@ Never ask more than one question at a time. Never be robotic. Be direct, warm, s
     return JSON.parse(jsonMatch[0]);
   } catch (err) {
     console.error('[engine] think() error:', err?.message ?? err);
-    return {
-      type: 'converse',
-      message: "Something went wrong on my end — try again in a moment.",
-    };
+    // Fall back to a plain conversational reply using the live data we already loaded
+    try {
+      const fallback = await complete({
+        system: `You are the Tedmark Growth AI. Answer the owner's message naturally and helpfully.
+${businessContext ? `\nBusiness context:\n${businessContext}` : ''}
+${liveSnapshot ? `\nLive pipeline:\n${liveSnapshot}` : ''}`,
+        user: userMessage,
+        maxTokens: 400,
+      });
+      return { type: 'converse', message: fallback };
+    } catch {
+      return { type: 'converse', message: "I'm thinking through that — could you send it again? I want to give you a proper answer." };
+    }
   }
 }
 

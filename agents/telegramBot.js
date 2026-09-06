@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { getUpdates, sendMessage, answerCallbackQuery, editMessageReplyMarkup, setMyCommands } from '../tools/telegram.js';
+import { getUpdates, sendMessage, sendChatAction, answerCallbackQuery, editMessageReplyMarkup, setMyCommands } from '../tools/telegram.js';
 import { consumeCallbackToken } from '../tools/telegramAuth.js';
 import {
   consumeTelegramLinkCode,
@@ -70,75 +70,90 @@ async function formatTopLeads(agencyId) {
 // { chatId -> { command, args } | null }
 const pendingConfirmations = new Map();
 
+// Send "typing…" and keep re-sending every 4s until the returned stop() is called
+function startTyping(chatId) {
+  sendChatAction(chatId, 'typing').catch(() => {});
+  const interval = setInterval(() => sendChatAction(chatId, 'typing').catch(() => {}), 4000);
+  return () => clearInterval(interval);
+}
+
 async function reply(link, chatId, text) {
   await sendMessage(chatId, text);
   await recordTelegramMessage(link.id, 'outbound', text);
 }
 
 async function handleCommand(link, text, chatId, agencyId) {
+  const stopTyping = startTyping(chatId);
   const lower = text.toLowerCase().trim();
 
-  // Hard slash commands — instant, no AI needed
-  if (lower === '/status') {
-    const summary = await getTelegramStatusSummary(agencyId);
-    await reply(link, chatId, formatStatus(summary));
-    return;
-  }
-  if (lower === '/leads') {
-    await reply(link, chatId, await formatTopLeads(agencyId));
-    return;
-  }
-  if (lower === '/pause') {
-    await setSetting('scout_enabled', false, agencyId);
-    await setSetting('web_scout_enabled', false, agencyId);
-    await setSetting('directory_scout_enabled', false, agencyId);
-    await reply(link, chatId, 'Discovery paused. No new leads will be found until you say resume.');
-    return;
-  }
-  if (lower === '/resume') {
-    await setSetting('scout_enabled', true, agencyId);
-    await setSetting('web_scout_enabled', true, agencyId);
-    await setSetting('directory_scout_enabled', true, agencyId);
-    await reply(link, chatId, 'Discovery resumed.');
-    return;
-  }
-  if (lower === '/help') {
-    await reply(link, chatId, HELP_TEXT);
-    return;
-  }
-
-  // ── Intelligent conversation engine ────────────────────────────────────────
-  const pending = pendingConfirmations.get(chatId) ?? null;
-
-  const result = await processOwnerMessage({
-    text,
-    linkId: link.id,
-    agencyId,
-    pendingConfirmation: pending,
-  });
-
-  // Update pending state
-  if (result.clearPending || result.dispatch) pendingConfirmations.delete(chatId);
-  if (result.setPending) pendingConfirmations.set(chatId, result.setPending);
-
-  // Send the immediate reply
-  await reply(link, chatId, result.reply);
-
-  // If there's a dispatch, run it and report back
-  if (result.dispatch) {
-    const { command, args } = result.dispatch;
-    try {
-      const agentResult = await dispatchAgent(command, args);
-      const bizCtx = await loadBusinessContext(agencyId).catch(() => '');
-      if (agentResult.ok) {
-        const summary = await summariseAgentResult(command, agentResult.output, bizCtx);
-        await reply(link, chatId, summary);
-      } else {
-        await reply(link, chatId, `The ${command} agent hit an issue: ${agentResult.output || 'unknown error'}`);
-      }
-    } catch (err) {
-      await reply(link, chatId, `Couldn't run ${command}: ${err.message}`);
+  try {
+    // Hard slash commands — instant, no AI needed
+    if (lower === '/status') {
+      const summary = await getTelegramStatusSummary(agencyId);
+      return await reply(link, chatId, formatStatus(summary));
     }
+    if (lower === '/leads') {
+      return await reply(link, chatId, await formatTopLeads(agencyId));
+    }
+    if (lower === '/pause') {
+      await setSetting('scout_enabled', false, agencyId);
+      await setSetting('web_scout_enabled', false, agencyId);
+      await setSetting('directory_scout_enabled', false, agencyId);
+      return await reply(link, chatId, 'Discovery paused. No new leads will be found until you say resume.');
+    }
+    if (lower === '/resume') {
+      await setSetting('scout_enabled', true, agencyId);
+      await setSetting('web_scout_enabled', true, agencyId);
+      await setSetting('directory_scout_enabled', true, agencyId);
+      return await reply(link, chatId, 'Discovery resumed.');
+    }
+    if (lower === '/help') {
+      return await reply(link, chatId, HELP_TEXT);
+    }
+
+    // ── Intelligent conversation engine ────────────────────────────────────────
+    const pending = pendingConfirmations.get(chatId) ?? null;
+
+    const result = await processOwnerMessage({
+      text,
+      linkId: link.id,
+      agencyId,
+      pendingConfirmation: pending,
+    });
+
+    // Update pending state
+    if (result.clearPending || result.dispatch) pendingConfirmations.delete(chatId);
+    if (result.setPending) pendingConfirmations.set(chatId, result.setPending);
+
+    // Send the immediate reply — stop typing before sending
+    stopTyping();
+    await reply(link, chatId, result.reply);
+
+    // If there's a dispatch, restart typing, run the agent, report back
+    if (result.dispatch) {
+      const { command, args } = result.dispatch;
+      const stopAgentTyping = startTyping(chatId);
+      try {
+        const agentResult = await dispatchAgent(command, args);
+        const bizCtx = await loadBusinessContext(agencyId).catch(() => '');
+        stopAgentTyping();
+        if (agentResult.ok) {
+          const summary = await summariseAgentResult(command, agentResult.output, bizCtx);
+          await reply(link, chatId, summary);
+        } else {
+          await reply(link, chatId, `The ${command} agent ran into a problem: ${agentResult.output || 'unknown error'}`);
+        }
+      } catch (err) {
+        stopAgentTyping();
+        await reply(link, chatId, `I couldn't reach the ${command} agent: ${err.message}`);
+      }
+    }
+  } catch (err) {
+    console.error('[telegram] handleCommand error:', err);
+    // Graceful degradation — never show a raw error to the owner
+    await reply(link, chatId, "I ran into a hiccup processing that. Could you try again, or rephrase slightly?").catch(() => {});
+  } finally {
+    stopTyping();
   }
 }
 

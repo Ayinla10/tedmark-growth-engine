@@ -80,6 +80,10 @@ export async function setMyCommands(commands) {
   return callApi('setMyCommands', { commands });
 }
 
+export async function sendChatAction(chatId, action = 'typing') {
+  return callApi('sendChatAction', { chat_id: chatId, action });
+}
+
 export async function getMe() {
   return callApi('getMe', {});
 }
