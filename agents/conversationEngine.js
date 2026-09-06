@@ -378,8 +378,20 @@ export async function processOwnerMessage({ text, linkId, agencyId, pendingConfi
 
   const thought = await think(text, businessContext, liveSnapshot, history);
 
+  if (thought.type === 'dispatch' || thought.type === 'confirm') {
+    // Validate required args before confirming or dispatching
+    const agent = AGENT_REGISTRY[thought.command];
+    const args = thought.args ?? {};
+    if (agent) {
+      const missing = (agent.requiredArgs ?? []).find(k => !args[k]);
+      if (missing) {
+        const question = agent.questions?.[missing] ?? `What is the ${missing}?`;
+        return { reply: question };
+      }
+    }
+  }
+
   if (thought.type === 'dispatch') {
-    // AI is confident — dispatch immediately
     return {
       reply: `On it — running ${thought.command}... this may take a minute.`,
       dispatch: { command: thought.command, args: thought.args ?? {} },
@@ -388,7 +400,6 @@ export async function processOwnerMessage({ text, linkId, agencyId, pendingConfi
   }
 
   if (thought.type === 'confirm') {
-    // Need owner confirmation before running
     return {
       reply: thought.message,
       setPending: { command: thought.command, args: thought.args ?? {} },

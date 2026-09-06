@@ -65,6 +65,7 @@ function getApiKey() {
 // a generic category like "commercial", which just returns noisy,
 // irrelevant results and burns quota for no benefit.
 export function resolveSectorCategory(sector) {
+  if (!sector) return null;
   const normalized = sector.trim().toLowerCase();
   return SECTOR_CATEGORIES[normalized] ?? null;
 }
