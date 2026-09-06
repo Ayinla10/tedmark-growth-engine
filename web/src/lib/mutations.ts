@@ -57,7 +57,13 @@ export async function markWhatsappSentDb(outreachId: string) {
 
 export async function updatePipelineDb(
   leadId: string,
-  fields: { pipelineStage?: string; nextAction?: string | null; nextActionDue?: string | null }
+  fields: {
+    pipelineStage?: string;
+    nextAction?: string | null;
+    nextActionDue?: string | null;
+    dealValue?: number | null;
+    dealCurrency?: string | null;
+  }
 ) {
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -72,6 +78,14 @@ export async function updatePipelineDb(
   if (fields.nextActionDue !== undefined) {
     params.push(fields.nextActionDue);
     sets.push(`next_action_due = $${params.length}`);
+  }
+  if (fields.dealValue !== undefined) {
+    params.push(fields.dealValue);
+    sets.push(`deal_value = $${params.length}`);
+  }
+  if (fields.dealCurrency !== undefined) {
+    params.push(fields.dealCurrency);
+    sets.push(`deal_currency = $${params.length}`);
   }
   if (sets.length === 0) return null;
   params.push(leadId);

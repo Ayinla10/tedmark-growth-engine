@@ -14,6 +14,7 @@ import {
   ChevronDown,
   MapPin,
 } from "lucide-react";
+import { ConvertToDeal } from "./convert-to-deal";
 
 type Opp = {
   id: string;
@@ -192,13 +193,20 @@ function OppCard({ opp }: { opp: Opp }) {
               </p>
             )}
           </div>
-          <Link
-            href={`/opportunities/${opp.id}`}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap flex-shrink-0"
-            style={{ background: "var(--brand)", color: "#fff" }}
-          >
-            Open <ArrowRight size={11} />
-          </Link>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <ConvertToDeal
+              leadId={opp.id}
+              businessName={opp.business_name}
+              currentStage={opp.pipeline_stage}
+            />
+            <Link
+              href={`/opportunities/${opp.id}`}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap"
+              style={{ background: "var(--brand)", color: "#fff" }}
+            >
+              Open <ArrowRight size={11} />
+            </Link>
+          </div>
         </div>
       </div>
     </div>

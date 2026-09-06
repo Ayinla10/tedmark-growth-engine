@@ -197,11 +197,37 @@ export async function archiveLeadAction(leadId: string) {
 
 export async function updatePipelineAction(
   leadId: string,
-  fields: { pipelineStage?: string; nextAction?: string | null; nextActionDue?: string | null }
+  fields: {
+    pipelineStage?: string;
+    nextAction?: string | null;
+    nextActionDue?: string | null;
+    dealValue?: number | null;
+    dealCurrency?: string | null;
+  }
 ) {
   const row = await updatePipelineDb(leadId, fields);
   refreshAll();
   revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/deals");
+  return { ok: Boolean(row) };
+}
+
+export async function convertToDealAction(
+  leadId: string,
+  dealValue: number | null,
+  dealCurrency: string,
+  stage: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const DEAL_STAGES = ["Qualified", "Proposal Sent", "Negotiating"];
+  if (!DEAL_STAGES.includes(stage)) return { ok: false, error: "Invalid stage." };
+  const row = await updatePipelineDb(leadId, {
+    pipelineStage: stage,
+    dealValue: dealValue || null,
+    dealCurrency: dealCurrency || null,
+  });
+  refreshAll();
+  revalidatePath("/deals");
+  revalidatePath("/opportunities");
   return { ok: Boolean(row) };
 }
 

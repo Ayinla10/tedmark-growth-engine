@@ -1,79 +1,184 @@
 import 'dotenv/config';
 import express from 'express';
+import cron from 'node-cron';
 
-const app = express();
+// ── Agent imports ──────────────────────────────────────────────────────────────
+import { runScout }           from './agents/scout.js';
+import { runWebScout }        from './agents/webScout.js';
+import { runDirectoryScout }  from './agents/directoryScout.js';
+import { runEnricher }        from './agents/enricher.js';
+import { runDmEnrich }        from './agents/dmEnrich.js';
+import { runQualifier }       from './agents/qualifier.js';
+import { runIcpScorer }       from './agents/icpScorer.js';
+import { runOutreach, runSend } from './agents/outreach.js';
+import { runSequencer }       from './agents/sequencer.js';
+import { runProposal }        from './agents/proposal.js';
+import { runSendProposal }    from './agents/proposalDelivery.js';
+import { runAnalytics }       from './agents/analytics.js';
+import { runCleanKnowledge }  from './agents/knowledgeCleaner.js';
+import { runDailyPipeline }   from './scripts/dailyPipeline.js';
+
+// ── WhatsApp handler ───────────────────────────────────────────────────────────
+import { handleIncomingWhatsApp } from './agents/whatsappAgent.js';
+
+const app  = express();
+const PORT = process.env.PORT || 4000;
+
+const VERIFY_TOKEN  = process.env.WHATSAPP_VERIFY_TOKEN;
+const API_SECRET    = process.env.RENDER_API_SECRET; // shared secret Vercel uses to call us
+
 app.use(express.json());
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
-const PORT = process.env.WEBHOOK_PORT || 4000;
+// ── Auth middleware for agent API ──────────────────────────────────────────────
+function requireSecret(req, res, next) {
+  const auth = req.headers['authorization'];
+  if (!API_SECRET || auth !== `Bearer ${API_SECRET}`) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+  next();
+}
 
-// ── GET /webhook — Facebook verification handshake ────────────────────────────
-// Meta sends this once when you click "Verify and save" in the dashboard.
-// It passes hub.verify_token (must match yours) and hub.challenge (echo it back).
+// ── Health check ───────────────────────────────────────────────────────────────
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'tedmark-agent-server' }));
+
+// ── WhatsApp webhook — GET verification ───────────────────────────────────────
 app.get('/webhook', (req, res) => {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('[webhook] ✅ Verification successful');
+    console.log('[whatsapp] ✅ Webhook verified');
     return res.status(200).send(challenge);
   }
-
-  console.warn('[webhook] ❌ Verification failed — token mismatch');
+  console.warn('[whatsapp] ❌ Verification failed — token mismatch');
   return res.sendStatus(403);
 });
 
-// ── POST /webhook — Incoming WhatsApp messages ────────────────────────────────
-// Meta sends every incoming message here. We log it and respond 200 immediately
-// (Meta retries if it doesn't get 200 within 5 seconds).
-app.post('/webhook', (req, res) => {
+// ── WhatsApp webhook — POST incoming messages ──────────────────────────────────
+app.post('/webhook', async (req, res) => {
   const body = req.body;
+  if (body.object !== 'whatsapp_business_account') return res.sendStatus(404);
 
-  // Quick guard — only handle whatsapp_business_account events
-  if (body.object !== 'whatsapp_business_account') {
-    return res.sendStatus(404);
-  }
+  // Must respond 200 within 5s — process async
+  res.sendStatus(200);
 
   try {
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value;
-
-        // ── Incoming messages ──────────────────────────────────────────────
         for (const msg of value.messages ?? []) {
-          const from    = msg.from;          // sender's WhatsApp number (E.164)
-          const msgId   = msg.id;
-          const type    = msg.type;          // text | image | audio | document …
-
-          let text = null;
-          if (type === 'text') text = msg.text?.body;
-
-          console.log(`[webhook] 📩 Message from ${from}: ${text ?? `[${type}]`}`);
-
-          // TODO: pass to agent or save to DB here
-          // Example: await handleIncomingWhatsApp({ from, text, type, msgId });
+          const from = msg.from;
+          const type = msg.type;
+          const text = type === 'text' ? msg.text?.body : null;
+          console.log(`[whatsapp] 📩 ${from}: ${text ?? `[${type}]`}`);
+          await handleIncomingWhatsApp({ from, text, type, msgId: msg.id });
         }
-
-        // ── Status updates (sent / delivered / read / failed) ─────────────
         for (const status of value.statuses ?? []) {
-          console.log(`[webhook] 📋 Status update: ${status.status} for message ${status.id} to ${status.recipient_id}`);
+          console.log(`[whatsapp] 📋 ${status.status} → ${status.recipient_id}`);
         }
       }
     }
   } catch (err) {
-    console.error('[webhook] Error processing payload:', err);
+    console.error('[whatsapp] Error:', err);
   }
-
-  // Always respond 200 immediately — Meta needs this within 5 seconds
-  return res.sendStatus(200);
 });
 
-// Health check
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'whatsapp-webhook' }));
+// ── Agent HTTP API (called by Vercel instead of child_process) ─────────────────
+// POST /run/:command  { args: { key: value } }
+app.post('/run/:command', requireSecret, async (req, res) => {
+  const { command } = req.params;
+  const args = req.body?.args ?? {};
+
+  console.log(`[agent-api] ▶ ${command}`, args);
+
+  let output = '';
+  let ok = true;
+
+  try {
+    switch (command) {
+      case 'scout':
+        await runScout({ sector: args.sector, city: args.city, limit: parseInt(args.limit) || 20, country: args.country || 'GH' });
+        output = 'Scout complete.';
+        break;
+      case 'web-scout':
+        await runWebScout({ sector: args.sector, city: args.city, limit: parseInt(args.limit) || 20 });
+        output = 'Web scout complete.';
+        break;
+      case 'enrich':
+        await runEnricher({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
+        output = 'Enricher complete.';
+        break;
+      case 'enrich-dm':
+        await runDmEnrich({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
+        output = 'DM enrich complete.';
+        break;
+      case 'icp-score':
+        await runIcpScorer({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
+        output = 'ICP scorer complete.';
+        break;
+      case 'qualify':
+        await runQualifier({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
+        output = 'Qualifier complete.';
+        break;
+      case 'outreach':
+        await runOutreach({ limit: parseInt(args.limit) || 10, leadId: args['lead-id'], signatureId: args['signature-id'] });
+        output = 'Outreach drafts generated.';
+        break;
+      case 'send':
+        await runSend({ outreachId: args['outreach-id'], to: args.to });
+        output = 'Email sent.';
+        break;
+      case 'send-proposal':
+        await runSendProposal({ proposalId: args['proposal-id'] });
+        output = 'Proposal sent.';
+        break;
+      case 'proposal':
+        await runProposal({ leadId: args['lead-id'], services: args.services?.split(',') ?? [], budget: args.budget ?? '' });
+        output = 'Proposal generated.';
+        break;
+      case 'sequence':
+        await runSequencer({});
+        output = 'Sequencer complete.';
+        break;
+      case 'analytics':
+        await runAnalytics({});
+        output = 'Analytics updated.';
+        break;
+      case 'daily':
+        await runDailyPipeline();
+        output = 'Daily pipeline complete.';
+        break;
+      case 'clean-knowledge':
+        await runCleanKnowledge({ category: args.category, text: args.text });
+        output = 'Knowledge cleaned.';
+        break;
+      default:
+        ok = false;
+        output = `Unknown command: ${command}`;
+    }
+  } catch (err) {
+    ok = false;
+    output = err?.message ?? String(err);
+    console.error(`[agent-api] ✗ ${command}:`, err);
+  }
+
+  res.json({ ok, output });
+});
+
+// ── Daily pipeline cron — 7am Ghana time (UTC+0) ───────────────────────────────
+cron.schedule('0 7 * * *', async () => {
+  console.log('[cron] ⏰ Running daily pipeline...');
+  try {
+    await runDailyPipeline();
+    console.log('[cron] ✅ Daily pipeline complete');
+  } catch (err) {
+    console.error('[cron] ✗ Daily pipeline failed:', err);
+  }
+}, { timezone: 'Africa/Accra' });
 
 app.listen(PORT, () => {
-  console.log(`[webhook] WhatsApp webhook server running on port ${PORT}`);
-  console.log(`[webhook] Callback URL: https://YOUR_DOMAIN/webhook`);
-  console.log(`[webhook] Verify token: ${VERIFY_TOKEN}`);
+  console.log(`[server] Tedmark agent server running on port ${PORT}`);
+  console.log(`[server] WhatsApp webhook: POST/GET /webhook`);
+  console.log(`[server] Agent API:        POST /run/:command`);
 });

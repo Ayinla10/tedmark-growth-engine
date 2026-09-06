@@ -101,6 +101,8 @@ export type Lead = {
   country: string;
   enriched_at: string | null;
   dm_enriched_at: string | null;
+  deal_value: number | null;
+  deal_currency: string | null;
 };
 
 export const PIPELINE_STAGES = [
@@ -970,6 +972,146 @@ export async function getLeadFollowUps(leadId: string): Promise<LeadFollowUpEntr
     [leadId, agencyId]
   );
   return res.rows;
+}
+
+export type DealRow = {
+  id: string;
+  business_name: string;
+  sector: string | null;
+  pipeline_stage: string;
+  deal_value: number | null;
+  deal_currency: string | null;
+  recommended_services: string[];
+  next_action: string | null;
+  next_action_due: string | null;
+  dm_name: string | null;
+  dm_email: string | null;
+  email: string | null;
+  score: number | null;
+  created_at: string;
+  // latest proposal (if any)
+  proposal_id: string | null;
+  proposal_services: string[] | null;
+  proposal_budget: string | null;
+  proposal_content: string | null;
+  proposal_created_at: string | null;
+  // last sent outreach date
+  last_outreach_at: string | null;
+};
+
+// Deal stages — only leads that have progressed beyond initial prospecting.
+// New and Contacted are prospect stages, not active deals.
+export const DEAL_STAGES = ["Qualified", "Proposal Sent", "Negotiating", "Won", "Lost"] as const;
+export type DealStage = typeof DEAL_STAGES[number];
+
+export async function getDealPipeline(): Promise<DealRow[]> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `WITH latest_proposal AS (
+       SELECT DISTINCT ON (lead_id)
+         lead_id, id, services, budget_range, content, created_at
+       FROM proposals
+       ORDER BY lead_id, created_at DESC
+     ),
+     last_outreach AS (
+       SELECT DISTINCT ON (lead_id)
+         lead_id, COALESCE(sent_at, created_at) AS at
+       FROM outreach
+       WHERE status = 'sent'
+       ORDER BY lead_id, COALESCE(sent_at, created_at) DESC
+     )
+     SELECT
+       l.id, l.business_name, l.sector, l.pipeline_stage,
+       l.deal_value, l.deal_currency,
+       l.recommended_services, l.next_action, l.next_action_due,
+       l.dm_name, l.dm_email, l.email, l.score, l.created_at,
+       lp.id           AS proposal_id,
+       lp.services     AS proposal_services,
+       lp.budget_range AS proposal_budget,
+       lp.content      AS proposal_content,
+       lp.created_at   AS proposal_created_at,
+       lo.at           AS last_outreach_at
+     FROM leads l
+     LEFT JOIN latest_proposal lp ON lp.lead_id = l.id
+     LEFT JOIN last_outreach   lo ON lo.lead_id  = l.id
+     WHERE l.agency_id = $1
+       AND l.status != 'archived'
+       AND l.pipeline_stage IN ('Qualified', 'Proposal Sent', 'Negotiating', 'Won', 'Lost')
+     ORDER BY l.deal_value DESC NULLS LAST, l.created_at DESC`,
+    [agencyId]
+  );
+  return res.rows.map((r) => ({
+    ...r,
+    deal_value:          r.deal_value != null ? Number(r.deal_value) : null,
+    next_action_due:     toISODateString(r.next_action_due),
+    proposal_created_at: r.proposal_created_at ? String(r.proposal_created_at).slice(0, 10) : null,
+    last_outreach_at:    r.last_outreach_at    ? String(r.last_outreach_at)                  : null,
+  }));
+}
+
+export type DealDetail = DealRow & {
+  problems: string[];
+  website_url: string | null;
+  phone: string | null;
+  dm_phone: string | null;
+  dm_linkedin_url: string | null;
+  outreach: Array<{
+    id: string; message_type: string; subject: string | null;
+    body: string; status: string; sent_at: string | null;
+    replied: boolean; created_at: string;
+  }>;
+};
+
+export async function getDealById(leadId: string): Promise<DealDetail | null> {
+  const agencyId = await getCurrentAgencyId();
+  const [leadRes, outreachRes, proposalRes] = await Promise.all([
+    pool.query(
+      `SELECT l.*,
+              lo.at AS last_outreach_at,
+              lp.id AS proposal_id, lp.services AS proposal_services,
+              lp.budget_range AS proposal_budget, lp.content AS proposal_content,
+              lp.created_at AS proposal_created_at
+       FROM leads l
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(sent_at, created_at) AS at
+         FROM outreach WHERE lead_id = l.id AND status = 'sent'
+         ORDER BY COALESCE(sent_at, created_at) DESC LIMIT 1
+       ) lo ON true
+       LEFT JOIN LATERAL (
+         SELECT id, services, budget_range, content, created_at
+         FROM proposals WHERE lead_id = l.id
+         ORDER BY created_at DESC LIMIT 1
+       ) lp ON true
+       WHERE l.id = $1 AND l.agency_id = $2
+         AND l.pipeline_stage IN ('Qualified', 'Proposal Sent', 'Negotiating', 'Won', 'Lost')`,
+      [leadId, agencyId]
+    ),
+    pool.query(
+      `SELECT id, message_type, subject, body, status, sent_at, replied, created_at
+       FROM outreach
+       WHERE lead_id = $1
+       ORDER BY created_at ASC`,
+      [leadId]
+    ),
+    pool.query(
+      `SELECT id FROM proposals WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [leadId]
+    ),
+  ]);
+
+  if (!leadRes.rows[0]) return null;
+  const r = leadRes.rows[0];
+  return {
+    ...r,
+    next_action_due:     toISODateString(r.next_action_due),
+    proposal_created_at: r.proposal_created_at ? String(r.proposal_created_at).slice(0, 10) : null,
+    last_outreach_at:    r.last_outreach_at    ? String(r.last_outreach_at) : null,
+    outreach: outreachRes.rows.map(o => ({
+      ...o,
+      sent_at: o.sent_at ? String(o.sent_at) : null,
+      created_at: String(o.created_at),
+    })),
+  };
 }
 
 export async function getLeadOutreach(leadId: string): Promise<OutreachRow[]> {

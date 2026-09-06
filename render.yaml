@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: tedmark-agents
+    runtime: node
+    region: frankfurt  # closest to Ghana (low latency)
+    plan: starter      # $7/mo — always-on, no cold starts
+    rootDir: .
+    buildCommand: npm install
+    startCommand: node webhook-server.js
+    healthCheckPath: /health
+
+    envVars:
+      # ── Database ──────────────────────────────────────────────────────────────
+      - key: DATABASE_URL
+        sync: false   # set manually in Render dashboard
+
+      # ── WhatsApp ──────────────────────────────────────────────────────────────
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_OWNER_PHONE
+        sync: false
+
+      # ── Agent API (shared secret — Vercel calls Render with this) ─────────────
+      - key: RENDER_API_SECRET
+        sync: false
+
+      # ── AI / external services ────────────────────────────────────────────────
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: GEOAPIFY_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: BRAVE_API_KEY
+        sync: false
+
+      # ── Telegram (still runs here too) ────────────────────────────────────────
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false

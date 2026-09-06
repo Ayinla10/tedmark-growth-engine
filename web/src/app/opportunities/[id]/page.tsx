@@ -556,7 +556,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                     ))}
                   </div>
                   <div className="mt-4">
-                    <ReplyForm leadId={lead.id} latestOutreachId={latestSentOutreachId} />
+                    <ReplyForm leadId={lead.id} latestOutreachId={latestSentOutreachId} toEmail={lead.dm_email ?? lead.email ?? null} reSubject="" />
                     <p className="text-xs mt-2" style={{ color: "var(--ink-muted)" }}>
                       Log replies manually — no automatic inbox sync yet.
                     </p>

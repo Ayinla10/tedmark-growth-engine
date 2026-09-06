@@ -210,4 +210,86 @@ export const helpContent: HelpEntry[] = [
     title: "The Settings page",
     body: "Not buttons — it just shows you which API keys (DeepSeek for AI, Geoapify for finding businesses, Resend for sending email, and the database) are already connected versus still missing, so you know what's ready to use.",
   },
+
+  // ── Opportunities ───────────────────────────────────────────────
+  {
+    id: "opportunities-page",
+    category: "Opportunities",
+    title: "The Opportunities page",
+    body: "How: click Opportunities in the sidebar. Why: this is your top-of-funnel prospect list — every business the AI has found and contacted but that hasn't become a real sales conversation yet. The AI has already scored them, recommended services, and written outreach. Your job here is to decide who to take further.",
+  },
+  {
+    id: "opportunities-filters",
+    category: "Opportunities",
+    title: "Search, sector filter, and sort buttons",
+    body: "How: type in the search box to find by name, sector, or location. Use the sector dropdown or the contact filter buttons (Has email, Has phone, Has DM) to narrow the list. Click Strength, Stage, or Found to sort. Why: as your list grows you need a fast way to find the right leads — these filters do that without any extra loading.",
+  },
+  {
+    id: "opportunities-convert",
+    category: "Opportunities",
+    title: "\"Convert to deal\" button (on each opportunity card)",
+    body: "How: click it on any opportunity card. A small dialog opens — pick the pipeline stage (Qualified, Proposal Sent, or Negotiating) and optionally type the deal value and currency (GH₵, USD, EUR, GBP). Click \"Add to pipeline\". Why: this is how you graduate a prospect into an active deal. Once converted, they disappear from Opportunities and appear in your Deals pipeline. If they're already a deal, the button changes to \"In deals\" and links straight there.",
+  },
+  {
+    id: "opportunities-open",
+    category: "Opportunities",
+    title: "\"Open\" button on an opportunity card",
+    body: "How: click it. Why: takes you to the full detail page for that business — where you can see all outreach history, run a proposal, change the pipeline stage, and send or log replies. Use this when you need the full picture, not just a quick glance.",
+  },
+
+  // ── Deals ────────────────────────────────────────────────────────
+  {
+    id: "deals-page",
+    category: "Deals",
+    title: "The Deals page — your sales pipeline",
+    body: "How: click Deals in the sidebar. Why: this is where active sales conversations live — businesses you're genuinely trying to close. Unlike Opportunities (which is AI-driven), Deals is human-driven. Every deal here was put here by you, either by converting an opportunity or by moving a lead through the pipeline manually. It shows Qualified, Proposal Sent, Negotiating, Won, and Lost — nothing else.",
+  },
+  {
+    id: "deals-summary-bar",
+    category: "Deals",
+    title: "Pipeline summary bar (Active deals, Pipeline value, Need attention, Won)",
+    body: "Not buttons — they're live metrics at the top of the page. Active deals = how many are currently in progress. Pipeline value = the combined deal value of all active deals in GH₵ (or whatever currency is most common). Need attention = how many have something overdue or gone quiet. Won = closed deals with their total value. These update automatically as you move deals through stages.",
+  },
+  {
+    id: "deals-attention",
+    category: "Deals",
+    title: "\"Needs your attention\" section",
+    body: "Not a button — it's computed automatically from your deal data. A deal lands here if: an action is overdue, you sent a proposal 3+ days ago with no follow-up, a negotiation has gone silent for 5+ days, or a qualified lead hasn't been contacted in 7+ days. Click the quick-action link on any flagged deal to act on it immediately. This section is the first thing to check every morning.",
+  },
+  {
+    id: "deals-search-sort",
+    category: "Deals",
+    title: "Search and sort on the Deals page",
+    body: "How: type in the search box to filter deals by name, sector, or stage. Click Value, Recent, Stage, or Name to sort. Why: as your pipeline grows you need to find the right deal quickly. Search and sort work together — filter first, then sort the result.",
+  },
+  {
+    id: "deals-kanban",
+    category: "Deals",
+    title: "The three-column pipeline (Qualified | Proposal Sent | Negotiating)",
+    body: "On a desktop screen, active deals are laid out in three columns — one per stage. Each column shows its count and total value. On mobile, the same deals are shown as grouped sections (one per stage). Deals are not draggable — to move a deal between stages, open its detail page and click the stage button there.",
+  },
+  {
+    id: "deals-quick-action",
+    category: "Deals",
+    title: "Quick action button on each deal card",
+    body: "How: click it. The label changes depending on the deal's stage: \"Prepare proposal\" (for Qualified deals with no proposal yet) takes you to the opportunity detail page; \"Follow up\" (for Proposal Sent) and \"View conversation\" (for Negotiating) take you straight to the conversation thread. Why: so you can act on a deal in one click without opening the full detail page.",
+  },
+  {
+    id: "deals-detail-page",
+    category: "Deals",
+    title: "Deal detail page (/deals/[id])",
+    body: "How: click the \"Details\" button on any deal card, or navigate directly. Why: the full workspace for a single deal — progress bar showing which stage you're at, any attention flags, next best action, proposal section, stage movement buttons, full activity timeline, and all contact info. This is where you close deals.",
+  },
+  {
+    id: "deals-stage-changer",
+    category: "Deals",
+    title: "Stage movement buttons on the deal detail page",
+    body: "How: on the deal detail page, click any stage button to move the deal there. To mark as Won or Lost, click those buttons — you'll be asked to confirm first. If you change your mind after marking Won or Lost, click \"Reopen deal\" to move it back to Negotiating. Why: the pipeline only updates when you tell it to — the AI doesn't move deals automatically.",
+  },
+  {
+    id: "deals-won-lost",
+    category: "Deals",
+    title: "Won and Lost sections",
+    body: "At the bottom of the Deals page, below the active pipeline. Won and Lost deals stay here permanently — they're never deleted. Won shows the total value of closed business. Lost is there to learn from. Click any closed deal card to open the full detail page.",
+  },
 ];

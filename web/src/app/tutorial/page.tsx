@@ -1,12 +1,13 @@
 import { AppShell } from "@/components/app-shell";
 
 const PIPELINE = [
-  { num: 1, label: "Scout",     color: "#38bdf8" },
-  { num: 2, label: "Qualifier", color: "#a78bfa" },
-  { num: 3, label: "Enricher",  color: "#34d399" },
-  { num: 4, label: "Outreach",  color: "#fbbf24" },
-  { num: 5, label: "Sequencer", color: "#818cf8" },
-  { num: 6, label: "Proposal",  color: "#f59e0b" },
+  { num: 1, label: "Scout",       color: "#38bdf8" },
+  { num: 2, label: "Qualifier",   color: "#a78bfa" },
+  { num: 3, label: "Enricher",    color: "#34d399" },
+  { num: 4, label: "Outreach",    color: "#fbbf24" },
+  { num: 5, label: "Sequencer",   color: "#818cf8" },
+  { num: 6, label: "Proposal",    color: "#f59e0b" },
+  { num: 7, label: "Close Deal",  color: "#6b9fff" },
 ];
 
 const STEPS = [
@@ -46,9 +47,25 @@ const STEPS = [
     body: "When a lead is ready to hear your full offer, the Proposal Agent writes a complete business proposal for them — customized to their business type, size, and what you know about them. It reads professional and saves you hours of writing.",
     note: "Generated proposals live in the Proposals page, ready for you to review, edit, and send.",
   },
+  {
+    num: 7, color: "#6b9fff", auto: false,
+    title: "Deals Pipeline",
+    body: "When an opportunity becomes a real sales conversation — someone responded, asked questions, or is ready to negotiate — you convert them to a deal. Click \"Convert to deal\" on any opportunity card, pick the stage (Qualified, Proposal Sent, or Negotiating), and optionally enter a deal value. From there, the Deals page is your sales control centre: a three-column pipeline showing every active deal, what needs attention, and how much your pipeline is worth.",
+    note: "The Deals page shows: pipeline value, attention flags (overdue actions, stalled negotiations), stage-by-stage Kanban, and Won/Lost history. Use the deal detail page to move stages, mark Won or Lost, and see the full conversation history.",
+  },
 ];
 
 const EXTRAS = [
+  {
+    title: "Opportunities Page",
+    color: "#34d399",
+    body: "All discovered businesses that haven't become deals yet live here. Search, filter by sector or contact info, and sort by strength or stage. Each card has a \"Convert to deal\" button — when someone is ready to move forward, one click puts them in your sales pipeline.",
+  },
+  {
+    title: "Deals Pipeline",
+    color: "#6b9fff",
+    body: "Your active sales control centre. See all deals by stage (Qualified, Proposal Sent, Negotiating), with the total pipeline value and an automatic \"Needs attention\" section that flags overdue actions and stalled conversations — no manual tracking needed.",
+  },
   {
     title: "Telegram Control",
     color: "#2D6AF7",
@@ -56,7 +73,7 @@ const EXTRAS = [
   },
   {
     title: "Analytics Agent",
-    color: "#34d399",
+    color: "#f59e0b",
     body: "Tracks what's working. How many leads did you discover this week? What's your contact rate? The Analytics Agent summarizes your pipeline health so you can see the big picture at a glance.",
   },
   {
@@ -67,7 +84,7 @@ const EXTRAS = [
   {
     title: "AI Orchestrator",
     color: "#a78bfa",
-    body: "The central dashboard where you can see all six agents and their current status — which ones are running, which have completed, and what they found. Your mission control.",
+    body: "The central dashboard where you can see all agents and their current status — which ones are running, which have completed, and what they found. Your mission control.",
   },
 ];
 
