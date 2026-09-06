@@ -242,7 +242,7 @@ STRICT RULES ON "message":
     const raw = await complete({
       system: systemPrompt,
       user: userMessage,
-      maxTokens: 600,
+      maxTokens: 1500,
       json: true,
     });
 
@@ -273,10 +273,9 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
     // Fallback: simpler prompt, no JSON mode, minimal context to reduce token load
     try {
       const fallback = await complete({
-        system: `You are the Tedmark Growth AI for Tedmark Digital, a digital marketing agency in Ghana. Answer the owner's question directly and helpfully in plain conversational text. Be specific, warm, and concise — max 3 sentences. No corporate language.
-${history ? `\nRecent conversation:\n${history}` : ''}`,
+        system: `You are the Tedmark Growth AI for Tedmark Digital, a digital marketing agency in Ghana. Answer the owner's question directly and helpfully in plain conversational text. Be specific, warm, and concise — max 3 sentences. No corporate language.`,
         user: userMessage,
-        maxTokens: 250,
+        maxTokens: 500,
       });
       const msg = (fallback ?? '').trim();
       if (msg) return { type: 'converse', message: msg };
