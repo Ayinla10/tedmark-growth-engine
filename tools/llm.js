@@ -68,11 +68,14 @@ export async function complete({ system, user, maxTokens = 1024, json = false })
     ],
   });
 
+  // Always log finish_reason and raw content so we can diagnose empty responses
+  const choice = response.choices?.[0];
+  console.log(`[llm] finish_reason=${choice?.finish_reason} json=${json} content_len=${(choice?.message?.content ?? '').length} raw="${(choice?.message?.content ?? '').slice(0, 200)}"`);
+
   if (process.env.LLM_DEBUG) {
-    const choice = response.choices?.[0];
     const reasoning = choice?.message?.reasoning_content;
     console.error(
-      `[llm-debug] finish_reason=${choice?.finish_reason} maxTokens=${maxTokens} reasoning_len=${reasoning ? reasoning.length : 0} content_len=${(choice?.message?.content ?? '').length} usage=${JSON.stringify(response.usage)}`
+      `[llm-debug] finish_reason=${choice?.finish_reason} maxTokens=${maxTokens} reasoning_len=${reasoning ? reasoning.length : 0} content_len=${(choice?.message?.content ?? '').length} usage=${JSON.stringify(response.usage)} raw="${(choice?.message?.content ?? '').slice(0, 300)}"`
     );
   }
 
