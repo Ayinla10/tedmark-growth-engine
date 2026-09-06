@@ -6,7 +6,9 @@ import {
   ensureEnrichEventsTable,
   insertEnrichEvent,
   clearEnrichEvents,
+  query,
 } from '../tools/db.js';
+import { buildLeadFilter } from '../tools/leadFilter.js';
 import {
   findContactsOnWebsite,
   normalizePhone,
@@ -42,7 +44,7 @@ function extractSocialLinks(text) {
   return Object.keys(social).length > 0 ? social : null;
 }
 
-export async function runEnricher({ limit, leadId, emit }) {
+export async function runEnricher({ limit, leadId, emit, agencyId, sector, city, since, lead_ids }) {
   try { await ensureEnrichEventsTable(); } catch { /* table may already exist */ }
 
   // emit() sends a live event — wrapped in try/catch so a DB hiccup never crashes the enricher
@@ -62,8 +64,15 @@ export async function runEnricher({ limit, leadId, emit }) {
       return;
     }
     leads = [lead];
+  } else if (sector || city || since || lead_ids) {
+    const { conditions, params, nextIndex } = buildLeadFilter({ sector, city, since, lead_ids }, agencyId);
+    const r = await query(
+      `SELECT * FROM leads WHERE agency_id = $1 AND status != 'archived' AND enriched_at IS NULL ${conditions} ORDER BY created_at ASC LIMIT $${nextIndex}`,
+      [...params, limit || 20]
+    );
+    leads = r.rows;
   } else {
-    leads = await getLeadsNeedingContactInfo(limit);
+    leads = await getLeadsNeedingContactInfo(limit, agencyId);
   }
 
   if (leads.length === 0) {

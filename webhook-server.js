@@ -128,7 +128,8 @@ app.post('/run/:command', requireSecret, async (req, res) => {
         break;
       }
       case 'enrich': {
-        await runEnricher({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
+        const filterArgs = { sector: args.sector, city: args.city, since: args.since, lead_ids: args.lead_ids };
+        await runEnricher({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'], agencyId: args.agency_id, ...filterArgs });
         const r = await query(
           `SELECT business_name, email, phone, website_url FROM leads WHERE enriched_at >= $1 AND (email IS NOT NULL OR phone IS NOT NULL) ORDER BY enriched_at DESC LIMIT 20`,
           [since]
@@ -139,7 +140,8 @@ app.post('/run/:command', requireSecret, async (req, res) => {
         break;
       }
       case 'enrich-dm': {
-        await runDmEnrich({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
+        const filterArgs = { sector: args.sector, city: args.city, since: args.since, lead_ids: args.lead_ids };
+        await runDmEnrich({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'], agencyId: args.agency_id, ...filterArgs });
         const r = await query(
           `SELECT business_name, dm_name, dm_title, dm_linkedin_url FROM leads WHERE dm_enriched_at >= $1 AND dm_name IS NOT NULL ORDER BY dm_enriched_at DESC LIMIT 20`,
           [since]
@@ -150,7 +152,8 @@ app.post('/run/:command', requireSecret, async (req, res) => {
         break;
       }
       case 'icp-score': {
-        await runIcpScorer({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
+        const filterArgs = { sector: args.sector, city: args.city, since: args.since, lead_ids: args.lead_ids };
+        await runIcpScorer({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'], agencyId: args.agency_id, ...filterArgs });
         const r = await query(
           `SELECT business_name, icp_total, icp_reasoning FROM leads WHERE icp_scored_at >= $1 AND icp_total IS NOT NULL ORDER BY icp_total DESC LIMIT 20`,
           [since]
@@ -161,7 +164,8 @@ app.post('/run/:command', requireSecret, async (req, res) => {
         break;
       }
       case 'qualify': {
-        await runQualifier({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
+        const filterArgs = { sector: args.sector, city: args.city, since: args.since, lead_ids: args.lead_ids };
+        await runQualifier({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'], agencyId: args.agency_id, ...filterArgs });
         const r = await query(
           `SELECT business_name, score, score_reason FROM leads WHERE qualified_at >= $1 AND score IS NOT NULL ORDER BY score DESC LIMIT 20`,
           [since]
@@ -172,7 +176,8 @@ app.post('/run/:command', requireSecret, async (req, res) => {
         break;
       }
       case 'outreach': {
-        await runOutreach({ limit: parseInt(args.limit) || 10, leadId: args['lead-id'], signatureId: args['signature-id'] });
+        const filterArgs = { sector: args.sector, city: args.city, since: args.since, lead_ids: args.lead_ids };
+        await runOutreach({ limit: parseInt(args.limit) || 10, leadId: args['lead-id'], signatureId: args['signature-id'], agencyId: args.agency_id, score_min: args.score_min, ...filterArgs });
         const r = await query(
           `SELECT o.subject, l.business_name FROM outreach o JOIN leads l ON l.id = o.lead_id WHERE o.created_at >= $1 AND o.status = 'draft' ORDER BY o.created_at DESC LIMIT 20`,
           [since]

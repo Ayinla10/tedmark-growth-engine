@@ -172,7 +172,12 @@ async function loadHistory(linkId) {
 // ── Core intelligence: classify + extract + gap-detect ────────────────────────
 async function think(userMessage, businessContext, liveSnapshot, history) {
   const agentDescriptions = Object.entries(AGENT_REGISTRY)
-    .map(([k, v]) => `  • ${k}: ${v.description}`)
+    .map(([k, v]) => {
+      const filters = ['sector', 'city', 'since', 'lead_ids', 'limit'];
+      const extra = ['enrich','enrich-dm','qualify','icp-score','outreach'].includes(k)
+        ? ` | Filters: ${filters.join(', ')}` : '';
+      return `  • ${k}: ${v.description}${extra}`;
+    })
     .join('\n');
 
   const systemPrompt = `You are the Tedmark Growth AI — intelligent business assistant for the owner of Tedmark Digital. You are connected to a live pipeline and real agents that find, enrich, score, and contact leads.
@@ -194,6 +199,13 @@ CRITICAL RULES:
 - For finding leads: use scout or web-scout — do not name businesses yourself.
 - For getting contact details: use enrich or enrich-dm after scouting.
 
+FILTER EXTRACTION: When the owner references a specific subset of leads, extract these args:
+- "the clinics" → sector: "clinic"
+- "in Accra" / "from Kumasi" → city: "Accra"
+- "from yesterday" / "we found today" / "this week" → since: "yesterday" / "today" / "this week"
+- "those 3 leads" (after a scout) → lead_ids from the live pipeline if visible
+Never dispatch an agent on a broad batch when the owner clearly meant a specific group.
+
 DECISION LOGIC:
 1. Owner wants to find/research businesses → scout or web-scout (confirm first with args)
 2. Owner wants contact details / phone / email → enrich
@@ -209,7 +221,8 @@ RESPONSE FORMAT — one JSON object, no markdown, no code fences:
 {"type":"confirm","command":"agent-name","args":{},"message":"what you will run + ask to confirm"}
 {"type":"dispatch","command":"agent-name","args":{}}
 
-Be direct and warm. Max 3 sentences for converse. Never ask more than one question.`;
+Be direct and warm. Max 3 sentences for converse. Never ask more than one question.
+CRITICAL: If you are offering to run something ("Want me to try X?", "Should I pull Y?"), you MUST use type "confirm" — never type "converse". A converse message must never contain an offer to do something. Offers belong in confirm so the owner's "yes" is handled correctly.`;
 
   try {
     console.log(`[engine] think() prompt_chars=${systemPrompt.length} user="${userMessage.slice(0, 60)}"`);

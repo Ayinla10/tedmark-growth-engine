@@ -4,7 +4,8 @@ import path from 'path';
 import { complete } from '../tools/llm.js';
 import { getBusinessContext, formatBusinessContextForPrompt } from '../tools/businessContext.js';
 import { fetchReadableContent } from '../tools/jinaReader.js';
-import { getLeadsNeedingDmEnrichment, updateLeadDecisionMaker, getLeadById } from '../tools/db.js';
+import { getLeadsNeedingDmEnrichment, updateLeadDecisionMaker, getLeadById, query } from '../tools/db.js';
+import { buildLeadFilter } from '../tools/leadFilter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,7 +32,7 @@ function parseDmResponse(text) {
   return parsed;
 }
 
-export async function runDmEnrich({ limit, leadId }) {
+export async function runDmEnrich({ limit, leadId, agencyId, sector, city, since, lead_ids }) {
   let leads;
 
   if (leadId) {
@@ -42,9 +43,16 @@ export async function runDmEnrich({ limit, leadId }) {
       return;
     }
     leads = [lead];
+  } else if (sector || city || since || lead_ids) {
+    const { conditions, params, nextIndex } = buildLeadFilter({ sector, city, since, lead_ids }, agencyId);
+    const r = await query(
+      `SELECT * FROM leads WHERE agency_id = $1 AND status != 'archived' AND website_url IS NOT NULL AND dm_enriched_at IS NULL ${conditions} ORDER BY created_at ASC LIMIT $${nextIndex}`,
+      [...params, limit || 20]
+    );
+    leads = r.rows;
   } else {
     console.log(`[dm-enrich] Fetching up to ${limit} leads needing DM enrichment...`);
-    leads = await getLeadsNeedingDmEnrichment(limit);
+    leads = await getLeadsNeedingDmEnrichment(limit, agencyId);
   }
 
   if (leads.length === 0) {

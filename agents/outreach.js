@@ -12,7 +12,9 @@ import {
   markLeadContacted,
   markPendingFollowUpsSent,
   getLeadById,
+  query,
 } from '../tools/db.js';
+import { buildLeadFilter } from '../tools/leadFilter.js';
 import { notifyTelegramApproval } from '../tools/telegramNotify.js';
 import { sendEmail } from '../tools/emailSender.js';
 import { resolveChannel } from '../tools/channel.js';
@@ -103,7 +105,7 @@ function parseOutreachResponse(text) {
   return parsed;
 }
 
-export async function runOutreach({ limit, leadId, signatureId }) {
+export async function runOutreach({ limit, leadId, signatureId, agencyId, sector, city, since, lead_ids, score_min }) {
   let leads;
 
   if (leadId) {
@@ -114,10 +116,18 @@ export async function runOutreach({ limit, leadId, signatureId }) {
       return;
     }
     leads = [lead];
+  } else if (sector || city || since || lead_ids) {
+    const minScore = score_min ?? (await getSetting('outreach_min_score'));
+    const { conditions, params, nextIndex } = buildLeadFilter({ sector, city, since, lead_ids, score_min: minScore }, agencyId);
+    const r = await query(
+      `SELECT * FROM leads WHERE agency_id = $1 AND status != 'archived' AND score IS NOT NULL ${conditions} ORDER BY score DESC LIMIT $${nextIndex}`,
+      [...params, limit || 10]
+    );
+    leads = r.rows;
   } else {
-    const minScore = await getSetting('outreach_min_score');
+    const minScore = score_min ?? (await getSetting('outreach_min_score'));
     console.log(`[outreach] Fetching up to ${limit} qualified leads with score >= ${minScore}...`);
-    leads = await getQualifiedLeads(limit, minScore);
+    leads = await getQualifiedLeads(limit, minScore, agencyId);
   }
 
   if (leads.length === 0) {

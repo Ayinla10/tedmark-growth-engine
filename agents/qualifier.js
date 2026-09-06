@@ -2,7 +2,8 @@ import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { complete } from '../tools/llm.js';
-import { getRawLeads, updateLeadScore, updateLeadSiteSignals, getLeadById } from '../tools/db.js';
+import { getRawLeads, updateLeadScore, updateLeadSiteSignals, getLeadById, query } from '../tools/db.js';
+import { buildLeadFilter } from '../tools/leadFilter.js';
 import { scrapeWebsite } from '../tools/scraper.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
 import { getBusinessContext, formatBusinessContextForPrompt } from '../tools/businessContext.js';
@@ -73,7 +74,7 @@ function parseScoreResponse(text) {
   return parsed;
 }
 
-export async function runQualifier({ limit, leadId }) {
+export async function runQualifier({ limit, leadId, agencyId, sector, city, since, lead_ids }) {
   let leads;
 
   if (leadId) {
@@ -84,9 +85,16 @@ export async function runQualifier({ limit, leadId }) {
       return;
     }
     leads = [lead];
+  } else if (sector || city || since || lead_ids) {
+    const { conditions, params, nextIndex } = buildLeadFilter({ sector, city, since, lead_ids }, agencyId);
+    const r = await query(
+      `SELECT * FROM leads WHERE agency_id = $1 AND status = 'raw' ${conditions} ORDER BY created_at ASC LIMIT $${nextIndex}`,
+      [...params, limit || 20]
+    );
+    leads = r.rows;
   } else {
     console.log(`[qualifier] Fetching up to ${limit} raw leads...`);
-    leads = await getRawLeads(limit);
+    leads = await getRawLeads(limit, agencyId);
   }
 
   if (leads.length === 0) {

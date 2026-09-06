@@ -3,7 +3,8 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import { complete } from '../tools/llm.js';
 import { getBusinessContext, formatBusinessContextForPrompt } from '../tools/businessContext.js';
-import { getLeadsNeedingIcpScore, updateLeadIcpScore, getLeadById } from '../tools/db.js';
+import { getLeadsNeedingIcpScore, updateLeadIcpScore, getLeadById, query } from '../tools/db.js';
+import { buildLeadFilter } from '../tools/leadFilter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -46,7 +47,7 @@ function parseIcpResponse(text) {
   return parsed;
 }
 
-export async function runIcpScorer({ limit, leadId }) {
+export async function runIcpScorer({ limit, leadId, agencyId, sector, city, since, lead_ids }) {
   let leads;
 
   if (leadId) {
@@ -57,9 +58,16 @@ export async function runIcpScorer({ limit, leadId }) {
       return;
     }
     leads = [lead];
+  } else if (sector || city || since || lead_ids) {
+    const { conditions, params, nextIndex } = buildLeadFilter({ sector, city, since, lead_ids }, agencyId);
+    const r = await query(
+      `SELECT * FROM leads WHERE agency_id = $1 AND status != 'archived' AND score IS NOT NULL AND icp_scored_at IS NULL ${conditions} ORDER BY score DESC, created_at ASC LIMIT $${nextIndex}`,
+      [...params, limit || 20]
+    );
+    leads = r.rows;
   } else {
     console.log(`[icp-score] Fetching up to ${limit} leads needing ICP scoring...`);
-    leads = await getLeadsNeedingIcpScore(limit);
+    leads = await getLeadsNeedingIcpScore(limit, agencyId);
   }
 
   if (leads.length === 0) {
