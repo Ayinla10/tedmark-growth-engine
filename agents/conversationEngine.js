@@ -102,14 +102,24 @@ async function loadBusinessContext(agencyId) {
   try {
     const ctx = await getBusinessContextRow(agencyId);
     if (!ctx) return '';
+    // business_context table columns: business_name, industry, business_model,
+    // products[], services[], pricing, location, target_markets[], icp,
+    // customer_segments[], acquisition_channels[], sales_channels[], website,
+    // social_media jsonb, communication_channels[], constraints, budget, goals
+    const arr = (v) => Array.isArray(v) && v.length ? v.join(', ') : null;
     const parts = [
-      ctx.agency_name       ? `Agency: ${ctx.agency_name}` : '',
-      ctx.tagline           ? `Tagline: ${ctx.tagline}` : '',
-      ctx.services          ? `Services offered: ${Array.isArray(ctx.services) ? ctx.services.join(', ') : ctx.services}` : '',
-      ctx.target_sectors    ? `Target sectors: ${Array.isArray(ctx.target_sectors) ? ctx.target_sectors.join(', ') : ctx.target_sectors}` : '',
-      ctx.target_cities     ? `Target cities: ${Array.isArray(ctx.target_cities) ? ctx.target_cities.join(', ') : ctx.target_cities}` : '',
-      ctx.value_proposition ? `Value proposition: ${ctx.value_proposition}` : '',
-      ctx.tone              ? `Brand tone: ${ctx.tone}` : '',
+      ctx.business_name    ? `Agency: ${ctx.business_name}` : '',
+      ctx.industry         ? `Industry: ${ctx.industry}` : '',
+      ctx.business_model   ? `Model: ${ctx.business_model}` : '',
+      arr(ctx.services)    ? `Services: ${arr(ctx.services)}` : '',
+      arr(ctx.products)    ? `Products: ${arr(ctx.products)}` : '',
+      ctx.pricing          ? `Pricing: ${ctx.pricing}` : '',
+      ctx.location         ? `Location: ${ctx.location}` : '',
+      arr(ctx.target_markets)    ? `Target markets: ${arr(ctx.target_markets)}` : '',
+      ctx.icp              ? `Ideal customer: ${ctx.icp}` : '',
+      arr(ctx.customer_segments) ? `Customer segments: ${arr(ctx.customer_segments)}` : '',
+      ctx.goals            ? `Goals: ${ctx.goals}` : '',
+      ctx.constraints      ? `Constraints: ${ctx.constraints}` : '',
     ].filter(Boolean).join('\n');
     return parts;
   } catch {
@@ -142,6 +152,7 @@ async function loadLiveSnapshot(agencyId) {
 
 // ── Load recent conversation history ──────────────────────────────────────────
 async function loadHistory(linkId) {
+  if (!linkId) return ''; // WhatsApp has no link table — skip gracefully
   try {
     const msgs = await getRecentTelegramMessages(linkId, 10);
     if (!msgs.length) return '';

@@ -76,13 +76,14 @@ function fmtMoney(value, currency) {
 
 async function formatPipeline(agencyId) {
   const res = await query(
-    `SELECT business_name, pipeline_stage, deal_value, deal_currency,
-            next_action_due, last_outreach_at
-     FROM leads
-     WHERE agency_id = $1
-       AND status != 'archived'
-       AND pipeline_stage IN ('Qualified', 'Proposal Sent', 'Negotiating', 'Won', 'Lost')
-     ORDER BY deal_value DESC NULLS LAST
+    `SELECT l.business_name, l.pipeline_stage, l.deal_value, l.deal_currency,
+            l.next_action_due,
+            (SELECT MAX(o.sent_at) FROM outreach o WHERE o.lead_id = l.id AND o.status = 'sent') AS last_outreach_at
+     FROM leads l
+     WHERE l.agency_id = $1
+       AND l.status != 'archived'
+       AND l.pipeline_stage IN ('Qualified', 'Proposal Sent', 'Negotiating', 'Won', 'Lost')
+     ORDER BY l.deal_value DESC NULLS LAST
      LIMIT 20`,
     [agencyId]
   );
@@ -111,12 +112,13 @@ async function formatPipeline(agencyId) {
 
 async function formatAttention(agencyId) {
   const res = await query(
-    `SELECT business_name, pipeline_stage, deal_value, deal_currency,
-            next_action_due, last_outreach_at
-     FROM leads
-     WHERE agency_id = $1
-       AND status != 'archived'
-       AND pipeline_stage IN ('Qualified', 'Proposal Sent', 'Negotiating')`,
+    `SELECT l.business_name, l.pipeline_stage, l.deal_value, l.deal_currency,
+            l.next_action_due,
+            (SELECT MAX(o.sent_at) FROM outreach o WHERE o.lead_id = l.id AND o.status = 'sent') AS last_outreach_at
+     FROM leads l
+     WHERE l.agency_id = $1
+       AND l.status != 'archived'
+       AND l.pipeline_stage IN ('Qualified', 'Proposal Sent', 'Negotiating')`,
     [agencyId]
   );
   const now = Date.now();
@@ -279,16 +281,19 @@ async function handleLeadMessage(from, text) {
 
   const lead = res.rows[0];
 
-  // Log as inbound reply in the outreach table
+  // Log as inbound reply in the replies table
   await query(
-    `INSERT INTO outreach (lead_id, agency_id, subject, body, status, channel, is_reply, created_at)
-     VALUES ($1, $2, 'WhatsApp reply', $3, 'sent', 'whatsapp', true, NOW())`,
-    [lead.id, lead.agency_id, text ?? '[non-text message]']
+    `INSERT INTO replies (lead_id, body, from_email, received_at, created_at)
+     VALUES ($1, $2, $3, NOW(), NOW())`,
+    [lead.id, text ?? '[non-text message]', `whatsapp:${from}`]
   );
 
-  // Update last_outreach_at so attention logic knows there was recent activity
+  // Mark lead as replied in the most recent sent outreach row
   await query(
-    `UPDATE leads SET last_outreach_at = NOW() WHERE id = $1`,
+    `UPDATE outreach SET replied = true
+     WHERE lead_id = $1 AND status = 'sent' AND replied = false
+     ORDER BY sent_at DESC NULLS LAST
+     LIMIT 1`,
     [lead.id]
   );
 
