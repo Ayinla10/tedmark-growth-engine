@@ -105,6 +105,7 @@ async function formatTopLeads(agencyId) {
 // ── Per-chat pending confirmation state (in-memory) ───────────────────────────
 const pendingConfirmations = new Map();  // { chatId -> { command, args } }
 const pendingArgCollection = new Map();  // { chatId -> { command, args, asking } }
+const lastScoutResults     = new Map();  // { chatId -> { lead_ids, names, sector, city, at } }
 
 // ── Inline keyboards for each agent argument ───────────────────────────────────
 const ARG_KEYBOARDS = {
@@ -248,12 +249,29 @@ async function handleCommand(link, text, chatId, agencyId) {
     // ── Intelligent conversation engine ────────────────────────────────────────
     const pending = pendingConfirmations.get(chatId) ?? null;
 
+    // Build last-scout context string for the AI prompt (expires after 30 min)
+    const scoutMem = lastScoutResults.get(chatId);
+    const scoutAge = scoutMem ? (Date.now() - new Date(scoutMem.at).getTime()) / 60000 : Infinity;
+    let lastScoutContext = '';
+    if (scoutMem && scoutAge < 30) {
+      lastScoutContext = `RECENT SCOUT: Found ${scoutMem.count} ${scoutMem.sector ?? ''} leads in ${scoutMem.city ?? 'Ghana'}.\nLead IDs (use these when owner says "those", "them", "the ones we found"): ${scoutMem.lead_ids.join(',')}`;
+    }
+
+    // Auto-inject lead_ids for clearly referential messages ("enrich those", "qualify them")
+    const isReferential = /\b(those|them|these|the ones|the leads?|what you found|just found)\b/i.test(text);
+
     const result = await processOwnerMessage({
       text,
       linkId: link.id,
       agencyId,
       pendingConfirmation: pending,
+      lastScoutContext,
     });
+
+    // If AI dispatched an agent without lead_ids but owner was clearly referencing the last scout
+    if (isReferential && scoutMem && scoutAge < 30 && result.dispatch && !result.dispatch.args?.lead_ids) {
+      result.dispatch.args = { ...result.dispatch.args, lead_ids: scoutMem.lead_ids.join(',') };
+    }
 
     // Update pending state
     if (result.clearPending || result.dispatch) pendingConfirmations.delete(chatId);
@@ -283,6 +301,20 @@ async function handleCommand(link, text, chatId, agencyId) {
         const agentResult = await dispatchAgent(command, args);
         const bizCtx = await loadBusinessContext(agencyId).catch(() => '');
         stopAgentTyping();
+
+        // Store scout results so follow-up commands can reference "those leads"
+        if (['scout', 'web-scout'].includes(command) && agentResult.lead_ids?.length) {
+          const names = (agentResult.output ?? '').match(/- (.+?) \(/g)?.map(s => s.slice(2, -2)) ?? [];
+          lastScoutResults.set(chatId, {
+            lead_ids: agentResult.lead_ids,
+            names,
+            sector: args.sector,
+            city: args.city,
+            count: agentResult.lead_ids.length,
+            at: new Date().toISOString(),
+          });
+        }
+
         if (agentResult.ok) {
           const summary = await summariseAgentResult(command, agentResult.output, bizCtx);
           await reply(link, chatId, summary);
@@ -414,6 +446,20 @@ async function handleCallbackQuery(cb) {
       const agentResult = await dispatchAgent(pending.command, pending.args);
       const bizCtx = await loadBusinessContext(link.agency_id).catch(() => '');
       stopAgentTyping();
+
+      // Store scout results for follow-up
+      if (['scout', 'web-scout'].includes(pending.command) && agentResult.lead_ids?.length) {
+        const names = (agentResult.output ?? '').match(/- (.+?) \(/g)?.map(s => s.slice(2, -2)) ?? [];
+        lastScoutResults.set(chatId, {
+          lead_ids: agentResult.lead_ids,
+          names,
+          sector: pending.args.sector,
+          city: pending.args.city,
+          count: agentResult.lead_ids.length,
+          at: new Date().toISOString(),
+        });
+      }
+
       if (agentResult.ok) {
         const summary = await summariseAgentResult(pending.command, agentResult.output, bizCtx);
         await sendMessage(chatId, summary);

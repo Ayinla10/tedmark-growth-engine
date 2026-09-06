@@ -106,10 +106,11 @@ app.post('/run/:command', requireSecret, async (req, res) => {
       case 'scout': {
         await runScout({ sector: args.sector, city: args.city, limit: parseInt(args.limit) || 20, country: args.country || 'GH' });
         const r = await query(
-          `SELECT business_name, location, sector, phone, website_url FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
+          `SELECT id, business_name, location, sector, phone, website_url FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
           [since]
         );
         const found = r.rows;
+        res._scoutLeadIds = found.map(l => l.id);
         output = found.length
           ? `Found ${found.length} leads:\n` + found.map(l => `- ${l.business_name} (${l.location ?? args.city}) | ${l.phone ?? 'no phone'} | ${l.website_url ?? 'no website'}`).join('\n')
           : 'Scout ran but found no new leads (they may already be in the database).';
@@ -118,10 +119,11 @@ app.post('/run/:command', requireSecret, async (req, res) => {
       case 'web-scout': {
         await runWebScout({ sector: args.sector, city: args.city, limit: parseInt(args.limit) || 20 });
         const r = await query(
-          `SELECT business_name, location, sector, phone, website_url FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
+          `SELECT id, business_name, location, sector, phone, website_url FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
           [since]
         );
         const found = r.rows;
+        res._scoutLeadIds = found.map(l => l.id);
         output = found.length
           ? `Found ${found.length} leads:\n` + found.map(l => `- ${l.business_name} (${l.location ?? args.city}) | ${l.phone ?? 'no phone'} | ${l.website_url ?? 'no website'}`).join('\n')
           : 'Web scout ran but found no new leads.';
@@ -229,7 +231,8 @@ app.post('/run/:command', requireSecret, async (req, res) => {
     console.error(`[agent-api] ✗ ${command}:`, err);
   }
 
-  res.json({ ok, output });
+  const lead_ids = res._scoutLeadIds ?? null;
+  res.json({ ok, output, ...(lead_ids ? { lead_ids } : {}) });
 });
 
 // ── Daily pipeline cron — 7am Ghana time (UTC+0) ───────────────────────────────

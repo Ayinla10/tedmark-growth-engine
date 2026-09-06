@@ -173,7 +173,7 @@ async function loadHistory(linkId) {
 }
 
 // ── Core intelligence: classify + extract + gap-detect ────────────────────────
-async function think(userMessage, businessContext, liveSnapshot, history) {
+async function think(userMessage, businessContext, liveSnapshot, history, lastScoutContext = '') {
   const agentDescriptions = Object.entries(AGENT_REGISTRY)
     .map(([k, v]) => {
       const filters = ['sector', 'city', 'since', 'lead_ids', 'limit'];
@@ -194,6 +194,7 @@ ABOUT THE BUSINESS:
 ${businessContext || 'Tedmark Digital — digital marketing agency in Ghana.'}
 
 ${snapshotSection}
+${lastScoutContext ? `\n${lastScoutContext}` : ''}
 ${history ? `\nRECENT CONVERSATION:\n${history}` : ''}
 
 AVAILABLE AGENTS (these do real work — use them):
@@ -211,7 +212,7 @@ FILTER EXTRACTION: When the owner references a specific subset of leads, extract
 - "the clinics" → sector: "clinic"
 - "in Accra" / "from Kumasi" → city: "Accra"
 - "from yesterday" / "we found today" / "this week" → since: "yesterday" / "today" / "this week"
-- "those 3 leads" (after a scout) → lead_ids from the live pipeline if visible
+- "those", "them", "the ones we just found", "those leads" → if RECENT SCOUT section is present, use the lead_ids listed there
 Never dispatch an agent on a broad batch when the owner clearly meant a specific group.
 
 DECISION LOGIC:
@@ -347,7 +348,7 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
  *  - Sending the reply immediately
  *  - If dispatch present: calling dispatchAgent, then sending the summarised result
  */
-export async function processOwnerMessage({ text, linkId, agencyId, pendingConfirmation = null }) {
+export async function processOwnerMessage({ text, linkId, agencyId, pendingConfirmation = null, lastScoutContext = '' }) {
   const [businessContext, liveSnapshot, history] = await Promise.all([
     loadBusinessContext(agencyId),
     loadLiveSnapshot(agencyId),
@@ -376,7 +377,7 @@ export async function processOwnerMessage({ text, linkId, agencyId, pendingConfi
     // Not a clear yes/no — treat as new message, clear pending
   }
 
-  const thought = await think(text, businessContext, liveSnapshot, history);
+  const thought = await think(text, businessContext, liveSnapshot, history, lastScoutContext);
 
   if (thought.type === 'dispatch' || thought.type === 'confirm') {
     // Validate required args before confirming or dispatching
