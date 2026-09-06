@@ -66,6 +66,66 @@ async function formatTopLeads(agencyId) {
   return lines.join('\n\n');
 }
 
+// ── Agent dispatch ─────────────────────────────────────────────────────────────
+const AGENT_REGISTRY = {
+  scout:         { description: 'Find new leads from Google Maps by sector and city', args: ['sector', 'city', 'limit'] },
+  'web-scout':   { description: 'Find leads by searching the web', args: ['sector', 'city', 'limit'] },
+  enrich:        { description: 'Enrich existing leads with contact info (email, phone, website)', args: [] },
+  'enrich-dm':   { description: 'Find decision maker names and titles for leads', args: [] },
+  qualify:       { description: 'Score and qualify leads using AI', args: [] },
+  'icp-score':   { description: 'Run ICP scoring on leads', args: [] },
+  outreach:      { description: 'Generate outreach email drafts for qualified leads', args: [] },
+  send:          { description: 'Send approved outreach emails', args: [] },
+  analytics:     { description: 'Run analytics and generate performance report', args: [] },
+  daily:         { description: 'Run the full daily pipeline (scout → enrich → qualify → outreach)', args: [] },
+};
+
+const SERVER_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || 'http://localhost:4000';
+const API_SECRET = process.env.RENDER_API_SECRET;
+
+async function dispatchAgent(command, args = {}) {
+  const res = await fetch(`${SERVER_URL}/run/${command}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${API_SECRET}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ args }),
+  });
+  const data = await res.json();
+  return data;
+}
+
+async function classifyDispatch(text) {
+  const agentList = Object.entries(AGENT_REGISTRY)
+    .map(([k, v]) => `- ${k}: ${v.description}`)
+    .join('\n');
+
+  try {
+    const raw = await complete({
+      system: [
+        `You are classifying whether a message from a business owner needs to RUN an agent, or just CONVERSE.`,
+        `Available agents:`,
+        agentList,
+        ``,
+        `If the message is asking to DO something (find leads, send emails, enrich, score, run pipeline, generate outreach), respond with JSON:`,
+        `{"action":"dispatch","command":"<agent-name>","args":{"sector":"...","city":"...","limit":"20"}}`,
+        `Only include args that are mentioned. "limit" defaults to "20" for scout.`,
+        `If the message is a question, conversation, or status check, respond with:`,
+        `{"action":"converse"}`,
+        `Respond with ONLY valid JSON, nothing else.`,
+      ].join('\n'),
+      user: text,
+      maxTokens: 150,
+    });
+
+    const parsed = JSON.parse(raw.trim());
+    return parsed;
+  } catch {
+    return { action: 'converse' };
+  }
+}
+
 // Detect action commands that need to actually change state
 const ACTION_INTENTS = ['pause', 'resume'];
 
@@ -179,7 +239,31 @@ async function handleCommand(link, text, chatId, agencyId) {
     return;
   }
 
-  // Everything else — full conversational AI with live data context
+  // Classify: should we dispatch an agent or just converse?
+  const dispatch = await classifyDispatch(text);
+
+  if (dispatch.action === 'dispatch' && dispatch.command && AGENT_REGISTRY[dispatch.command]) {
+    await sendMessage(chatId, `Got it — running ${dispatch.command}... this may take a minute.`);
+    try {
+      const result = await dispatchAgent(dispatch.command, dispatch.args ?? {});
+      if (result.ok) {
+        // Give AI a chance to summarise the output naturally
+        const summary = await complete({
+          system: `You are the Tedmark Growth AI assistant. Summarise the following agent output in plain, friendly language for the business owner. Be brief and highlight the key result. No markdown.`,
+          user: `Agent "${dispatch.command}" completed.\n\nOutput:\n${result.output}`,
+          maxTokens: 400,
+        }).catch(() => result.output);
+        await reply(link, chatId, summary);
+      } else {
+        await reply(link, chatId, `The ${dispatch.command} agent ran into an issue: ${result.output || 'unknown error'}`);
+      }
+    } catch (err) {
+      await reply(link, chatId, `Failed to run ${dispatch.command}: ${err.message}`);
+    }
+    return;
+  }
+
+  // Pure conversation — full AI with live data context
   const response = await conversationalReply(text, agencyId);
   await reply(link, chatId, response);
 }
