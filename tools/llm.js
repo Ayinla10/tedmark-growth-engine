@@ -17,7 +17,7 @@ const USE_OPENROUTER = !!process.env.OPENROUTER_API_KEY;
 export const LLM_MODEL = process.env.LLM_MODEL || (
   USE_OPENROUTER
     ? 'meta-llama/llama-3.3-70b-instruct:free'
-    : 'deepseek-v4-flash'
+    : 'deepseek-chat'
 );
 
 let client = null;
