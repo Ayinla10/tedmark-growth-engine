@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { loginAction, type LoginState } from "@/lib/auth-actions";
+import Link from "next/link";
 
 const initialState: LoginState = {};
 
@@ -52,6 +53,11 @@ export function LoginForm({ next }: { next: string }) {
         </div>
       </div>
       {state.error ? <p className="text-xs text-red-400">{state.error}</p> : null}
+      <div className="text-right">
+        <Link href="/forgot-password" className="text-xs text-slate-500 hover:text-emerald-400 transition-colors">
+          Forgot password?
+        </Link>
+      </div>
       <button
         type="submit"
         disabled={pending}
