@@ -45,6 +45,7 @@ async function geocodeCity(city) {
     text: city,
     type: 'city',
     format: 'json',
+    countrycodes: 'gh',
     apiKey: getApiKey(),
   });
 
