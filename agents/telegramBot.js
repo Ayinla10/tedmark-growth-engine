@@ -66,23 +66,62 @@ async function formatTopLeads(agencyId) {
   return lines.join('\n\n');
 }
 
-// A small, closed set of intents — natural language is classified into
-// one of these, never executed directly. Matches the spec's own security
-// principle: NL message -> structured intent -> authorization -> execution,
-// not "let the model decide what code to run."
-const INTENTS = ['status', 'leads', 'pause', 'resume', 'help', 'unknown'];
+// Detect action commands that need to actually change state
+const ACTION_INTENTS = ['pause', 'resume'];
 
-async function classifyIntent(text) {
+async function classifyActionIntent(text) {
   try {
     const raw = await complete({
-      system: `Classify the user's message into exactly one of these intents: ${INTENTS.join(', ')}. Respond with ONLY the intent word, nothing else.`,
+      system: `Does this message ask to pause OR resume automated lead discovery? Reply with exactly one word: "pause", "resume", or "none".`,
       user: text,
-      maxTokens: 500,
+      maxTokens: 10,
     });
     const intent = raw.trim().toLowerCase();
-    return INTENTS.includes(intent) ? intent : 'unknown';
+    return ACTION_INTENTS.includes(intent) ? intent : 'none';
   } catch {
-    return 'unknown';
+    return 'none';
+  }
+}
+
+async function buildContext(agencyId) {
+  try {
+    const [s, leads] = await Promise.all([
+      getTelegramStatusSummary(agencyId),
+      getQualifiedLeads(5, 6, agencyId),
+    ]);
+    const leadLines = leads.map(l => `- ${l.business_name} (score ${l.score}/10): ${l.score_reason ?? ''}`).join('\n');
+    return [
+      `TODAY'S METRICS:`,
+      `Leads found today: ${s.leadsToday} | Total leads: ${s.leadsTotal} | Qualified: ${s.qualified}`,
+      `Avg score: ${s.avgScore ?? 'N/A'} | Outreach drafts pending: ${s.drafts} | Sent today: ${s.sentToday}`,
+      `Replies received: ${s.replied} | Proposals: ${s.proposals} | Overdue actions: ${s.dueOrOverdue}`,
+      '',
+      `TOP QUALIFIED LEADS:`,
+      leadLines || 'None with score ≥ 6 right now.',
+    ].join('\n');
+  } catch {
+    return 'Could not fetch live data right now.';
+  }
+}
+
+async function conversationalReply(text, agencyId) {
+  const context = await buildContext(agencyId);
+  try {
+    return await complete({
+      system: [
+        `You are the Tedmark Growth AI assistant — a sharp, helpful sales intelligence bot for the owner of Tedmark Digital, a digital marketing agency in Ghana.`,
+        `You have access to live pipeline data shown below. Answer the owner's questions naturally and conversationally, like a knowledgeable colleague who has been watching the business all day.`,
+        `Be concise but warm. Use plain text (no markdown — this is Telegram). If numbers are mentioned, be specific. If action is needed, say so clearly.`,
+        `You can also handle: approving outreach, pausing/resuming discovery, explaining what the system is doing.`,
+        ``,
+        `LIVE DATA:`,
+        context,
+      ].join('\n'),
+      user: text,
+      maxTokens: 600,
+    });
+  } catch {
+    return "I'm having trouble thinking right now — try again in a moment.";
   }
 }
 
@@ -91,27 +130,58 @@ async function reply(link, chatId, text) {
   await recordTelegramMessage(link.id, 'outbound', text);
 }
 
-async function handleCommand(link, intent, chatId, agencyId) {
-  if (intent === 'status') {
+async function handleCommand(link, text, chatId, agencyId) {
+  const lower = text.toLowerCase();
+
+  // Hard slash commands — instant, no AI needed
+  if (lower === '/status') {
     const summary = await getTelegramStatusSummary(agencyId);
     await reply(link, chatId, formatStatus(summary));
-  } else if (intent === 'leads') {
+    return;
+  }
+  if (lower === '/leads') {
     await reply(link, chatId, await formatTopLeads(agencyId));
-  } else if (intent === 'pause') {
+    return;
+  }
+  if (lower === '/pause') {
     await setSetting('scout_enabled', false, agencyId);
     await setSetting('web_scout_enabled', false, agencyId);
     await setSetting('directory_scout_enabled', false, agencyId);
-    await reply(link, chatId, 'Discovery paused. No new leads will be found until you /resume.');
-  } else if (intent === 'resume') {
+    await reply(link, chatId, 'Discovery paused. No new leads will be found until you say resume.');
+    return;
+  }
+  if (lower === '/resume') {
     await setSetting('scout_enabled', true, agencyId);
     await setSetting('web_scout_enabled', true, agencyId);
     await setSetting('directory_scout_enabled', true, agencyId);
     await reply(link, chatId, 'Discovery resumed.');
-  } else if (intent === 'help') {
-    await reply(link, chatId, HELP_TEXT);
-  } else {
-    await reply(link, chatId, "I didn't understand that. Send /help to see what I can do.");
+    return;
   }
+  if (lower === '/help') {
+    await reply(link, chatId, HELP_TEXT);
+    return;
+  }
+
+  // Natural language — check if it's a state-changing action first
+  const action = await classifyActionIntent(text);
+  if (action === 'pause') {
+    await setSetting('scout_enabled', false, agencyId);
+    await setSetting('web_scout_enabled', false, agencyId);
+    await setSetting('directory_scout_enabled', false, agencyId);
+    await reply(link, chatId, 'Done — discovery is paused. Just say "resume" when you want it back on.');
+    return;
+  }
+  if (action === 'resume') {
+    await setSetting('scout_enabled', true, agencyId);
+    await setSetting('web_scout_enabled', true, agencyId);
+    await setSetting('directory_scout_enabled', true, agencyId);
+    await reply(link, chatId, 'Discovery is back on.');
+    return;
+  }
+
+  // Everything else — full conversational AI with live data context
+  const response = await conversationalReply(text, agencyId);
+  await reply(link, chatId, response);
 }
 
 async function handleMessage(msg) {
@@ -149,16 +219,7 @@ async function handleMessage(msg) {
   }
 
   await recordTelegramMessage(link.id, 'inbound', text);
-
-  let intent;
-  if (text.startsWith('/')) {
-    intent = text.slice(1).split(' ')[0].toLowerCase();
-    if (!INTENTS.includes(intent)) intent = 'unknown';
-  } else {
-    intent = await classifyIntent(text);
-  }
-
-  await handleCommand(link, intent, chatId, link.agency_id);
+  await handleCommand(link, text, chatId, link.agency_id);
 }
 
 async function handleCallbackQuery(cb) {
