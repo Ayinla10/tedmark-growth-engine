@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cron from 'node-cron';
+import { query } from './tools/db.js';
 
 // ── Agent imports ──────────────────────────────────────────────────────────────
 import { runScout }           from './agents/scout.js';
@@ -99,35 +100,88 @@ app.post('/run/:command', requireSecret, async (req, res) => {
   let ok = true;
 
   try {
+    const since = new Date().toISOString(); // capture before run to query what changed
+
     switch (command) {
-      case 'scout':
+      case 'scout': {
         await runScout({ sector: args.sector, city: args.city, limit: parseInt(args.limit) || 20, country: args.country || 'GH' });
-        output = 'Scout complete.';
+        const r = await query(
+          `SELECT business_name, city, sector, phone, website FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
+          [since]
+        );
+        const found = r.rows;
+        output = found.length
+          ? `Found ${found.length} leads:\n` + found.map(l => `- ${l.business_name} (${l.city ?? args.city}) | ${l.phone ?? 'no phone'} | ${l.website ?? 'no website'}`).join('\n')
+          : 'Scout ran but found no new leads (they may already be in the database).';
         break;
-      case 'web-scout':
+      }
+      case 'web-scout': {
         await runWebScout({ sector: args.sector, city: args.city, limit: parseInt(args.limit) || 20 });
-        output = 'Web scout complete.';
+        const r = await query(
+          `SELECT business_name, city, sector, phone, website FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
+          [since]
+        );
+        const found = r.rows;
+        output = found.length
+          ? `Found ${found.length} leads:\n` + found.map(l => `- ${l.business_name} (${l.city ?? args.city}) | ${l.phone ?? 'no phone'} | ${l.website ?? 'no website'}`).join('\n')
+          : 'Web scout ran but found no new leads.';
         break;
-      case 'enrich':
+      }
+      case 'enrich': {
         await runEnricher({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
-        output = 'Enricher complete.';
+        const r = await query(
+          `SELECT business_name, email, phone, website FROM leads WHERE updated_at >= $1 AND (email IS NOT NULL OR phone IS NOT NULL) ORDER BY updated_at DESC LIMIT 20`,
+          [since]
+        );
+        output = r.rows.length
+          ? `Enriched ${r.rows.length} leads:\n` + r.rows.map(l => `- ${l.business_name} | ${l.email ?? '—'} | ${l.phone ?? '—'}`).join('\n')
+          : 'Enricher ran — no new contact details added (may already be enriched).';
         break;
-      case 'enrich-dm':
+      }
+      case 'enrich-dm': {
         await runDmEnrich({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
-        output = 'DM enrich complete.';
+        const r = await query(
+          `SELECT business_name, dm_name, dm_title, dm_linkedin FROM leads WHERE updated_at >= $1 AND dm_name IS NOT NULL ORDER BY updated_at DESC LIMIT 20`,
+          [since]
+        );
+        output = r.rows.length
+          ? `Found decision makers for ${r.rows.length} leads:\n` + r.rows.map(l => `- ${l.business_name}: ${l.dm_name ?? '—'} (${l.dm_title ?? 'unknown role'})`).join('\n')
+          : 'DM enrichment ran — no new decision makers found.';
         break;
-      case 'icp-score':
+      }
+      case 'icp-score': {
         await runIcpScorer({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
-        output = 'ICP scorer complete.';
+        const r = await query(
+          `SELECT business_name, icp_score, icp_reason FROM leads WHERE updated_at >= $1 AND icp_score IS NOT NULL ORDER BY icp_score DESC LIMIT 20`,
+          [since]
+        );
+        output = r.rows.length
+          ? `ICP scored ${r.rows.length} leads:\n` + r.rows.map(l => `- ${l.business_name}: ${l.icp_score}/10 — ${l.icp_reason ?? ''}`).join('\n')
+          : 'ICP scorer ran — no leads scored in this run.';
         break;
-      case 'qualify':
+      }
+      case 'qualify': {
         await runQualifier({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
-        output = 'Qualifier complete.';
+        const r = await query(
+          `SELECT business_name, score, score_reason FROM leads WHERE updated_at >= $1 AND score IS NOT NULL ORDER BY score DESC LIMIT 20`,
+          [since]
+        );
+        output = r.rows.length
+          ? `Qualified ${r.rows.length} leads:\n` + r.rows.map(l => `- ${l.business_name}: ${l.score}/10 — ${l.score_reason ?? ''}`).join('\n')
+          : 'Qualifier ran — no leads were scored in this run.';
         break;
-      case 'outreach':
+      }
+      case 'outreach': {
         await runOutreach({ limit: parseInt(args.limit) || 10, leadId: args['lead-id'], signatureId: args['signature-id'] });
-        output = 'Outreach drafts generated.';
+        const r = await query(
+          `SELECT o.subject, l.business_name FROM outreach o JOIN leads l ON l.id = o.lead_id WHERE o.created_at >= $1 AND o.status = 'draft' ORDER BY o.created_at DESC LIMIT 20`,
+          [since]
+        );
+        output = r.rows.length
+          ? `Generated ${r.rows.length} outreach drafts:\n` + r.rows.map(o => `- ${o.business_name}: "${o.subject}"`).join('\n')
+          : 'Outreach ran — no new drafts created (qualified leads may have drafts already).';
         break;
+      }
       case 'send':
         await runSend({ outreachId: args['outreach-id'], to: args.to });
         output = 'Email sent.';
@@ -144,10 +198,17 @@ app.post('/run/:command', requireSecret, async (req, res) => {
         await runSequencer({});
         output = 'Sequencer complete.';
         break;
-      case 'analytics':
+      case 'analytics': {
         await runAnalytics({});
-        output = 'Analytics updated.';
+        const r = await query(
+          `SELECT total_leads, qualified_leads, outreach_sent, replies, proposals FROM analytics WHERE agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) ORDER BY created_at DESC LIMIT 1`
+        );
+        const a = r.rows[0];
+        output = a
+          ? `Analytics updated. Total leads: ${a.total_leads} | Qualified: ${a.qualified_leads} | Outreach sent: ${a.outreach_sent} | Replies: ${a.replies} | Proposals: ${a.proposals}`
+          : 'Analytics updated.';
         break;
+      }
       case 'daily':
         await runDailyPipeline();
         output = 'Daily pipeline complete.';
