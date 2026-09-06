@@ -181,4 +181,18 @@ app.listen(PORT, () => {
   console.log(`[server] Tedmark agent server running on port ${PORT}`);
   console.log(`[server] WhatsApp webhook: POST/GET /webhook`);
   console.log(`[server] Agent API:        POST /run/:command`);
+
+  // Self-ping every 4 minutes to prevent Render free tier from spinning down
+  const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;
+  if (SELF_URL) {
+    setInterval(async () => {
+      try {
+        await fetch(`${SELF_URL}/health`);
+        console.log('[keepalive] ping ok');
+      } catch {
+        // silently ignore — server is still running even if ping fails
+      }
+    }, 4 * 60 * 1000); // every 4 minutes
+    console.log(`[keepalive] self-ping active → ${SELF_URL}/health`);
+  }
 });
