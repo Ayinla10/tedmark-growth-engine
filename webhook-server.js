@@ -130,7 +130,7 @@ app.post('/run/:command', requireSecret, async (req, res) => {
       case 'enrich': {
         await runEnricher({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
         const r = await query(
-          `SELECT business_name, email, phone, website_url FROM leads WHERE updated_at >= $1 AND (email IS NOT NULL OR phone IS NOT NULL) ORDER BY updated_at DESC LIMIT 20`,
+          `SELECT business_name, email, phone, website_url FROM leads WHERE enriched_at >= $1 AND (email IS NOT NULL OR phone IS NOT NULL) ORDER BY enriched_at DESC LIMIT 20`,
           [since]
         );
         output = r.rows.length
@@ -141,7 +141,7 @@ app.post('/run/:command', requireSecret, async (req, res) => {
       case 'enrich-dm': {
         await runDmEnrich({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
         const r = await query(
-          `SELECT business_name, dm_name, dm_title, dm_linkedin FROM leads WHERE updated_at >= $1 AND dm_name IS NOT NULL ORDER BY updated_at DESC LIMIT 20`,
+          `SELECT business_name, dm_name, dm_title, dm_linkedin_url FROM leads WHERE dm_enriched_at >= $1 AND dm_name IS NOT NULL ORDER BY dm_enriched_at DESC LIMIT 20`,
           [since]
         );
         output = r.rows.length
@@ -152,18 +152,18 @@ app.post('/run/:command', requireSecret, async (req, res) => {
       case 'icp-score': {
         await runIcpScorer({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
         const r = await query(
-          `SELECT business_name, icp_score, icp_reason FROM leads WHERE updated_at >= $1 AND icp_score IS NOT NULL ORDER BY icp_score DESC LIMIT 20`,
+          `SELECT business_name, icp_total, icp_reasoning FROM leads WHERE icp_scored_at >= $1 AND icp_total IS NOT NULL ORDER BY icp_total DESC LIMIT 20`,
           [since]
         );
         output = r.rows.length
-          ? `ICP scored ${r.rows.length} leads:\n` + r.rows.map(l => `- ${l.business_name}: ${l.icp_score}/10 — ${l.icp_reason ?? ''}`).join('\n')
+          ? `ICP scored ${r.rows.length} leads:\n` + r.rows.map(l => `- ${l.business_name}: ${l.icp_total}/25 — ${l.icp_reasoning ?? ''}`).join('\n')
           : 'ICP scorer ran — no leads scored in this run.';
         break;
       }
       case 'qualify': {
         await runQualifier({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
         const r = await query(
-          `SELECT business_name, score, score_reason FROM leads WHERE updated_at >= $1 AND score IS NOT NULL ORDER BY score DESC LIMIT 20`,
+          `SELECT business_name, score, score_reason FROM leads WHERE qualified_at >= $1 AND score IS NOT NULL ORDER BY score DESC LIMIT 20`,
           [since]
         );
         output = r.rows.length
@@ -201,12 +201,9 @@ app.post('/run/:command', requireSecret, async (req, res) => {
       case 'analytics': {
         await runAnalytics({});
         const r = await query(
-          `SELECT total_leads, qualified_leads, outreach_sent, replies, proposals FROM analytics WHERE agency_id = (SELECT id FROM agencies ORDER BY created_at LIMIT 1) ORDER BY created_at DESC LIMIT 1`
+          `SELECT summary FROM analytics_snapshots ORDER BY created_at DESC LIMIT 1`
         );
-        const a = r.rows[0];
-        output = a
-          ? `Analytics updated. Total leads: ${a.total_leads} | Qualified: ${a.qualified_leads} | Outreach sent: ${a.outreach_sent} | Replies: ${a.replies} | Proposals: ${a.proposals}`
-          : 'Analytics updated.';
+        output = r.rows[0]?.summary ?? 'Analytics updated — check the dashboard for the full report.';
         break;
       }
       case 'daily':
