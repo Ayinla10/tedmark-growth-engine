@@ -241,6 +241,7 @@ async function handleOwnerMessage(from, text, agencyId) {
   if (result.setPending) waPending.set(from, result.setPending);
 
   await sendWhatsApp(from, result.reply);
+  if (result.draft) await sendWhatsApp(from, result.draft);
 
   if (result.dispatch) {
     const { command, args } = result.dispatch;

@@ -220,12 +220,17 @@ DECISION LOGIC:
 
 RESPONSE FORMAT — one JSON object, no markdown, no code fences:
 {"type":"converse","message":"..."}
+{"type":"converse","message":"...","needs_draft":true,"draft_topic":"exact description of what to write"}
 {"type":"clarify","message":"one question only"}
 {"type":"confirm","command":"agent-name","args":{},"message":"what you will run + ask to confirm"}
 {"type":"dispatch","command":"agent-name","args":{}}
 
-Be direct and warm. Max 3 sentences for converse. Never ask more than one question.
-CRITICAL: If you are offering to run something ("Want me to try X?", "Should I pull Y?"), you MUST use type "confirm" — never type "converse". A converse message must never contain an offer to do something. Offers belong in confirm so the owner's "yes" is handled correctly.`;
+STRICT RULES ON "message":
+- "message" must be under 150 characters, one short sentence, plain conversational text only.
+- NEVER put a drafted email, outreach message, suggested reply, or multi-sentence content inside "message".
+- If the owner is asking you to write or draft something (a message, email, follow-up, script), set "needs_draft": true and "draft_topic" to a precise description of what to write. Leave the actual content out of the JSON entirely.
+- Be direct and warm. Never ask more than one question.
+- If you are offering to run something, use "confirm" not "converse".`;
 
   try {
     console.log(`[engine] think() prompt_chars=${systemPrompt.length} user="${userMessage.slice(0, 60)}"`);
@@ -241,7 +246,23 @@ CRITICAL: If you are offering to run something ("Want me to try X?", "Should I p
       console.error('[engine] No JSON in response:', raw?.slice(0, 200));
       throw new Error('No JSON in response');
     }
-    return JSON.parse(jsonMatch[0]);
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    // If the AI flagged that a draft is needed, generate it in a separate plain-text call
+    // This keeps JSON mode reliable (short strings only) while still producing long content
+    if (parsed.needs_draft && parsed.draft_topic) {
+      console.log(`[engine] needs_draft: "${parsed.draft_topic}"`);
+      const draft = await complete({
+        system: `You are the Tedmark Growth AI — a sharp, direct business consultant for Tedmark Digital, a digital marketing agency in Ghana. Write exactly what is requested: plain text, warm and professional, no corporate fluff. Use first person as the agency. Keep it concise and actionable.
+
+Business context: ${businessContext || 'Tedmark Digital, digital marketing agency in Ghana.'}`,
+        user: `Write: ${parsed.draft_topic}`,
+        maxTokens: 400,
+      });
+      return { ...parsed, draft: (draft ?? '').trim() };
+    }
+
+    return parsed;
   } catch (err) {
     console.error('[engine] think() error:', err?.message ?? err);
     // Fallback: simpler prompt, no JSON mode, minimal context to reduce token load
@@ -370,8 +391,11 @@ export async function processOwnerMessage({ text, linkId, agencyId, pendingConfi
     };
   }
 
-  // converse or clarify — just reply
-  return { reply: thought.message };
+  // converse or clarify — reply, optionally followed by a draft
+  return {
+    reply: thought.message,
+    ...(thought.draft ? { draft: thought.draft } : {}),
+  };
 }
 
 export { summariseAgentResult, loadBusinessContext };

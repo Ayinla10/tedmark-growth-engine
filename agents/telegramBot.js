@@ -185,6 +185,11 @@ async function handleCommand(link, text, chatId, agencyId) {
     stopTyping();
     await reply(link, chatId, result.reply);
 
+    // If AI generated a draft (e.g. a suggested message), send it as a follow-up
+    if (result.draft) {
+      await reply(link, chatId, result.draft);
+    }
+
     // If there's a dispatch, restart typing, run the agent, report back
     if (result.dispatch) {
       const { command, args } = result.dispatch;
