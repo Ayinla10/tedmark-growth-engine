@@ -12,8 +12,8 @@ import {
 } from '../tools/db.js';
 import { runApprove, runSend } from './outreach.js';
 import { setSetting } from '../tools/settings.js';
-import { complete } from '../tools/llm.js';
 import { notifyTelegram } from '../tools/telegramNotify.js';
+import { processOwnerMessage, dispatchAgent, summariseAgentResult, loadBusinessContext } from './conversationEngine.js';
 
 const COMMANDS = [
   { command: 'start', description: 'Connect or check your link status' },
@@ -66,124 +66,9 @@ async function formatTopLeads(agencyId) {
   return lines.join('\n\n');
 }
 
-// ── Agent dispatch ─────────────────────────────────────────────────────────────
-const AGENT_REGISTRY = {
-  scout:         { description: 'Find new leads from Google Maps by sector and city', args: ['sector', 'city', 'limit'] },
-  'web-scout':   { description: 'Find leads by searching the web', args: ['sector', 'city', 'limit'] },
-  enrich:        { description: 'Enrich existing leads with contact info (email, phone, website)', args: [] },
-  'enrich-dm':   { description: 'Find decision maker names and titles for leads', args: [] },
-  qualify:       { description: 'Score and qualify leads using AI', args: [] },
-  'icp-score':   { description: 'Run ICP scoring on leads', args: [] },
-  outreach:      { description: 'Generate outreach email drafts for qualified leads', args: [] },
-  send:          { description: 'Send approved outreach emails', args: [] },
-  analytics:     { description: 'Run analytics and generate performance report', args: [] },
-  daily:         { description: 'Run the full daily pipeline (scout → enrich → qualify → outreach)', args: [] },
-};
-
-const SERVER_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || 'http://localhost:4000';
-const API_SECRET = process.env.RENDER_API_SECRET;
-
-async function dispatchAgent(command, args = {}) {
-  const res = await fetch(`${SERVER_URL}/run/${command}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${API_SECRET}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ args }),
-  });
-  const data = await res.json();
-  return data;
-}
-
-async function classifyDispatch(text) {
-  const agentList = Object.entries(AGENT_REGISTRY)
-    .map(([k, v]) => `- ${k}: ${v.description}`)
-    .join('\n');
-
-  try {
-    const raw = await complete({
-      system: [
-        `You are classifying whether a message from a business owner needs to RUN an agent, or just CONVERSE.`,
-        `Available agents:`,
-        agentList,
-        ``,
-        `If the message is asking to DO something (find leads, send emails, enrich, score, run pipeline, generate outreach), respond with JSON:`,
-        `{"action":"dispatch","command":"<agent-name>","args":{"sector":"...","city":"...","limit":"20"}}`,
-        `Only include args that are mentioned. "limit" defaults to "20" for scout.`,
-        `If the message is a question, conversation, or status check, respond with:`,
-        `{"action":"converse"}`,
-        `Respond with ONLY valid JSON, nothing else.`,
-      ].join('\n'),
-      user: text,
-      maxTokens: 150,
-    });
-
-    const parsed = JSON.parse(raw.trim());
-    return parsed;
-  } catch {
-    return { action: 'converse' };
-  }
-}
-
-// Detect action commands that need to actually change state
-const ACTION_INTENTS = ['pause', 'resume'];
-
-async function classifyActionIntent(text) {
-  try {
-    const raw = await complete({
-      system: `Does this message ask to pause OR resume automated lead discovery? Reply with exactly one word: "pause", "resume", or "none".`,
-      user: text,
-      maxTokens: 10,
-    });
-    const intent = raw.trim().toLowerCase();
-    return ACTION_INTENTS.includes(intent) ? intent : 'none';
-  } catch {
-    return 'none';
-  }
-}
-
-async function buildContext(agencyId) {
-  try {
-    const [s, leads] = await Promise.all([
-      getTelegramStatusSummary(agencyId),
-      getQualifiedLeads(5, 6, agencyId),
-    ]);
-    const leadLines = leads.map(l => `- ${l.business_name} (score ${l.score}/10): ${l.score_reason ?? ''}`).join('\n');
-    return [
-      `TODAY'S METRICS:`,
-      `Leads found today: ${s.leadsToday} | Total leads: ${s.leadsTotal} | Qualified: ${s.qualified}`,
-      `Avg score: ${s.avgScore ?? 'N/A'} | Outreach drafts pending: ${s.drafts} | Sent today: ${s.sentToday}`,
-      `Replies received: ${s.replied} | Proposals: ${s.proposals} | Overdue actions: ${s.dueOrOverdue}`,
-      '',
-      `TOP QUALIFIED LEADS:`,
-      leadLines || 'None with score ≥ 6 right now.',
-    ].join('\n');
-  } catch {
-    return 'Could not fetch live data right now.';
-  }
-}
-
-async function conversationalReply(text, agencyId) {
-  const context = await buildContext(agencyId);
-  try {
-    return await complete({
-      system: [
-        `You are the Tedmark Growth AI assistant — a sharp, helpful sales intelligence bot for the owner of Tedmark Digital, a digital marketing agency in Ghana.`,
-        `You have access to live pipeline data shown below. Answer the owner's questions naturally and conversationally, like a knowledgeable colleague who has been watching the business all day.`,
-        `Be concise but warm. Use plain text (no markdown — this is Telegram). If numbers are mentioned, be specific. If action is needed, say so clearly.`,
-        `You can also handle: approving outreach, pausing/resuming discovery, explaining what the system is doing.`,
-        ``,
-        `LIVE DATA:`,
-        context,
-      ].join('\n'),
-      user: text,
-      maxTokens: 600,
-    });
-  } catch {
-    return "I'm having trouble thinking right now — try again in a moment.";
-  }
-}
+// ── Per-chat pending confirmation state (in-memory) ───────────────────────────
+// { chatId -> { command, args } | null }
+const pendingConfirmations = new Map();
 
 async function reply(link, chatId, text) {
   await sendMessage(chatId, text);
@@ -191,7 +76,7 @@ async function reply(link, chatId, text) {
 }
 
 async function handleCommand(link, text, chatId, agencyId) {
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().trim();
 
   // Hard slash commands — instant, no AI needed
   if (lower === '/status') {
@@ -222,50 +107,39 @@ async function handleCommand(link, text, chatId, agencyId) {
     return;
   }
 
-  // Natural language — check if it's a state-changing action first
-  const action = await classifyActionIntent(text);
-  if (action === 'pause') {
-    await setSetting('scout_enabled', false, agencyId);
-    await setSetting('web_scout_enabled', false, agencyId);
-    await setSetting('directory_scout_enabled', false, agencyId);
-    await reply(link, chatId, 'Done — discovery is paused. Just say "resume" when you want it back on.');
-    return;
-  }
-  if (action === 'resume') {
-    await setSetting('scout_enabled', true, agencyId);
-    await setSetting('web_scout_enabled', true, agencyId);
-    await setSetting('directory_scout_enabled', true, agencyId);
-    await reply(link, chatId, 'Discovery is back on.');
-    return;
-  }
+  // ── Intelligent conversation engine ────────────────────────────────────────
+  const pending = pendingConfirmations.get(chatId) ?? null;
 
-  // Classify: should we dispatch an agent or just converse?
-  const dispatch = await classifyDispatch(text);
+  const result = await processOwnerMessage({
+    text,
+    linkId: link.id,
+    agencyId,
+    pendingConfirmation: pending,
+  });
 
-  if (dispatch.action === 'dispatch' && dispatch.command && AGENT_REGISTRY[dispatch.command]) {
-    await sendMessage(chatId, `Got it — running ${dispatch.command}... this may take a minute.`);
+  // Update pending state
+  if (result.clearPending || result.dispatch) pendingConfirmations.delete(chatId);
+  if (result.setPending) pendingConfirmations.set(chatId, result.setPending);
+
+  // Send the immediate reply
+  await reply(link, chatId, result.reply);
+
+  // If there's a dispatch, run it and report back
+  if (result.dispatch) {
+    const { command, args } = result.dispatch;
     try {
-      const result = await dispatchAgent(dispatch.command, dispatch.args ?? {});
-      if (result.ok) {
-        // Give AI a chance to summarise the output naturally
-        const summary = await complete({
-          system: `You are the Tedmark Growth AI assistant. Summarise the following agent output in plain, friendly language for the business owner. Be brief and highlight the key result. No markdown.`,
-          user: `Agent "${dispatch.command}" completed.\n\nOutput:\n${result.output}`,
-          maxTokens: 400,
-        }).catch(() => result.output);
+      const agentResult = await dispatchAgent(command, args);
+      const bizCtx = await loadBusinessContext(agencyId).catch(() => '');
+      if (agentResult.ok) {
+        const summary = await summariseAgentResult(command, agentResult.output, bizCtx);
         await reply(link, chatId, summary);
       } else {
-        await reply(link, chatId, `The ${dispatch.command} agent ran into an issue: ${result.output || 'unknown error'}`);
+        await reply(link, chatId, `The ${command} agent hit an issue: ${agentResult.output || 'unknown error'}`);
       }
     } catch (err) {
-      await reply(link, chatId, `Failed to run ${dispatch.command}: ${err.message}`);
+      await reply(link, chatId, `Couldn't run ${command}: ${err.message}`);
     }
-    return;
   }
-
-  // Pure conversation — full AI with live data context
-  const response = await conversationalReply(text, agencyId);
-  await reply(link, chatId, response);
 }
 
 async function handleMessage(msg) {

@@ -8,11 +8,10 @@
 import {
   getTelegramStatusSummary,
   getQualifiedLeads,
-  getLeadById,
 } from '../tools/db.js';
 import { setSetting } from '../tools/settings.js';
-import { complete } from '../tools/llm.js';
 import { query } from '../tools/db.js';
+import { processOwnerMessage, dispatchAgent, summariseAgentResult, loadBusinessContext } from './conversationEngine.js';
 
 // Resolve the owner's agency ID — set WHATSAPP_AGENCY_ID explicitly, or we
 // fall back to the first agency row in the database (single-tenant default).
@@ -50,20 +49,6 @@ export async function sendWhatsApp(to, text) {
     console.error('[whatsapp] Send failed:', err);
   }
 }
-
-// ── Owner command intents ──────────────────────────────────────────────────────
-const OWNER_INTENTS = [
-  'pipeline',   // active deal summary
-  'deals',      // list active deals
-  'attention',  // deals needing action
-  'status',     // today's lead activity
-  'leads',      // top qualified leads
-  'pause',      // pause scout
-  'resume',     // resume scout
-  'approve',    // approve all pending outreach
-  'help',
-  'unknown',
-];
 
 const OWNER_HELP = `*Tedmark Growth AI — WhatsApp Control*
 
@@ -202,74 +187,74 @@ async function approveAllDrafts(agencyId) {
     : 'No drafts waiting for approval.';
 }
 
-// ── Intent classifier ──────────────────────────────────────────────────────────
-async function classifyOwnerIntent(text) {
+// ── Per-owner pending confirmation state (in-memory, keyed by phone) ──────────
+const waPending = new Map();
+
+// ── Owner command handler (now powered by the conversation engine) ─────────────
+async function handleOwnerMessage(from, text, agencyId) {
   const lower = text.trim().toLowerCase();
 
-  // Fast keyword matches
-  if (/^(pipeline|deals?)$/.test(lower))             return 'pipeline';
-  if (/attention|urgent|overdue|stall/i.test(lower)) return 'attention';
-  if (/^status$/.test(lower))                        return 'status';
-  if (/^leads?$/.test(lower))                        return 'leads';
-  if (/^pause/.test(lower))                          return 'pause';
-  if (/^resume/.test(lower))                         return 'resume';
-  if (/approve.*(all)?/i.test(lower))               return 'approve';
-  if (/^help$/.test(lower))                          return 'help';
-
-  // Natural language → AI classification
-  try {
-    const raw = await complete({
-      system: `Classify this message into one of: ${OWNER_INTENTS.join(', ')}. Reply with only the intent word.`,
-      user: text,
-      maxTokens: 20,
-    });
-    const intent = raw.trim().toLowerCase();
-    return OWNER_INTENTS.includes(intent) ? intent : 'unknown';
-  } catch {
-    return 'unknown';
+  // Fast keyword commands that bypass AI (instant, no tokens wasted)
+  if (/^(pipeline|deals?)$/.test(lower)) {
+    return sendWhatsApp(from, await formatPipeline(agencyId));
   }
-}
-
-// ── Owner command handler ──────────────────────────────────────────────────────
-async function handleOwnerMessage(from, text, agencyId) {
-  let response;
-  const intent = await classifyOwnerIntent(text);
-
-  switch (intent) {
-    case 'pipeline':
-    case 'deals':
-      response = await formatPipeline(agencyId);
-      break;
-    case 'attention':
-      response = await formatAttention(agencyId);
-      break;
-    case 'status':
-      response = await formatStatus(agencyId);
-      break;
-    case 'leads':
-      response = await formatTopLeads(agencyId);
-      break;
-    case 'pause':
-      await setSetting('scout_enabled', false, agencyId);
-      await setSetting('web_scout_enabled', false, agencyId);
-      response = '⏸ Lead discovery paused.';
-      break;
-    case 'resume':
-      await setSetting('scout_enabled', true, agencyId);
-      await setSetting('web_scout_enabled', true, agencyId);
-      response = '▶️ Lead discovery resumed.';
-      break;
-    case 'approve':
-      response = await approveAllDrafts(agencyId);
-      break;
-    case 'help':
-      response = OWNER_HELP;
-      break;
-    default:
-      response = "Didn't catch that. Send *help* to see what I can do.";
+  if (/^(attention|urgent)$/.test(lower)) {
+    return sendWhatsApp(from, await formatAttention(agencyId));
+  }
+  if (/^status$/.test(lower)) {
+    return sendWhatsApp(from, await formatStatus(agencyId));
+  }
+  if (/^leads?$/.test(lower)) {
+    return sendWhatsApp(from, await formatTopLeads(agencyId));
+  }
+  if (/^pause/.test(lower)) {
+    await setSetting('scout_enabled', false, agencyId);
+    await setSetting('web_scout_enabled', false, agencyId);
+    return sendWhatsApp(from, 'Lead discovery paused.');
+  }
+  if (/^resume/.test(lower)) {
+    await setSetting('scout_enabled', true, agencyId);
+    await setSetting('web_scout_enabled', true, agencyId);
+    return sendWhatsApp(from, 'Lead discovery resumed.');
+  }
+  if (/approve.*(all)?/i.test(lower)) {
+    return sendWhatsApp(from, await approveAllDrafts(agencyId));
+  }
+  if (/^help$/.test(lower)) {
+    return sendWhatsApp(from, OWNER_HELP);
   }
 
-  await sendWhatsApp(from, response);
+  // ── Intelligent conversation engine ────────────────────────────────────────
+  // WhatsApp has no link table — pass null linkId (engine skips history gracefully)
+  const pending = waPending.get(from) ?? null;
+
+  const result = await processOwnerMessage({
+    text,
+    linkId: null,
+    agencyId,
+    pendingConfirmation: pending,
+  });
+
+  if (result.clearPending || result.dispatch) waPending.delete(from);
+  if (result.setPending) waPending.set(from, result.setPending);
+
+  await sendWhatsApp(from, result.reply);
+
+  if (result.dispatch) {
+    const { command, args } = result.dispatch;
+    try {
+      const agentResult = await dispatchAgent(command, args);
+      const bizCtx = await loadBusinessContext(agencyId).catch(() => '');
+      if (agentResult.ok) {
+        const summary = await summariseAgentResult(command, agentResult.output, bizCtx);
+        await sendWhatsApp(from, summary);
+      } else {
+        await sendWhatsApp(from, `The ${command} agent hit an issue: ${agentResult.output || 'unknown error'}`);
+      }
+    } catch (err) {
+      await sendWhatsApp(from, `Couldn't run ${command}: ${err.message}`);
+    }
+  }
 }
 
 // ── Lead reply handler ─────────────────────────────────────────────────────────
