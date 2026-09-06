@@ -249,12 +249,12 @@ async function handleCommand(link, text, chatId, agencyId) {
     // ── Intelligent conversation engine ────────────────────────────────────────
     const pending = pendingConfirmations.get(chatId) ?? null;
 
-    // Build last-scout context string for the AI prompt (expires after 30 min)
+    // Build last-scout context string for the AI prompt — persists until a new scout replaces it
     const scoutMem = lastScoutResults.get(chatId);
-    const scoutAge = scoutMem ? (Date.now() - new Date(scoutMem.at).getTime()) / 60000 : Infinity;
     let lastScoutContext = '';
-    if (scoutMem && scoutAge < 30) {
-      lastScoutContext = `RECENT SCOUT: Found ${scoutMem.count} ${scoutMem.sector ?? ''} leads in ${scoutMem.city ?? 'Ghana'}.\nLead IDs (use these when owner says "those", "them", "the ones we found"): ${scoutMem.lead_ids.join(',')}`;
+    if (scoutMem) {
+      const when = new Date(scoutMem.at).toLocaleDateString('en-GH', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      lastScoutContext = `LAST SCOUT (${when}): Found ${scoutMem.count} ${scoutMem.sector ?? ''} leads in ${scoutMem.city ?? 'Ghana'}.\nLead IDs (use these when owner says "those", "them", "the ones we found", "enrich those", "qualify them", etc.): ${scoutMem.lead_ids.join(',')}`;
     }
 
     // Auto-inject lead_ids for clearly referential messages ("enrich those", "qualify them")
@@ -269,7 +269,7 @@ async function handleCommand(link, text, chatId, agencyId) {
     });
 
     // If AI dispatched an agent without lead_ids but owner was clearly referencing the last scout
-    if (isReferential && scoutMem && scoutAge < 30 && result.dispatch && !result.dispatch.args?.lead_ids) {
+    if (isReferential && scoutMem && result.dispatch && !result.dispatch.args?.lead_ids) {
       result.dispatch.args = { ...result.dispatch.args, lead_ids: scoutMem.lead_ids.join(',') };
     }
 
