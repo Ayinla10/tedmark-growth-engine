@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { AppShell } from "@/components/app-shell";
 import { RunScoutModal } from "@/components/run-scout-modal";
 import { OpportunityCardList } from "@/components/opportunity-card-list";
+import { DateFilter } from "@/components/date-filter";
 import { getLeads, PIPELINE_STAGES } from "@/lib/queries";
 import Link from "next/link";
 
@@ -11,12 +13,13 @@ const STAGE_FILTERS = ["All", ...PIPELINE_STAGES] as const;
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ stage?: string }>;
+  searchParams: Promise<{ stage?: string; from?: string; to?: string }>;
 }) {
-  const { stage } = await searchParams;
+  const { stage, from, to } = await searchParams;
   const activeStage = stage ?? "All";
+  const dateRange   = (from || to) ? { from, to } : undefined;
 
-  const leads = await getLeads();
+  const leads = await getLeads(undefined, dateRange);
 
   const filtered =
     activeStage === "All"
@@ -56,6 +59,7 @@ export default async function OpportunitiesPage({
                 +{todayCount} found today
               </span>
             )}
+            <Suspense><DateFilter /></Suspense>
             <RunScoutModal />
           </div>
         </div>
