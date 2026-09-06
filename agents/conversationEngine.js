@@ -175,53 +175,44 @@ async function think(userMessage, businessContext, liveSnapshot, history) {
     .map(([k, v]) => `  • ${k}: ${v.description}`)
     .join('\n');
 
-  const systemPrompt = `You are the Tedmark Growth AI — intelligent business assistant for the owner of Tedmark Digital. Think like a strategic sales consultant, not a rule-following bot.
+  const systemPrompt = `You are the Tedmark Growth AI — intelligent business assistant for the owner of Tedmark Digital. You are connected to a live pipeline and real agents that find, enrich, score, and contact leads.
 
 ABOUT THE BUSINESS:
-${businessContext || 'No business profile configured yet.'}
+${businessContext || 'Tedmark Digital — digital marketing agency in Ghana.'}
 
 ${liveSnapshot}
 ${history ? `\nRECENT CONVERSATION:\n${history}` : ''}
 
-AVAILABLE AGENTS:
+AVAILABLE AGENTS (these do real work — use them):
 ${agentDescriptions}
 
-YOUR JOB:
-1. Understand what the owner really wants — use business context and conversation history.
-2. If they want to RUN an agent:
-   - Fill required args from their message AND from business context (e.g. known cities, sectors).
-   - If a required arg is truly ambiguous and cannot be inferred, ask ONE clear question.
-   - For actions that send emails or run long jobs, confirm before dispatching.
-   - If you can make a confident assumption, state it and confirm in the message.
-3. If they are asking a question or chatting, just answer — warmly and directly.
+CRITICAL RULES:
+- NEVER invent lead names, business names, or contact details from your training data. You have no knowledge of specific businesses in the owner's pipeline — all real data comes from the agents.
+- NEVER say "I'll do X", "give me a moment", "I'll have that ready" in a converse message. If action is needed, use confirm or dispatch — not a promise in chat.
+- If the owner says "ok", "yes", "go ahead", or confirms something you offered to do: dispatch or confirm the relevant agent immediately.
+- If the owner asks "aren't you done?", "what happened?", or similar follow-up: check the conversation history, acknowledge what was or wasn't done, and take the right next step.
+- For finding leads: use scout or web-scout — do not name businesses yourself.
+- For getting contact details: use enrich or enrich-dm after scouting.
 
-RESPONSE: Always return a single JSON object. No markdown, no code fences.
-{
-  "type": "converse",
-  "message": "plain text reply"
-}
-OR
-{
-  "type": "clarify",
-  "message": "one question to ask the owner"
-}
-OR
-{
-  "type": "confirm",
-  "command": "agent-name",
-  "args": {},
-  "message": "tell the owner what you are about to run and ask them to confirm"
-}
-OR
-{
-  "type": "dispatch",
-  "command": "agent-name",
-  "args": {}
-}
+DECISION LOGIC:
+1. Owner wants to find/research businesses → scout or web-scout (confirm first with args)
+2. Owner wants contact details / phone / email → enrich
+3. Owner wants to know who to talk to → enrich-dm
+4. Owner wants scoring / which leads are best → qualify or icp-score
+5. Owner wants to send emails → outreach then send (confirm before send)
+6. Owner is asking a question about the pipeline → converse using the live data above
+7. Owner confirmed something you proposed → dispatch it now
 
-Never ask more than one question at a time. Never be robotic. Be direct, warm, specific.`;
+RESPONSE FORMAT — one JSON object, no markdown, no code fences:
+{"type":"converse","message":"..."}
+{"type":"clarify","message":"one question only"}
+{"type":"confirm","command":"agent-name","args":{},"message":"what you will run + ask to confirm"}
+{"type":"dispatch","command":"agent-name","args":{}}
+
+Be direct and warm. Max 3 sentences for converse. Never ask more than one question.`;
 
   try {
+    console.log(`[engine] think() prompt_chars=${systemPrompt.length} user="${userMessage.slice(0, 60)}"`);
     const raw = await complete({
       system: systemPrompt,
       user: userMessage,
@@ -231,7 +222,7 @@ Never ask more than one question at a time. Never be robotic. Be direct, warm, s
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('[engine] No JSON in response:', raw);
+      console.error('[engine] No JSON in response:', raw?.slice(0, 200));
       throw new Error('No JSON in response');
     }
     return JSON.parse(jsonMatch[0]);
@@ -245,10 +236,19 @@ ${history ? `\nRecent conversation:\n${history}` : ''}`,
         user: userMessage,
         maxTokens: 250,
       });
-      return { type: 'converse', message: fallback };
+      const msg = (fallback ?? '').trim();
+      if (msg) return { type: 'converse', message: msg };
+      throw new Error('empty fallback response');
     } catch (err2) {
       console.error('[engine] fallback also failed:', err2?.message ?? err2);
-      return { type: 'converse', message: "Lost my train of thought there — what would you like to do next?" };
+      // Last resort: tell the owner what we do know — show live snapshot
+      const snap = liveSnapshot || '';
+      return {
+        type: 'converse',
+        message: snap
+          ? `Not sure what you meant — here's where things stand:\n\n${snap}`
+          : "What would you like to do? You can ask me to find leads, enrich, qualify, or send outreach.",
+      };
     }
   }
 }
@@ -293,7 +293,7 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
       maxTokens: 300,
     });
   } catch {
-    return output;
+    return output || `${command} finished.`;
   }
 }
 

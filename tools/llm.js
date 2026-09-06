@@ -4,22 +4,40 @@ import { recordApiUsage } from './db.js';
 
 dotenv.config();
 
-// DeepSeek exposes an OpenAI-compatible API, so we use the openai SDK
-// pointed at DeepSeek's endpoint. Swapping providers later means editing
-// only this file.
+// Supports two providers, selected by which env var is present:
+//  - OPENROUTER_API_KEY → openrouter.ai (supports many free models)
+//  - DEEPSEEK_API_KEY   → api.deepseek.com (fallback)
 //
-// DeepSeek retired the "deepseek-chat" model name in favor of versioned
-// names — "deepseek-v4-flash" is the direct successor (general-purpose,
-// cost-effective), as opposed to "deepseek-v4-pro" (their heavier
-// reasoning tier, not needed for the short structured completions used
-// throughout this codebase).
-export const LLM_MODEL = 'deepseek-v4-flash';
+// Set LLM_MODEL in .env to override the default model for the active provider.
+// Good free OpenRouter models: meta-llama/llama-3.3-70b-instruct:free
+//                               google/gemma-3-27b-it:free
+//                               deepseek/deepseek-chat-v3-0324:free
+const USE_OPENROUTER = !!process.env.OPENROUTER_API_KEY;
+
+export const LLM_MODEL = process.env.LLM_MODEL || (
+  USE_OPENROUTER
+    ? 'meta-llama/llama-3.3-70b-instruct:free'
+    : 'deepseek-v4-flash'
+);
 
 let client = null;
 
 function getClient() {
+  if (USE_OPENROUTER) {
+    if (!client) {
+      client = new OpenAI({
+        apiKey: process.env.OPENROUTER_API_KEY,
+        baseURL: 'https://openrouter.ai/api/v1',
+        defaultHeaders: {
+          'HTTP-Referer': 'https://tedmark.digital',
+          'X-Title': 'Tedmark Growth Engine',
+        },
+      });
+    }
+    return client;
+  }
   if (!process.env.DEEPSEEK_API_KEY) {
-    throw new Error('DEEPSEEK_API_KEY is missing from .env — cannot call the AI model.');
+    throw new Error('No LLM API key — set OPENROUTER_API_KEY or DEEPSEEK_API_KEY in .env');
   }
   if (!client) {
     client = new OpenAI({
@@ -62,8 +80,9 @@ export async function complete({ system, user, maxTokens = 1024, json = false })
   // the cost dashboard reflects what was actually spent, not a guess.
   if (response.usage) {
     try {
-      await recordApiUsage('deepseek', LLM_MODEL, 'tokens_in', response.usage.prompt_tokens);
-      await recordApiUsage('deepseek', LLM_MODEL, 'tokens_out', response.usage.completion_tokens);
+      const provider = USE_OPENROUTER ? 'openrouter' : 'deepseek';
+      await recordApiUsage(provider, LLM_MODEL, 'tokens_in', response.usage.prompt_tokens);
+      await recordApiUsage(provider, LLM_MODEL, 'tokens_out', response.usage.completion_tokens);
     } catch (err) {
       console.warn(`[llm] Failed to record API usage: ${err.message}`);
     }

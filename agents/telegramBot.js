@@ -9,6 +9,7 @@ import {
   getQualifiedLeads,
   getOutreachById,
   getAgencyIdsWithActiveTelegramLinks,
+  query,
 } from '../tools/db.js';
 import { runApprove, runSend } from './outreach.js';
 import { setSetting } from '../tools/settings.js';
@@ -56,6 +57,41 @@ function formatStatus(s) {
   ].filter(Boolean).join('\n');
 }
 
+async function formatAttention(agencyId) {
+  const res = await query(
+    `SELECT l.business_name, l.pipeline_stage, l.deal_value, l.deal_currency, l.next_action_due,
+            (SELECT MAX(o.sent_at) FROM outreach o WHERE o.lead_id = l.id AND o.status = 'sent') AS last_outreach_at
+     FROM leads l
+     WHERE l.agency_id = $1 AND l.status != 'archived'
+       AND l.pipeline_stage IN ('Qualified', 'Proposal Sent', 'Negotiating')`,
+    [agencyId]
+  );
+  const now = Date.now();
+  const DAY = 86400000;
+  const flagged = res.rows
+    .map(d => {
+      const daysSince = d.last_outreach_at
+        ? Math.floor((now - new Date(d.last_outreach_at).getTime()) / DAY)
+        : null;
+      const overdue = d.next_action_due && new Date(d.next_action_due) < new Date();
+      let signal = null;
+      if (overdue) signal = 'Action overdue';
+      else if (d.pipeline_stage === 'Proposal Sent' && daysSince >= 3) signal = `${daysSince}d since proposal — follow up`;
+      else if (d.pipeline_stage === 'Negotiating'   && daysSince >= 5) signal = `Stalled — ${daysSince}d no activity`;
+      else if (d.pipeline_stage === 'Qualified'     && daysSince >= 7) signal = `Going cold — ${daysSince}d no contact`;
+      return signal ? { ...d, signal } : null;
+    })
+    .filter(Boolean);
+
+  if (!flagged.length) return '✅ Nothing needs your attention right now.';
+  const lines = ['*NEEDS ATTENTION*', ''];
+  for (const d of flagged) {
+    const val = d.deal_value ? ` ${d.deal_currency ?? ''}${Number(d.deal_value).toLocaleString()}` : '';
+    lines.push(`⚠️ *${d.business_name}*${val}\n   ${d.signal}`);
+  }
+  return lines.join('\n');
+}
+
 async function formatTopLeads(agencyId) {
   const leads = await getQualifiedLeads(5, 6, agencyId);
   if (leads.length === 0) return 'No qualified leads with score ≥ 6 right now.';
@@ -78,8 +114,10 @@ function startTyping(chatId) {
 }
 
 async function reply(link, chatId, text) {
-  await sendMessage(chatId, text);
-  await recordTelegramMessage(link.id, 'outbound', text);
+  const safe = (text ?? '').trim();
+  if (!safe) return; // Telegram rejects empty messages
+  await sendMessage(chatId, safe);
+  await recordTelegramMessage(link.id, 'outbound', safe);
 }
 
 async function handleCommand(link, text, chatId, agencyId) {
@@ -109,6 +147,24 @@ async function handleCommand(link, text, chatId, agencyId) {
     }
     if (lower === '/help') {
       return await reply(link, chatId, HELP_TEXT);
+    }
+
+    // ── Natural language fast paths — instant DB queries, no AI needed ─────────
+    if (/\b(overdue|attention|urgent|needs action|follow.?up|pull the|show the)\b/i.test(lower) &&
+        /\b(overdue|attention|urgent)\b/i.test(lower)) {
+      return await reply(link, chatId, await formatAttention(agencyId));
+    }
+    if (/\b(status|report|how are we|how.?s it going|today|summary|current report)\b/i.test(lower)) {
+      const s = await getTelegramStatusSummary(agencyId);
+      return await reply(link, chatId, formatStatus(s));
+    }
+    if (/\b(top leads?|best leads?|qualified leads?|show leads?)\b/i.test(lower)) {
+      return await reply(link, chatId, await formatTopLeads(agencyId));
+    }
+    // "try again" / "again" with no pending → show status as a useful default
+    if (/^(try again|again|retry|repeat)$/i.test(lower)) {
+      const s = await getTelegramStatusSummary(agencyId);
+      return await reply(link, chatId, formatStatus(s));
     }
 
     // ── Intelligent conversation engine ────────────────────────────────────────
@@ -149,9 +205,13 @@ async function handleCommand(link, text, chatId, agencyId) {
       }
     }
   } catch (err) {
-    console.error('[telegram] handleCommand error:', err);
+    console.error('[telegram] handleCommand error:', err?.message ?? err, err?.stack ?? '');
     // Graceful degradation — never show a raw error to the owner
-    await reply(link, chatId, "I ran into a hiccup processing that. Could you try again, or rephrase slightly?").catch(() => {});
+    const s = await getTelegramStatusSummary(agencyId).catch(() => null);
+    const fallback = s
+      ? `Here's what I know right now:\n${formatStatus(s)}`
+      : "Something went wrong on my end. Send /status for a quick summary.";
+    await reply(link, chatId, fallback).catch(() => {});
   } finally {
     stopTyping();
   }
