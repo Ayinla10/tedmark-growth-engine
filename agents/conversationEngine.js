@@ -386,7 +386,10 @@ export async function processOwnerMessage({ text, linkId, agencyId, pendingConfi
       const missing = (agent.requiredArgs ?? []).find(k => !args[k]);
       if (missing) {
         const question = agent.questions?.[missing] ?? `What is the ${missing}?`;
-        return { reply: question };
+        return {
+          reply: question,
+          argKeyboard: { command: thought.command, args, asking: missing },
+        };
       }
     }
   }

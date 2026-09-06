@@ -103,8 +103,86 @@ async function formatTopLeads(agencyId) {
 }
 
 // ── Per-chat pending confirmation state (in-memory) ───────────────────────────
-// { chatId -> { command, args } | null }
-const pendingConfirmations = new Map();
+const pendingConfirmations = new Map();  // { chatId -> { command, args } }
+const pendingArgCollection = new Map();  // { chatId -> { command, args, asking } }
+
+// ── Inline keyboards for each agent argument ───────────────────────────────────
+const ARG_KEYBOARDS = {
+  sector: [
+    [
+      { label: 'Clinics',       value: 'clinic' },
+      { label: 'Restaurants',   value: 'restaurant' },
+      { label: 'Pharmacies',    value: 'pharmacy' },
+    ],
+    [
+      { label: 'Hotels',        value: 'hotel' },
+      { label: 'Schools',       value: 'school' },
+      { label: 'Salons',        value: 'salon' },
+    ],
+    [
+      { label: 'Retail Shops',  value: 'retail' },
+      { label: 'Real Estate',   value: 'real estate' },
+      { label: 'Logistics',     value: 'logistics' },
+    ],
+    [
+      { label: 'Gyms',          value: 'gym' },
+      { label: 'Banks',         value: 'bank' },
+      { label: 'Supermarkets',  value: 'supermarket' },
+    ],
+  ],
+  city: [
+    [
+      { label: 'Accra',       value: 'Accra' },
+      { label: 'Kumasi',      value: 'Kumasi' },
+      { label: 'Takoradi',    value: 'Takoradi' },
+    ],
+    [
+      { label: 'Tamale',      value: 'Tamale' },
+      { label: 'Cape Coast',  value: 'Cape Coast' },
+      { label: 'Tema',        value: 'Tema' },
+    ],
+    [
+      { label: 'Sunyani',     value: 'Sunyani' },
+      { label: 'Ho',          value: 'Ho' },
+      { label: 'Koforidua',   value: 'Koforidua' },
+    ],
+  ],
+  limit: [
+    [
+      { label: '5',   value: '5' },
+      { label: '10',  value: '10' },
+      { label: '20',  value: '20' },
+      { label: '50',  value: '50' },
+    ],
+  ],
+};
+
+function buildArgButtons(command, asking) {
+  const rows = ARG_KEYBOARDS[asking];
+  if (!rows) return null;
+  return rows.map(row =>
+    row.map(btn => ({
+      text: btn.label,
+      callbackData: `arg:${command}:${asking}:${btn.value}`,
+    }))
+  );
+}
+
+async function sendArgKeyboard(chatId, command, args, asking) {
+  const buttons = buildArgButtons(command, asking);
+  const questions = {
+    sector: '🏢 What type of businesses are you targeting?',
+    city:   '📍 Which city in Ghana?',
+    limit:  '🔢 How many leads do you want?',
+  };
+  const question = questions[asking] ?? `What is the ${asking}?`;
+  pendingArgCollection.set(chatId, { command, args, asking });
+  if (buttons) {
+    await sendMessage(chatId, question, { buttons });
+  } else {
+    await sendMessage(chatId, question);
+  }
+}
 
 // Send "typing…" and keep re-sending every 4s until the returned stop() is called
 function startTyping(chatId) {
@@ -181,8 +259,15 @@ async function handleCommand(link, text, chatId, agencyId) {
     if (result.clearPending || result.dispatch) pendingConfirmations.delete(chatId);
     if (result.setPending) pendingConfirmations.set(chatId, result.setPending);
 
-    // Send the immediate reply — stop typing before sending
     stopTyping();
+
+    // If a required arg is missing, show a selection keyboard instead of plain text
+    if (result.argKeyboard) {
+      const { command, args, asking } = result.argKeyboard;
+      await sendArgKeyboard(chatId, command, args, asking);
+      return;
+    }
+
     await reply(link, chatId, result.reply);
 
     // If AI generated a draft (e.g. a suggested message), send it as a follow-up
@@ -266,6 +351,80 @@ async function handleCallbackQuery(cb) {
 
   if (!link) {
     await answerCallbackQuery(cb.id, 'Not linked.');
+    return;
+  }
+
+  // ── Arg selection keyboard callback ──────────────────────────────────────────
+  if (cb.data?.startsWith('arg:')) {
+    const [, command, argName, ...valueParts] = cb.data.split(':');
+    const value = valueParts.join(':'); // handles values with colons
+    const state = pendingArgCollection.get(chatId);
+    const collectedArgs = state?.command === command ? { ...state.args } : {};
+    collectedArgs[argName] = value;
+    pendingArgCollection.delete(chatId);
+    await editMessageReplyMarkup(chatId, cb.message.message_id);
+    await answerCallbackQuery(cb.id, `✓ ${value}`);
+
+    // Check if more required args are still missing
+    const { AGENT_REGISTRY } = await import('./conversationEngine.js');
+    const agent = AGENT_REGISTRY[command];
+    const nextMissing = (agent?.requiredArgs ?? []).find(k => !collectedArgs[k]);
+    if (nextMissing) {
+      await sendArgKeyboard(chatId, command, collectedArgs, nextMissing);
+      return;
+    }
+
+    // All args collected — send a confirm message with a run button
+    const label = Object.entries(collectedArgs)
+      .filter(([k]) => k !== 'limit')
+      .map(([, v]) => v)
+      .join(' in ');
+    const confirmMsg = `Run *${command}* for *${label}*?`;
+    pendingConfirmations.set(chatId, { command, args: { ...agent?.defaults, ...collectedArgs } });
+    await sendMessage(chatId, confirmMsg, {
+      buttons: [[
+        { text: '✅ Yes, run it', callbackData: `confirm:${command}:yes` },
+        { text: '❌ Cancel',     callbackData: `confirm:${command}:no` },
+      ]],
+    });
+    return;
+  }
+
+  // ── Run/cancel confirmation button ───────────────────────────────────────────
+  if (cb.data?.startsWith('confirm:')) {
+    const [, command, answer] = cb.data.split(':');
+    await editMessageReplyMarkup(chatId, cb.message.message_id);
+    if (answer === 'no') {
+      pendingConfirmations.delete(chatId);
+      await answerCallbackQuery(cb.id, 'Cancelled');
+      await sendMessage(chatId, 'Cancelled. What else can I help with?');
+      return;
+    }
+    // yes — dispatch
+    const pending = pendingConfirmations.get(chatId);
+    if (!pending || pending.command !== command) {
+      await answerCallbackQuery(cb.id, 'Session expired, please try again.');
+      return;
+    }
+    pendingConfirmations.delete(chatId);
+    await answerCallbackQuery(cb.id, 'Running...');
+    await sendMessage(chatId, `On it — running *${command}*... this may take a minute.`);
+    const stopAgentTyping = startTyping(chatId);
+    try {
+      const agentResult = await dispatchAgent(pending.command, pending.args);
+      const bizCtx = await loadBusinessContext(link.agency_id).catch(() => '');
+      stopAgentTyping();
+      if (agentResult.ok) {
+        const summary = await summariseAgentResult(pending.command, agentResult.output, bizCtx);
+        await sendMessage(chatId, summary);
+        await recordTelegramMessage(link.id, 'outbound', summary);
+      } else {
+        await sendMessage(chatId, `The ${pending.command} agent ran into a problem: ${agentResult.output || 'unknown error'}`);
+      }
+    } catch (err) {
+      stopAgentTyping();
+      await sendMessage(chatId, `Couldn't reach the ${pending.command} agent: ${err.message}`);
+    }
     return;
   }
 
