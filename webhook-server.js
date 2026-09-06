@@ -21,6 +21,9 @@ import { runDailyPipeline }   from './scripts/dailyPipeline.js';
 // ── WhatsApp handler ───────────────────────────────────────────────────────────
 import { handleIncomingWhatsApp } from './agents/whatsappAgent.js';
 
+// ── Telegram bot ───────────────────────────────────────────────────────────────
+import { runTelegramBot } from './agents/telegramBot.js';
+
 const app  = express();
 const PORT = process.env.PORT || 4000;
 
@@ -176,6 +179,11 @@ cron.schedule('0 7 * * *', async () => {
     console.error('[cron] ✗ Daily pipeline failed:', err);
   }
 }, { timezone: 'Africa/Accra' });
+
+// ── Start Telegram bot polling ─────────────────────────────────────────────────
+if (process.env.TELEGRAM_BOT_TOKEN) {
+  runTelegramBot().catch(err => console.error('[telegram] Failed to start:', err.message));
+}
 
 app.listen(PORT, () => {
   console.log(`[server] Tedmark agent server running on port ${PORT}`);
