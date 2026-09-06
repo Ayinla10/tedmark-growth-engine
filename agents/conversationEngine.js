@@ -154,10 +154,15 @@ async function loadLiveSnapshot(agencyId) {
 async function loadHistory(linkId) {
   if (!linkId) return ''; // WhatsApp has no link table — skip gracefully
   try {
-    const msgs = await getRecentTelegramMessages(linkId, 10);
+    const msgs = await getRecentTelegramMessages(linkId, 6);
     if (!msgs.length) return '';
     return msgs
-      .map(m => `${m.direction === 'inbound' ? 'Owner' : 'Assistant'}: ${m.body}`)
+      .map(m => {
+        const role = m.direction === 'inbound' ? 'Owner' : 'Assistant';
+        // Truncate long messages (agent summaries can be 400+ chars) to keep prompt lean
+        const body = m.body.length > 300 ? m.body.slice(0, 300) + '…' : m.body;
+        return `${role}: ${body}`;
+      })
       .join('\n');
   } catch {
     return '';
@@ -232,18 +237,18 @@ Never ask more than one question at a time. Never be robotic. Be direct, warm, s
     return JSON.parse(jsonMatch[0]);
   } catch (err) {
     console.error('[engine] think() error:', err?.message ?? err);
-    // Fall back to a plain conversational reply using the live data we already loaded
+    // Fallback: simpler prompt, no JSON mode, minimal context to reduce token load
     try {
       const fallback = await complete({
-        system: `You are the Tedmark Growth AI. Answer the owner's message naturally and helpfully.
-${businessContext ? `\nBusiness context:\n${businessContext}` : ''}
-${liveSnapshot ? `\nLive pipeline:\n${liveSnapshot}` : ''}`,
+        system: `You are the Tedmark Growth AI for Tedmark Digital, a digital marketing agency in Ghana. Answer the owner's question directly and helpfully in plain conversational text. Be specific, warm, and concise — max 3 sentences. No corporate language.
+${history ? `\nRecent conversation:\n${history}` : ''}`,
         user: userMessage,
-        maxTokens: 400,
+        maxTokens: 250,
       });
       return { type: 'converse', message: fallback };
-    } catch {
-      return { type: 'converse', message: "I'm thinking through that — could you send it again? I want to give you a proper answer." };
+    } catch (err2) {
+      console.error('[engine] fallback also failed:', err2?.message ?? err2);
+      return { type: 'converse', message: "Lost my train of thought there — what would you like to do next?" };
     }
   }
 }
@@ -274,13 +279,18 @@ export async function dispatchAgent(command, args = {}) {
 async function summariseAgentResult(command, output, businessContext) {
   try {
     return await complete({
-      system: [
-        `You are the Tedmark Growth AI. Summarise the result of running the "${command}" agent.`,
-        `Be specific — mention numbers, names, key findings. Plain text, no markdown, warm and direct.`,
-        `Business context: ${businessContext}`,
-      ].join('\n'),
+      system: `You are the Tedmark Growth AI — sharp, direct, like a trusted colleague who's been watching the business all day. Summarise what the ${command} agent just did.
+
+Rules:
+- If results were found: name specific businesses, numbers, key details. Be concrete.
+- If nothing was found: say so plainly in one sentence, then immediately suggest the ONE most useful next step (e.g. "Want me to try web scout instead?" or "Should I enrich the ones already in your database?"). Do not list multiple options or ask multiple questions.
+- Never use corporate language like "came back with", "surface different prospects", "broaden search criteria". Talk like a real person.
+- Keep it under 4 sentences. Plain text, no markdown, no bullet points unless listing actual business names.
+- Always end with a clear single next-step suggestion if there's an obvious one.
+
+Business context: ${businessContext || 'Tedmark Digital, digital marketing agency in Ghana.'}`,
       user: `Agent output:\n${output}`,
-      maxTokens: 400,
+      maxTokens: 300,
     });
   } catch {
     return output;
