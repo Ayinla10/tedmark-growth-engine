@@ -106,31 +106,31 @@ app.post('/run/:command', requireSecret, async (req, res) => {
       case 'scout': {
         await runScout({ sector: args.sector, city: args.city, limit: parseInt(args.limit) || 20, country: args.country || 'GH' });
         const r = await query(
-          `SELECT business_name, city, sector, phone, website FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
+          `SELECT business_name, location, sector, phone, website_url FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
           [since]
         );
         const found = r.rows;
         output = found.length
-          ? `Found ${found.length} leads:\n` + found.map(l => `- ${l.business_name} (${l.city ?? args.city}) | ${l.phone ?? 'no phone'} | ${l.website ?? 'no website'}`).join('\n')
+          ? `Found ${found.length} leads:\n` + found.map(l => `- ${l.business_name} (${l.location ?? args.city}) | ${l.phone ?? 'no phone'} | ${l.website_url ?? 'no website'}`).join('\n')
           : 'Scout ran but found no new leads (they may already be in the database).';
         break;
       }
       case 'web-scout': {
         await runWebScout({ sector: args.sector, city: args.city, limit: parseInt(args.limit) || 20 });
         const r = await query(
-          `SELECT business_name, city, sector, phone, website FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
+          `SELECT business_name, location, sector, phone, website_url FROM leads WHERE created_at >= $1 ORDER BY created_at DESC LIMIT 30`,
           [since]
         );
         const found = r.rows;
         output = found.length
-          ? `Found ${found.length} leads:\n` + found.map(l => `- ${l.business_name} (${l.city ?? args.city}) | ${l.phone ?? 'no phone'} | ${l.website ?? 'no website'}`).join('\n')
+          ? `Found ${found.length} leads:\n` + found.map(l => `- ${l.business_name} (${l.location ?? args.city}) | ${l.phone ?? 'no phone'} | ${l.website_url ?? 'no website'}`).join('\n')
           : 'Web scout ran but found no new leads.';
         break;
       }
       case 'enrich': {
         await runEnricher({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'] });
         const r = await query(
-          `SELECT business_name, email, phone, website FROM leads WHERE updated_at >= $1 AND (email IS NOT NULL OR phone IS NOT NULL) ORDER BY updated_at DESC LIMIT 20`,
+          `SELECT business_name, email, phone, website_url FROM leads WHERE updated_at >= $1 AND (email IS NOT NULL OR phone IS NOT NULL) ORDER BY updated_at DESC LIMIT 20`,
           [since]
         );
         output = r.rows.length
