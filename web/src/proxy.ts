@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "tedmark_session";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+const PUBLIC_PATHS = ["/login", "/api/auth/login", "/forgot-password", "/reset-password"];
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true;
