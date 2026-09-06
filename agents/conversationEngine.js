@@ -183,12 +183,17 @@ async function think(userMessage, businessContext, liveSnapshot, history) {
     })
     .join('\n');
 
+  // Only include the live snapshot when the message looks like a pipeline question.
+  // Advisory/draft questions don't need it and the extra ~600 chars pushes DeepSeek past reliable JSON threshold.
+  const needsSnapshot = /\b(pipeline|leads?|status|outreach|drafts?|qualify|enrich|scout|send|report|score|overdue|today|how many|how are)\b/i.test(userMessage);
+  const snapshotSection = needsSnapshot ? liveSnapshot : '';
+
   const systemPrompt = `You are the Tedmark Growth AI — intelligent business assistant for the owner of Tedmark Digital. You are connected to a live pipeline and real agents that find, enrich, score, and contact leads.
 
 ABOUT THE BUSINESS:
 ${businessContext || 'Tedmark Digital — digital marketing agency in Ghana.'}
 
-${liveSnapshot}
+${snapshotSection}
 ${history ? `\nRECENT CONVERSATION:\n${history}` : ''}
 
 AVAILABLE AGENTS (these do real work — use them):
