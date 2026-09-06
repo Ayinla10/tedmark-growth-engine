@@ -132,10 +132,13 @@ async function loadLiveSnapshot(agencyId) {
   try {
     const [s, leads] = await Promise.all([
       getTelegramStatusSummary(agencyId),
-      getQualifiedLeads(5, 6, agencyId),
+      getQualifiedLeads(3, 6, agencyId),
     ]);
     const leadLines = leads
-      .map(l => `  • ${l.business_name} (score ${l.score}/10) — ${l.score_reason ?? ''}`)
+      .map(l => {
+        const reason = (l.score_reason ?? '').slice(0, 60);
+        return `  • ${l.business_name} (${l.score}/10)${reason ? ' — ' + reason : ''}`;
+      })
       .join('\n');
     return [
       `LIVE PIPELINE:`,
