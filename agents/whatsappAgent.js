@@ -6,7 +6,6 @@
  */
 
 import {
-  getCurrentAgencyId,
   getTelegramStatusSummary,
   getQualifiedLeads,
   getLeadById,
@@ -14,6 +13,14 @@ import {
 import { setSetting } from '../tools/settings.js';
 import { complete } from '../tools/llm.js';
 import { query } from '../tools/db.js';
+
+// Resolve the owner's agency ID — set WHATSAPP_AGENCY_ID explicitly, or we
+// fall back to the first agency row in the database (single-tenant default).
+async function getOwnerAgencyId() {
+  if (process.env.WHATSAPP_AGENCY_ID) return process.env.WHATSAPP_AGENCY_ID;
+  const res = await query('SELECT id FROM agencies ORDER BY created_at LIMIT 1');
+  return res.rows[0]?.id ?? null;
+}
 
 const TOKEN            = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID  = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -315,7 +322,7 @@ export async function handleIncomingWhatsApp({ from, text, type, msgId }) {
 
   if (ownerPhone && senderPhone === ownerPhone) {
     // Owner is talking to the system
-    const agencyId = await getCurrentAgencyId();
+    const agencyId = await getOwnerAgencyId();
     await handleOwnerMessage(from, text, agencyId);
   } else {
     // A lead is replying
