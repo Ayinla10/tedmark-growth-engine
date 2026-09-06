@@ -9,16 +9,45 @@ const PLACES_URL = 'https://api.geoapify.com/v2/places';
 const SECTOR_CATEGORIES = {
   restaurant: 'catering.restaurant',
   restaurants: 'catering.restaurant',
+  'fast food': 'catering.fast_food',
+  cafe: 'catering.cafe',
+  bar: 'catering.bar',
   school: 'education.school',
   schools: 'education.school',
+  university: 'education.university',
   clinic: 'healthcare.clinic_or_praxis',
   clinics: 'healthcare.clinic_or_praxis',
+  pharmacy: 'healthcare.pharmacy',
+  pharmacies: 'healthcare.pharmacy',
   hospital: 'healthcare.hospital',
+  hotels: 'accommodation.hotel',
+  hotel: 'accommodation.hotel',
+  guesthouse: 'accommodation.guest_house',
   logistics: 'office.logistics',
   retail: 'commercial',
   shop: 'commercial',
+  supermarket: 'commercial.supermarket',
+  supermarkets: 'commercial.supermarket',
   'real estate': 'office.estate_agent',
   realestate: 'office.estate_agent',
+  bank: 'office.financial',
+  finance: 'office.financial',
+  gym: 'sport.fitness',
+  fitness: 'sport.fitness',
+  salon: 'service.beauty',
+  beauty: 'service.beauty',
+  barbershop: 'service.beauty',
+  church: 'religion',
+  fuel: 'service.fuel',
+  petrol: 'service.fuel',
+  garage: 'service.vehicle',
+  mechanic: 'service.vehicle',
+  office: 'office',
+  business: 'office',
+  businesses: 'office',
+  'small businesses': 'office',
+  company: 'office',
+  companies: 'office',
 };
 
 function getApiKey() {
@@ -88,7 +117,7 @@ export async function searchBusinesses({ sector, city, limit = 20, offset = 0 })
   const category = resolveSectorCategory(sector);
 
   if (!category) {
-    console.warn(`[mapsClient] No clean Geoapify category for sector "${sector}" — skipping Maps discovery for it (web-search discovery still covers it).`);
+    console.warn(`[mapsClient] No Geoapify category for sector "${sector}" — add it to SECTOR_CATEGORIES or use web-scout instead.`);
     return [];
   }
 
