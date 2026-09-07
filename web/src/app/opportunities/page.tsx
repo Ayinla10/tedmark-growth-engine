@@ -36,7 +36,6 @@ export default async function OpportunitiesPage({
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  // Stage counts come from the full count query — approximate from current page for tab labels
   const stageCounts = PIPELINE_STAGES.reduce<Record<string, number>>((acc, s) => {
     acc[s] = leads.filter((l) => l.pipeline_stage === s).length;
     return acc;
@@ -44,17 +43,6 @@ export default async function OpportunitiesPage({
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayCount = leads.filter((l) => String(l.created_at).slice(0, 10) === todayStr).length;
-
-  function pageLink(p: number) {
-    const sp = new URLSearchParams();
-    if (stage && stage !== "All") sp.set("stage", stage);
-    if (sector) sp.set("sector", sector);
-    if (from) sp.set("from", from);
-    if (to) sp.set("to", to);
-    if (p > 1) sp.set("page", String(p));
-    const qs = sp.toString();
-    return qs ? `/opportunities?${qs}` : "/opportunities";
-  }
 
   return (
     <AppShell>
@@ -131,14 +119,15 @@ export default async function OpportunitiesPage({
         </div>
 
         {/* ── Opportunity cards ───────────────────────────────────────────── */}
-        <OpportunityCardList
-          opportunities={filtered}
-          total={total}
-          page={page}
-          totalPages={totalPages}
-          pageSize={PAGE_SIZE}
-          pageLink={pageLink}
-        />
+        <Suspense>
+          <OpportunityCardList
+            opportunities={filtered}
+            total={total}
+            page={page}
+            totalPages={totalPages}
+            pageSize={PAGE_SIZE}
+          />
+        </Suspense>
 
       </div>
     </AppShell>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -223,15 +224,20 @@ export function OpportunityCardList({
   page,
   totalPages,
   pageSize,
-  pageLink,
 }: {
   opportunities: Opp[];
   total: number;
   page: number;
   totalPages: number;
   pageSize: number;
-  pageLink: (p: number) => string;
 }) {
+  const searchParams = useSearchParams();
+  const pageLink = useCallback((p: number) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    if (p <= 1) sp.delete("page"); else sp.set("page", String(p));
+    const qs = sp.toString();
+    return qs ? `/opportunities?${qs}` : "/opportunities";
+  }, [searchParams]);
   const [query, setQuery] = useState("");
   const [sectorFilter, setSectorFilter] = useState("all");
   const [contactFilter, setContactFilter] = useState("all");
