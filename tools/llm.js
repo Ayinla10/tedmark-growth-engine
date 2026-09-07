@@ -13,7 +13,7 @@ dotenv.config();
 //                               deepseek/deepseek-chat-v3-0324:free
 //                               meta-llama/llama-3.3-70b-instruct:free
 
-const OPENROUTER_MODEL = process.env.LLM_MODEL || 'google/gemma-3-27b-it:free';
+const OPENROUTER_MODEL = process.env.LLM_MODEL || 'deepseek/deepseek-chat-v3-0324:free';
 const DEEPSEEK_MODEL   = 'deepseek-chat';
 
 export const LLM_MODEL = process.env.OPENROUTER_API_KEY ? OPENROUTER_MODEL : DEEPSEEK_MODEL;
