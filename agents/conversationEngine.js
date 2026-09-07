@@ -262,7 +262,7 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
       console.error('[engine] fallback also failed:', err2?.message ?? err2);
       return {
         type: 'converse',
-        message: "AI is temporarily unavailable — DeepSeek may be down or rate-limiting. Try again in a moment. Commands still work: /status /leads /help",
+        message: "AI is temporarily unavailable — try again in a moment. Commands still work: /status /leads /help",
       };
     }
   }
