@@ -15,6 +15,7 @@ import {
   getQualifiedLeads,
   getRecentTelegramMessages,
   searchLeadByName,
+  searchLeadsBySector,
 } from '../tools/db.js';
 
 // ── Agent registry ─────────────────────────────────────────────────────────────
@@ -162,35 +163,49 @@ async function loadLiveSnapshot(agencyId) {
 }
 
 // ── Look up a specific lead by name mention ────────────────────────────────────
+// Common sector keywords the owner might mention
+const SECTOR_KEYWORDS = ['school', 'clinic', 'hospital', 'restaurant', 'hotel', 'pharmacy',
+  'church', 'salon', 'gym', 'law firm', 'logistics', 'bank', 'church', 'supermarket',
+  'agency', 'construction', 'real estate', 'transport', 'insurance'];
+
 async function loadMentionedLead(message, agencyId) {
-  // Extract quoted or capitalised multi-word name (e.g. "Nyaho Medical", "Glow Clinic")
+  const lower = message.toLowerCase();
+
+  // ── Sector query (e.g. "schools in the pipeline", "list clinics") ──────────
+  const sectorHit = SECTOR_KEYWORDS.find(s => lower.includes(s));
+  const isSectorQuery = sectorHit && /\b(list|show|find|how many|any|pipeline|system|already|scouted|in the)\b/i.test(message);
+  if (isSectorQuery) {
+    try {
+      const rows = await searchLeadsBySector(sectorHit, agencyId, 5);
+      if (!rows.length) return `SECTOR LOOKUP: 0 ${sectorHit}s found in the database.`;
+      const lines = rows.map(l =>
+        `- ${l.business_name} | ${l.status}${l.score != null ? ` | Score: ${l.score}/10` : ''}${l.pipeline_stage ? ` | Stage: ${l.pipeline_stage}` : ''}${l.next_action_due && new Date(l.next_action_due) < new Date() ? ' | ⚠️ Overdue' : ''}`
+      ).join('\n');
+      return `SECTOR LOOKUP (${sectorHit}s in DB — ${rows.length} shown):\n${lines}`;
+    } catch { return ''; }
+  }
+
+  // ── Specific lead name lookup ──────────────────────────────────────────────
   const nameMatch = message.match(/["']([^"']{3,50})["']/) ||
                     message.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4})\b/);
-  // Only run if message looks like a specific lead enquiry OR is just a bare name (no verb)
-  const hasEnquiryKeyword = /\b(status|how is|what about|update on|tell me about|find|show me|check)\b/i.test(message);
+  const hasEnquiryKeyword = /\b(status|how is|what about|update on|tell me about|show me|check)\b/i.test(message);
   const isBareNameOnly = nameMatch && message.trim().split(/\s+/).length <= 5;
-  if (!hasEnquiryKeyword && !isBareNameOnly) return '';
-  if (!nameMatch) return '';
+  if (!nameMatch || (!hasEnquiryKeyword && !isBareNameOnly)) return '';
   const name = nameMatch[1];
   try {
     const rows = await searchLeadByName(name, agencyId);
     if (!rows.length) return `No lead found matching "${name}".`;
-    return rows.map(l => {
-      const parts = [
-        `Lead: ${l.business_name}`,
-        `Status: ${l.status}${l.score != null ? ` | Score: ${l.score}/10` : ''}`,
-        l.score_reason ? `Score reason: ${l.score_reason}` : '',
-        l.pipeline_stage ? `Pipeline: ${l.pipeline_stage}` : '',
-        l.next_action ? `Next action: ${l.next_action}${l.next_action_due ? ` (due ${l.next_action_due.slice(0,10)})` : ''}` : '',
-        l.deal_value ? `Deal value: ${l.deal_currency ?? ''} ${l.deal_value}` : '',
-        l.email ? `Email: ${l.email}` : '',
-        l.phone ? `Phone: ${l.phone}` : '',
-      ].filter(Boolean).join(' | ');
-      return parts;
-    }).join('\n');
-  } catch {
-    return '';
-  }
+    return 'LEAD LOOKUP:\n' + rows.map(l => [
+      `Lead: ${l.business_name}`,
+      `Status: ${l.status}${l.score != null ? ` | Score: ${l.score}/10` : ''}`,
+      l.score_reason ? `Score reason: ${l.score_reason}` : '',
+      l.pipeline_stage ? `Pipeline: ${l.pipeline_stage}` : '',
+      l.next_action ? `Next action: ${l.next_action}${l.next_action_due ? ` (due ${l.next_action_due.slice(0,10)})` : ''}` : '',
+      l.deal_value ? `Deal value: ${l.deal_currency ?? ''} ${l.deal_value}` : '',
+      l.email ? `Email: ${l.email}` : '',
+      l.phone ? `Phone: ${l.phone}` : '',
+    ].filter(Boolean).join(' | ')).join('\n');
+  } catch { return ''; }
 }
 
 // ── Load recent conversation history ──────────────────────────────────────────
@@ -235,11 +250,13 @@ AGENT NUMBERS (owner may refer to agents by number):
 1=scout 2=web-scout 3=enrich 4=enrich-dm 5=qualify 6=icp-score 7=outreach 8=send 9=check-replies 10=analytics 11=daily
 
 RULES:
+- "start over", "reset", "fresh start", "never mind" with no agent context → respond with a brief greeting and ask what they'd like to do. Never treat as a pipeline command.
 - "ok/yes/go ahead" after a confirm → dispatch immediately.
 - If the owner says a number (e.g. "9", "option 9", "number 9") → map it to the agent above and confirm/dispatch it.
 - To find leads: scout or web-scout. To get contacts: enrich. To score: qualify/icp-score. To email: outreach then send.
 - To handle lead replies: check-replies — it checks inbox, classifies each reply, drafts a response, and sends it to the owner for approval before anything is sent. This IS conversation management — describe it that way.
 - If LEAD LOOKUP is present in context → summarise that lead's status and suggest a clear next step.
+- If SECTOR LOOKUP is present in context → list the leads shown and suggest next steps (enrich, qualify, outreach). If "0 found", say so and offer to scout that sector.
 - "those/them/the ones we found" + LAST SCOUT present → use those lead_ids.
 - Sector hint in message → sector arg. City hint → city arg. Time hint → since arg.
 - Never promise action in a converse message — use confirm or dispatch instead.

@@ -255,6 +255,21 @@ export async function searchLeadByName(name, agencyId) {
   return result.rows;
 }
 
+export async function searchLeadsBySector(sector, agencyId, limit = 5) {
+  const result = await query(
+    `SELECT business_name, status, score, pipeline_stage, next_action, next_action_due,
+            deal_value, deal_currency, industry, city
+     FROM leads
+     WHERE agency_id = $1 AND (industry ILIKE $2 OR sector ILIKE $2 OR business_name ILIKE $2)
+     ORDER BY
+       CASE WHEN next_action_due < now() THEN 0 ELSE 1 END,
+       score DESC NULLS LAST
+     LIMIT $3`,
+    [agencyId, `%${sector}%`, limit]
+  );
+  return result.rows;
+}
+
 export async function getTelegramStatusSummary(agencyId) {
   const id = agencyId ?? (await getCurrentAgencyId());
   const [leads, outreach, proposals, dueActions] = await Promise.all([
