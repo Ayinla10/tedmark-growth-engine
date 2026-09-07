@@ -81,6 +81,13 @@ export const AGENT_REGISTRY = {
     defaults: {},
     questions: {},
   },
+  'check-replies': {
+    description: 'Check inbox for lead replies, classify them, and draft follow-up responses for approval',
+    requiredArgs: [],
+    optionalArgs: [],
+    defaults: {},
+    questions: {},
+  },
   analytics: {
     description: 'Generate a performance analytics report',
     requiredArgs: [],

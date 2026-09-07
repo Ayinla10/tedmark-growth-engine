@@ -224,6 +224,18 @@ app.post('/run/:command', requireSecret, async (req, res) => {
         output = r.rows[0]?.summary ?? 'Analytics updated — check the dashboard for the full report.';
         break;
       }
+      case 'check-replies': {
+        await runReplyWatcher();
+        const r = await query(
+          `SELECT l.business_name, ar.classification, ar.body FROM auto_replies ar JOIN leads l ON l.id = ar.lead_id WHERE ar.created_at >= $1 ORDER BY ar.created_at DESC LIMIT 10`,
+          [since]
+        );
+        output = r.rows.length
+          ? `Checked inbox — ${r.rows.length} new repl${r.rows.length === 1 ? 'y' : 'ies'}:\n` +
+            r.rows.map(row => `- ${row.business_name} (${row.classification}): "${(row.body ?? '').slice(0, 80)}"`).join('\n')
+          : 'Checked inbox — no new replies from leads.';
+        break;
+      }
       case 'daily':
         await runDailyPipeline();
         output = 'Daily pipeline complete.';
