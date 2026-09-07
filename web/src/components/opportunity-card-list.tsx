@@ -13,6 +13,7 @@ import {
   ChevronUp,
   ChevronDown,
   MapPin,
+  ChevronLeft,
 } from "lucide-react";
 import { ConvertToDeal } from "./convert-to-deal";
 
@@ -216,7 +217,21 @@ function OppCard({ opp }: { opp: Opp }) {
 /* ── Sort / filter ─────────────────────────────────────────────────────── */
 type SortKey = "score" | "pipeline_stage" | "business_name" | "created_at";
 
-export function OpportunityCardList({ opportunities }: { opportunities: Opp[] }) {
+export function OpportunityCardList({
+  opportunities,
+  total,
+  page,
+  totalPages,
+  pageSize,
+  pageLink,
+}: {
+  opportunities: Opp[];
+  total: number;
+  page: number;
+  totalPages: number;
+  pageSize: number;
+  pageLink: (p: number) => string;
+}) {
   const [query, setQuery] = useState("");
   const [sectorFilter, setSectorFilter] = useState("all");
   const [contactFilter, setContactFilter] = useState("all");
@@ -358,9 +373,13 @@ export function OpportunityCardList({ opportunities }: { opportunities: Opp[] })
 
       {/* ── Count ───────────────────────────────────────────────── */}
       <p className="text-xs mb-3" style={{ color: "var(--ink-muted)" }}>
-        {filtered.length === opportunities.length
-          ? `${opportunities.length} opportunit${opportunities.length === 1 ? "y" : "ies"}`
-          : `${filtered.length} of ${opportunities.length}`}
+        {(() => {
+          const from = (page - 1) * pageSize + 1;
+          const to   = Math.min(page * pageSize, total);
+          return filtered.length < opportunities.length
+            ? `${filtered.length} match${filtered.length === 1 ? "" : "es"} on this page`
+            : `${from}–${to} of ${total.toLocaleString()} opportunit${total === 1 ? "y" : "ies"}`;
+        })()}
       </p>
 
       {/* ── Cards ───────────────────────────────────────────────── */}
@@ -384,6 +403,67 @@ export function OpportunityCardList({ opportunities }: { opportunities: Opp[] })
       ) : (
         <div className="flex flex-col gap-2">
           {filtered.map((opp) => <OppCard key={opp.id} opp={opp} />)}
+        </div>
+      )}
+
+      {/* ── Pagination ──────────────────────────────────────────── */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-6 gap-3 flex-wrap">
+          <Link
+            href={pageLink(page - 1)}
+            aria-disabled={page <= 1}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border-c)",
+              color: page <= 1 ? "var(--border-c)" : "var(--ink-secondary)",
+              pointerEvents: page <= 1 ? "none" : "auto",
+            }}
+          >
+            <ChevronLeft size={12} /> Previous
+          </Link>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+              .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === "…" ? (
+                  <span key={`ellipsis-${i}`} className="text-xs px-1" style={{ color: "var(--ink-muted)" }}>…</span>
+                ) : (
+                  <Link
+                    key={p}
+                    href={pageLink(p as number)}
+                    className="text-xs font-medium w-7 h-7 flex items-center justify-center rounded-lg transition-all"
+                    style={{
+                      background: p === page ? "var(--brand)" : "var(--surface)",
+                      color: p === page ? "#fff" : "var(--ink-secondary)",
+                      border: p === page ? "none" : "1px solid var(--border-c)",
+                    }}
+                  >
+                    {p}
+                  </Link>
+                )
+              )}
+          </div>
+
+          <Link
+            href={pageLink(page + 1)}
+            aria-disabled={page >= totalPages}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border-c)",
+              color: page >= totalPages ? "var(--border-c)" : "var(--ink-secondary)",
+              pointerEvents: page >= totalPages ? "none" : "auto",
+            }}
+          >
+            Next <ArrowRight size={12} />
+          </Link>
         </div>
       )}
     </div>

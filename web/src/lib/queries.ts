@@ -573,7 +573,14 @@ export function dateClause(column: string, range: DateRange | undefined, params:
   return clauses.length ? ` AND ${clauses.join(" AND ")}` : "";
 }
 
-export async function getLeads(status?: string, range?: DateRange, sector?: string): Promise<Lead[]> {
+const LEADS_PAGE_SIZE = 50;
+
+export async function getLeads(
+  status?: string,
+  range?: DateRange,
+  sector?: string,
+  page = 1,
+): Promise<Lead[]> {
   const agencyId = await getCurrentAgencyId();
   const params: unknown[] = [agencyId];
   let where = "";
@@ -587,11 +594,37 @@ export async function getLeads(status?: string, range?: DateRange, sector?: stri
   }
   where += dateClause("created_at", range, params);
 
+  const offset = (Math.max(1, page) - 1) * LEADS_PAGE_SIZE;
+  params.push(LEADS_PAGE_SIZE, offset);
   const res = await pool.query(
-    `SELECT * FROM leads WHERE agency_id = $1${where} ORDER BY created_at DESC LIMIT 200`,
+    `SELECT * FROM leads WHERE agency_id = $1${where} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
   return res.rows.map(normalizeLead);
+}
+
+export async function getLeadsCount(
+  status?: string,
+  range?: DateRange,
+  sector?: string,
+): Promise<number> {
+  const agencyId = await getCurrentAgencyId();
+  const params: unknown[] = [agencyId];
+  let where = "";
+  if (status) {
+    params.push(status);
+    where += ` AND status = $${params.length}`;
+  }
+  if (sector) {
+    params.push(sector);
+    where += ` AND sector = $${params.length}`;
+  }
+  where += dateClause("created_at", range, params);
+  const res = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM leads WHERE agency_id = $1${where}`,
+    params
+  );
+  return res.rows[0].n;
 }
 
 export async function getDueActions(limit = 8): Promise<Lead[]> {

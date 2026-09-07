@@ -4,24 +4,27 @@ import { RunScoutModal } from "@/components/run-scout-modal";
 import { OpportunityCardList } from "@/components/opportunity-card-list";
 import { DateFilter } from "@/components/date-filter";
 import { SectorFilter } from "@/components/sector-filter";
-import { getLeads, getSectorBreakdown, PIPELINE_STAGES } from "@/lib/queries";
+import { getLeads, getLeadsCount, getSectorBreakdown, PIPELINE_STAGES } from "@/lib/queries";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 const STAGE_FILTERS = ["All", ...PIPELINE_STAGES] as const;
+const PAGE_SIZE = 50;
 
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ stage?: string; from?: string; to?: string; sector?: string }>;
+  searchParams: Promise<{ stage?: string; from?: string; to?: string; sector?: string; page?: string }>;
 }) {
-  const { stage, from, to, sector } = await searchParams;
+  const { stage, from, to, sector, page: pageParam } = await searchParams;
   const activeStage = stage ?? "All";
   const dateRange   = (from || to) ? { from, to } : undefined;
+  const page        = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
 
-  const [leads, sectorStats] = await Promise.all([
-    getLeads(undefined, dateRange, sector),
+  const [leads, total, sectorStats] = await Promise.all([
+    getLeads(undefined, dateRange, sector, page),
+    getLeadsCount(undefined, dateRange, sector),
     getSectorBreakdown(20),
   ]);
   const sectorList = sectorStats.map((s) => s.sector);
@@ -31,7 +34,9 @@ export default async function OpportunitiesPage({
       ? leads
       : leads.filter((l) => l.pipeline_stage === activeStage);
 
-  // Stage counts for tabs
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  // Stage counts come from the full count query — approximate from current page for tab labels
   const stageCounts = PIPELINE_STAGES.reduce<Record<string, number>>((acc, s) => {
     acc[s] = leads.filter((l) => l.pipeline_stage === s).length;
     return acc;
@@ -39,6 +44,17 @@ export default async function OpportunitiesPage({
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayCount = leads.filter((l) => String(l.created_at).slice(0, 10) === todayStr).length;
+
+  function pageLink(p: number) {
+    const sp = new URLSearchParams();
+    if (stage && stage !== "All") sp.set("stage", stage);
+    if (sector) sp.set("sector", sector);
+    if (from) sp.set("from", from);
+    if (to) sp.set("to", to);
+    if (p > 1) sp.set("page", String(p));
+    const qs = sp.toString();
+    return qs ? `/opportunities?${qs}` : "/opportunities";
+  }
 
   return (
     <AppShell>
@@ -87,7 +103,7 @@ export default async function OpportunitiesPage({
             if (to) sp.set("to", to);
             const qs = sp.toString();
             const href = qs ? `/opportunities?${qs}` : "/opportunities";
-            const count = s === "All" ? leads.length : (stageCounts[s] ?? 0);
+            const count = s === "All" ? total : (stageCounts[s] ?? 0);
             return (
               <Link
                 key={s}
@@ -115,7 +131,14 @@ export default async function OpportunitiesPage({
         </div>
 
         {/* ── Opportunity cards ───────────────────────────────────────────── */}
-        <OpportunityCardList opportunities={filtered} />
+        <OpportunityCardList
+          opportunities={filtered}
+          total={total}
+          page={page}
+          totalPages={totalPages}
+          pageSize={PAGE_SIZE}
+          pageLink={pageLink}
+        />
 
       </div>
     </AppShell>
