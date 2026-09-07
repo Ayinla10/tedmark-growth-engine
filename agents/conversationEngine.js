@@ -82,7 +82,7 @@ export const AGENT_REGISTRY = {
     questions: {},
   },
   'check-replies': {
-    description: 'Check inbox for lead replies, classify them, and draft follow-up responses for approval',
+    description: 'Check inbox for lead replies, classify intent, draft a follow-up response, and send it to you for approval before sending',
     requiredArgs: [],
     optionalArgs: [],
     defaults: {},
@@ -201,6 +201,7 @@ ${agentDescriptions}
 RULES:
 - "ok/yes/go ahead" after a confirm → dispatch immediately.
 - To find leads: scout or web-scout. To get contacts: enrich. To score: qualify/icp-score. To email: outreach then send.
+- To handle lead replies: check-replies — it checks inbox, classifies each reply, drafts a response, and sends it to the owner for approval before anything is sent. This IS conversation management — describe it that way.
 - "those/them/the ones we found" + LAST SCOUT present → use those lead_ids.
 - Sector hint in message → sector arg. City hint → city arg. Time hint → since arg.
 - Never promise action in a converse message — use confirm or dispatch instead.
