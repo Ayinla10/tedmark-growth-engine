@@ -73,3 +73,9 @@ export const waPending = {
   set: (phone, value)   => set(`wa_pending:${phone}`, value),
   del: (phone)          => del(`wa_pending:${phone}`),
 };
+
+// Pillar 2: rolling conversation summary per chat
+export const conversationSummary = {
+  get: (chatId)        => get(`tg_summary:${chatId}`),
+  set: (chatId, value) => set(`tg_summary:${chatId}`, value),
+};

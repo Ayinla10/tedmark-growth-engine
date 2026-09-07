@@ -9,13 +9,14 @@ import {
   getQualifiedLeads,
   getOutreachById,
   getAgencyIdsWithActiveTelegramLinks,
+  getOverdueLeads,
   query,
 } from '../tools/db.js';
 import { runApprove, runSend } from './outreach.js';
 import { setSetting } from '../tools/settings.js';
 import { notifyTelegram } from '../tools/telegramNotify.js';
-import { processOwnerMessage, dispatchAgent, summariseAgentResult, loadBusinessContext } from './conversationEngine.js';
-import { pendingConfirmations, pendingArgCollection, lastScoutResults } from '../tools/botState.js';
+import { processOwnerMessage, dispatchAgent, summariseAgentResult, loadBusinessContext, compressConversationSummary } from './conversationEngine.js';
+import { pendingConfirmations, pendingArgCollection, lastScoutResults, conversationSummary } from '../tools/botState.js';
 
 const COMMANDS = [
   { command: 'start', description: 'Connect or check your link status' },
@@ -246,7 +247,10 @@ async function handleCommand(link, text, chatId, agencyId) {
     }
 
     // ── Intelligent conversation engine ────────────────────────────────────────
-    const pending = await pendingConfirmations.get(chatId) ?? null;
+    const [pending, summaryRaw] = await Promise.all([
+      pendingConfirmations.get(chatId),
+      conversationSummary.get(chatId),
+    ]);
 
     // Build last-scout context string for the AI prompt — persists until a new scout replaces it
     const scoutMem = await lastScoutResults.get(chatId);
@@ -263,8 +267,9 @@ async function handleCommand(link, text, chatId, agencyId) {
       text,
       linkId: link.id,
       agencyId,
-      pendingConfirmation: pending,
+      pendingConfirmation: pending ?? null,
       lastScoutContext,
+      conversationSummaryText: summaryRaw ?? '',
     });
 
     // If AI dispatched an agent without lead_ids but owner was clearly referencing the last scout
@@ -286,6 +291,11 @@ async function handleCommand(link, text, chatId, agencyId) {
     }
 
     await reply(link, chatId, result.reply);
+
+    // Pillar 2: update rolling conversation summary (non-blocking)
+    compressConversationSummary(summaryRaw ?? '', text, result.reply)
+      .then(newSummary => conversationSummary.set(chatId, newSummary))
+      .catch(() => {});
 
     // If AI generated a draft (e.g. a suggested message), send it as a follow-up
     if (result.draft) {
@@ -535,6 +545,22 @@ export async function runTelegramBot() {
   console.log('[telegram-bot] Scheduling daily report at 18:00...');
   cron.schedule('0 18 * * *', () => {
     sendDailyReports().catch((err) => console.error('[telegram-bot] Daily report run failed:', err));
+  });
+
+  // Pillar 3: proactive overdue alerts — runs every morning at 09:00 Ghana time (UTC)
+  cron.schedule('0 9 * * *', async () => {
+    console.log('[telegram-bot] Proactive overdue check running...');
+    try {
+      const agencyIds = await getAgencyIdsWithActiveTelegramLinks();
+      for (const { agency_id, chat_id } of agencyIds) {
+        const overdue = await getOverdueLeads(agency_id, 5);
+        if (!overdue.length) continue;
+        const lines = overdue.map(l => `• ${l.business_name} — ${l.next_action ?? 'action'} overdue since ${l.next_action_due?.slice(0,10)}`).join('\n');
+        await sendMessage(chat_id, `⚠️ *${overdue.length} lead${overdue.length > 1 ? 's' : ''} need attention today:*\n\n${lines}\n\nReply with "outreach" to draft emails, or tell me which one to focus on.`, { parse_mode: 'Markdown' });
+      }
+    } catch (err) {
+      console.error('[telegram-bot] Proactive overdue check failed:', err.message);
+    }
   });
 
   console.log('[telegram-bot] Starting long-poll loop. Press Ctrl+C to stop.');

@@ -16,6 +16,8 @@ import {
   getRecentTelegramMessages,
   searchLeadByName,
   searchLeadsBySector,
+  getOverdueLeads,
+  getPipelineCounts,
 } from '../tools/db.js';
 
 // ── Agent registry ─────────────────────────────────────────────────────────────
@@ -94,6 +96,14 @@ export const AGENT_REGISTRY = {
     description: 'Generate a performance analytics report',
     requiredArgs: [],
     optionalArgs: [],
+    defaults: {},
+    questions: {},
+  },
+  'pipeline-query': {
+    description: 'Look up pipeline data — counts, overdue leads, sector breakdowns, lead status — read-only, instant, no confirmation needed',
+    instant: true,
+    requiredArgs: [],
+    optionalArgs: ['filter', 'sector'],
     defaults: {},
     questions: {},
   },
@@ -209,22 +219,68 @@ async function loadMentionedLead(message, agencyId) {
 }
 
 // ── Load recent conversation history ──────────────────────────────────────────
-async function loadHistory(linkId) {
-  if (!linkId) return ''; // WhatsApp has no link table — skip gracefully
+// ── Pillar 1: inline pipeline-query handler ────────────────────────────────────
+export async function runInlinePipelineQuery(args, agencyId) {
+  const filter = (args?.filter ?? args?.sector ?? '').toLowerCase();
   try {
-    const msgs = await getRecentTelegramMessages(linkId, 6);
-    if (!msgs.length) return '';
-    return msgs
+    if (filter && !['overdue', 'counts', 'summary'].includes(filter)) {
+      // Sector lookup
+      const rows = await searchLeadsBySector(filter, agencyId, 8);
+      if (!rows.length) return `0 ${filter}s found in the database.`;
+      return `${filter}s in pipeline (${rows.length}):\n` + rows.map(l =>
+        `• ${l.business_name} | ${l.status}${l.score != null ? ` | ${l.score}/10` : ''}${l.pipeline_stage ? ` | ${l.pipeline_stage}` : ''}${l.next_action_due && new Date(l.next_action_due) < new Date() ? ' | ⚠️ Overdue' : ''}`
+      ).join('\n');
+    }
+    if (filter === 'overdue') {
+      const rows = await getOverdueLeads(agencyId, 8);
+      if (!rows.length) return 'No overdue leads — all actions are on schedule.';
+      return `Overdue leads (${rows.length}):\n` + rows.map(l =>
+        `• ${l.business_name} — ${l.next_action ?? 'action'} was due ${l.next_action_due?.slice(0,10)}`
+      ).join('\n');
+    }
+    // Default: full counts summary
+    const c = await getPipelineCounts(agencyId);
+    return `Pipeline: ${c.total} total | ${c.raw} raw | ${c.enriched} enriched | ${c.qualified} qualified | ${c.outreach_sent} outreach sent | ${c.replied} replied | ${c.overdue} overdue`;
+  } catch (err) {
+    return `Pipeline query failed: ${err.message}`;
+  }
+}
+
+// ── Pillar 2: rolling conversation summary ─────────────────────────────────────
+export async function compressConversationSummary(existingSummary, userMessage, botReply) {
+  try {
+    const exchange = `Owner: ${userMessage.slice(0, 300)}\nAssistant: ${botReply.slice(0, 300)}`;
+    const input = existingSummary
+      ? `Previous summary:\n${existingSummary}\n\nNew exchange:\n${exchange}`
+      : exchange;
+    const compressed = await complete({
+      system: 'Compress this conversation into 2-3 sentences capturing: topics discussed, decisions made, agents run, leads mentioned by name, current focus/task. Be specific, not generic.',
+      user: input,
+      maxTokens: 150,
+    });
+    return compressed.trim();
+  } catch {
+    return existingSummary ?? '';
+  }
+}
+
+async function loadHistory(linkId, conversationSummaryText = '') {
+  const parts = [];
+  if (conversationSummaryText) parts.push(`CONVERSATION SO FAR: ${conversationSummaryText}`);
+  if (!linkId) return parts.join('\n'); // WhatsApp has no link table
+  try {
+    const msgs = await getRecentTelegramMessages(linkId, 8);
+    if (!msgs.length) return parts.join('\n');
+    const recent = msgs
       .map(m => {
         const role = m.direction === 'inbound' ? 'Owner' : 'Assistant';
-        // Truncate long messages (agent summaries can be 400+ chars) to keep prompt lean
-        const body = m.body.length > 300 ? m.body.slice(0, 300) + '…' : m.body;
+        const body = m.body.length > 400 ? m.body.slice(0, 400) + '…' : m.body;
         return `${role}: ${body}`;
       })
       .join('\n');
-  } catch {
-    return '';
-  }
+    if (recent) parts.push(`RECENT:\n${recent}`);
+  } catch { /* ignore */ }
+  return parts.join('\n');
 }
 
 // ── Core intelligence: classify + extract + gap-detect ────────────────────────
@@ -238,28 +294,35 @@ async function think(userMessage, businessContext, liveSnapshot, history, lastSc
   const needsSnapshot = /\b(pipeline|leads?|status|outreach|drafts?|qualify|enrich|scout|send|report|score|overdue|today|how many|how are)\b/i.test(userMessage);
   const snapshotSection = needsSnapshot ? liveSnapshot : '';
 
-  const systemPrompt = `You are the Tedmark Growth AI for the owner of Tedmark Digital. You run real agents — never invent lead names or contacts.
+  const systemPrompt = `You are the Tedmark Growth AI — a sharp, trusted assistant who's been on the Tedmark Digital team for months. You know the pipeline, you know the owner, and you check before you guess.
 
 BUSINESS: ${businessContext || 'Tedmark Digital — digital marketing agency in Ghana.'}
-${snapshotSection}${lastScoutContext ? `\n${lastScoutContext}` : ''}${mentionedLead ? `\nLEAD LOOKUP:\n${mentionedLead}` : ''}${history ? `\nRECENT:\n${history}` : ''}
+${snapshotSection}${lastScoutContext ? `\n${lastScoutContext}` : ''}${mentionedLead ? `\n${mentionedLead}` : ''}${history ? `\n${history}` : ''}
 
 AGENTS:
 ${agentDescriptions}
 
-AGENT NUMBERS (owner may refer to agents by number):
-1=scout 2=web-scout 3=enrich 4=enrich-dm 5=qualify 6=icp-score 7=outreach 8=send 9=check-replies 10=analytics 11=daily
+AGENT NUMBERS: 1=scout 2=web-scout 3=enrich 4=enrich-dm 5=qualify 6=icp-score 7=outreach 8=send 9=check-replies 10=analytics 11=daily 12=pipeline-query
 
-RULES:
-- "start over", "reset", "fresh start", "never mind" with no agent context → respond with a brief greeting and ask what they'd like to do. Never treat as a pipeline command.
+DECISION LOGIC (follow strictly):
+- Owner asks about existing data (counts, status, a specific lead, a sector) → dispatch pipeline-query instantly — never guess.
+- Owner says a number (e.g. "9") → map to agent above and confirm/dispatch.
+- "start over" / "reset" / "fresh start" → greet warmly, ask what they'd like to do. Never run a pipeline.
 - "ok/yes/go ahead" after a confirm → dispatch immediately.
-- If the owner says a number (e.g. "9", "option 9", "number 9") → map it to the agent above and confirm/dispatch it.
-- To find leads: scout or web-scout. To get contacts: enrich. To score: qualify/icp-score. To email: outreach then send.
-- To handle lead replies: check-replies — it checks inbox, classifies each reply, drafts a response, and sends it to the owner for approval before anything is sent. This IS conversation management — describe it that way.
-- If LEAD LOOKUP is present in context → summarise that lead's status and suggest a clear next step.
-- If SECTOR LOOKUP is present in context → list the leads shown and suggest next steps (enrich, qualify, outreach). If "0 found", say so and offer to scout that sector.
 - "those/them/the ones we found" + LAST SCOUT present → use those lead_ids.
-- Sector hint in message → sector arg. City hint → city arg. Time hint → since arg.
-- Never promise action in a converse message — use confirm or dispatch instead.
+- If LEAD LOOKUP or SECTOR LOOKUP is in context → answer from it directly; suggest a concrete next step.
+- If 0 leads found for a sector → say so, offer to scout it.
+- To find leads: scout or web-scout. Contacts: enrich. Score: qualify/icp-score. Email: outreach then send. Replies: check-replies.
+- Never promise action in a converse message — use confirm or dispatch.
+- If unclear, ask exactly one specific question — never guess and act.
+
+PERSONALITY:
+- Talk like someone who's been on this team for months — not a menu system or customer service bot.
+- Acknowledge what the owner just said before answering — don't restart cold each turn.
+- When checking something, say so briefly first: "Let me check that..." then give the real answer.
+- Vary your phrasing — don't reuse the same sentence structure every turn.
+- Never use filler: "No problem!", "What else can I help with?", "Great question!" — get straight to the point.
+- If you ran something or found something, lead with the result, not the process.
 
 RESPOND with exactly one JSON object (no markdown):
 {"type":"converse","message":"<150 chars, plain text>"}
@@ -268,7 +331,7 @@ RESPOND with exactly one JSON object (no markdown):
 {"type":"confirm","command":"name","args":{},"message":"what will run — confirm?"}
 {"type":"dispatch","command":"name","args":{}}
 
-"message" ≤150 chars. Never put draft content in "message". Never ask two questions.`;
+pipeline-query dispatches instantly — no confirmation step. "message" ≤150 chars. Never put draft content in "message". Never ask two questions.`;
 
   try {
     console.log(`[engine] think() prompt_chars=${systemPrompt.length} user="${userMessage.slice(0, 60)}"`);
@@ -379,11 +442,11 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
  *  - Sending the reply immediately
  *  - If dispatch present: calling dispatchAgent, then sending the summarised result
  */
-export async function processOwnerMessage({ text, linkId, agencyId, pendingConfirmation = null, lastScoutContext = '', waHistory = null }) {
+export async function processOwnerMessage({ text, linkId, agencyId, pendingConfirmation = null, lastScoutContext = '', waHistory = null, conversationSummaryText = '' }) {
   const [businessContext, liveSnapshot, dbHistory, mentionedLead] = await Promise.all([
     loadBusinessContext(agencyId),
     loadLiveSnapshot(agencyId),
-    loadHistory(linkId),
+    loadHistory(linkId, conversationSummaryText),
     loadMentionedLead(text, agencyId),
   ]);
   // WhatsApp passes pre-built history; Telegram uses DB-loaded history
@@ -430,6 +493,20 @@ export async function processOwnerMessage({ text, linkId, agencyId, pendingConfi
   }
 
   if (thought.type === 'dispatch') {
+    const agent = AGENT_REGISTRY[thought.command];
+    // Pillar 1: instant agents run inline — no webhook, no "give me a minute" reply
+    if (agent?.instant) {
+      const queryResult = await runInlinePipelineQuery(thought.args ?? {}, agencyId);
+      // Feed the result back to the AI for a natural conversational reply
+      const naturalReply = await complete({
+        system: `You are the Tedmark Growth AI. The owner asked a question and you just retrieved the answer from the database. Reply naturally and helpfully in plain text (no JSON). Acknowledge what they asked, give the data, and suggest a clear next step if obvious. Max 3 sentences.
+
+Business context: ${businessContext || 'Tedmark Digital, digital marketing agency in Ghana.'}${history ? `\n${history}` : ''}`,
+        user: `Owner asked: "${text}"\n\nData retrieved:\n${queryResult}`,
+        maxTokens: 250,
+      }).catch(() => queryResult);
+      return { reply: naturalReply.trim(), clearPending: true };
+    }
     return {
       reply: `On it — running ${thought.command}... this may take a minute.`,
       dispatch: { command: thought.command, args: thought.args ?? {} },

@@ -255,6 +255,34 @@ export async function searchLeadByName(name, agencyId) {
   return result.rows;
 }
 
+export async function getOverdueLeads(agencyId, limit = 10) {
+  const result = await query(
+    `SELECT business_name, pipeline_stage, next_action, next_action_due, score, deal_value, deal_currency
+     FROM leads
+     WHERE agency_id = $1 AND next_action_due IS NOT NULL AND next_action_due < now() AND status != 'archived'
+     ORDER BY next_action_due ASC LIMIT $2`,
+    [agencyId, limit]
+  );
+  return result.rows;
+}
+
+export async function getPipelineCounts(agencyId) {
+  const result = await query(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'raw') AS raw,
+       COUNT(*) FILTER (WHERE status = 'enriched') AS enriched,
+       COUNT(*) FILTER (WHERE status = 'qualified') AS qualified,
+       COUNT(*) FILTER (WHERE status = 'outreach') AS outreach_sent,
+       COUNT(*) FILTER (WHERE status = 'replied') AS replied,
+       COUNT(*) FILTER (WHERE pipeline_stage IS NOT NULL AND pipeline_stage != '') AS in_pipeline,
+       COUNT(*) FILTER (WHERE next_action_due IS NOT NULL AND next_action_due < now()) AS overdue,
+       COUNT(*) AS total
+     FROM leads WHERE agency_id = $1 AND status != 'archived'`,
+    [agencyId]
+  );
+  return result.rows[0];
+}
+
 export async function searchLeadsBySector(sector, agencyId, limit = 5) {
   const result = await query(
     `SELECT business_name, status, score, pipeline_stage, next_action, next_action_due,
