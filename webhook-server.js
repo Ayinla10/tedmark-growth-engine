@@ -227,7 +227,7 @@ app.post('/run/:command', requireSecret, async (req, res) => {
       case 'check-replies': {
         await runReplyWatcher();
         const r = await query(
-          `SELECT l.business_name, ar.classification, ar.body FROM auto_replies ar JOIN leads l ON l.id = ar.lead_id WHERE ar.created_at >= $1 ORDER BY ar.created_at DESC LIMIT 10`,
+          `SELECT l.business_name, ar.classification, ar.body FROM replies ar JOIN leads l ON l.id = ar.lead_id WHERE ar.created_at >= $1 ORDER BY ar.created_at DESC LIMIT 10`,
           [since]
         );
         output = r.rows.length
