@@ -163,11 +163,13 @@ async function loadLiveSnapshot(agencyId) {
 
 // ── Look up a specific lead by name mention ────────────────────────────────────
 async function loadMentionedLead(message, agencyId) {
-  // Only run if message looks like a specific lead enquiry
-  if (!/\b(status|how is|what about|update on|tell me about|find|show me|check)\b/i.test(message)) return '';
   // Extract quoted or capitalised multi-word name (e.g. "Nyaho Medical", "Glow Clinic")
   const nameMatch = message.match(/["']([^"']{3,50})["']/) ||
                     message.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4})\b/);
+  // Only run if message looks like a specific lead enquiry OR is just a bare name (no verb)
+  const hasEnquiryKeyword = /\b(status|how is|what about|update on|tell me about|find|show me|check)\b/i.test(message);
+  const isBareNameOnly = nameMatch && message.trim().split(/\s+/).length <= 5;
+  if (!hasEnquiryKeyword && !isBareNameOnly) return '';
   if (!nameMatch) return '';
   const name = nameMatch[1];
   try {
@@ -237,6 +239,7 @@ RULES:
 - If the owner says a number (e.g. "9", "option 9", "number 9") → map it to the agent above and confirm/dispatch it.
 - To find leads: scout or web-scout. To get contacts: enrich. To score: qualify/icp-score. To email: outreach then send.
 - To handle lead replies: check-replies — it checks inbox, classifies each reply, drafts a response, and sends it to the owner for approval before anything is sent. This IS conversation management — describe it that way.
+- If LEAD LOOKUP is present in context → summarise that lead's status and suggest a clear next step.
 - "those/them/the ones we found" + LAST SCOUT present → use those lead_ids.
 - Sector hint in message → sector arg. City hint → city arg. Time hint → since arg.
 - Never promise action in a converse message — use confirm or dispatch instead.
