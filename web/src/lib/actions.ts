@@ -53,7 +53,7 @@ export async function runScoutAction(sector: string, city: string, limit: number
 async function logRun(command: string, leadId: string | undefined, result: { ok: boolean; output: string }) {
   try {
     const session = await getSession();
-    if (session) await insertAgentRunDb(session.agencyId, leadId ?? null, command, result.ok, result.output);
+    if (session?.agencyId) await insertAgentRunDb(session.agencyId, leadId ?? null, command, result.ok, result.output);
   } catch { /* non-blocking */ }
 }
 
