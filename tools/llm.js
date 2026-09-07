@@ -16,7 +16,7 @@ const USE_OPENROUTER = !!process.env.OPENROUTER_API_KEY;
 
 export const LLM_MODEL = process.env.LLM_MODEL || (
   USE_OPENROUTER
-    ? 'google/gemma-4-31b:free'
+    ? 'google/gemma-3-27b-it:free'
     : 'deepseek-chat'
 );
 
