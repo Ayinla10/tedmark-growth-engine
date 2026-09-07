@@ -241,6 +241,20 @@ export async function updateLeadIcpScore(id, { budget, authority, need, urgency,
   return result.rows[0];
 }
 
+export async function searchLeadByName(name, agencyId) {
+  const result = await query(
+    `SELECT business_name, status, score, score_reason, email, phone, website,
+            pipeline_stage, next_action, next_action_due, deal_value, deal_currency,
+            industry, city, country
+     FROM leads
+     WHERE agency_id = $1 AND business_name ILIKE $2
+     ORDER BY score DESC NULLS LAST
+     LIMIT 3`,
+    [agencyId, `%${name}%`]
+  );
+  return result.rows;
+}
+
 export async function getTelegramStatusSummary(agencyId) {
   const id = agencyId ?? (await getCurrentAgencyId());
   const [leads, outreach, proposals, dueActions] = await Promise.all([

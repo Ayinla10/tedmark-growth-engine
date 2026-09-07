@@ -14,6 +14,7 @@ import {
   getTelegramStatusSummary,
   getQualifiedLeads,
   getRecentTelegramMessages,
+  searchLeadByName,
 } from '../tools/db.js';
 
 // ── Agent registry ─────────────────────────────────────────────────────────────
@@ -160,6 +161,36 @@ async function loadLiveSnapshot(agencyId) {
   }
 }
 
+// ── Look up a specific lead by name mention ────────────────────────────────────
+async function loadMentionedLead(message, agencyId) {
+  // Only run if message looks like a specific lead enquiry
+  if (!/\b(status|how is|what about|update on|tell me about|find|show me|check)\b/i.test(message)) return '';
+  // Extract quoted or capitalised multi-word name (e.g. "Nyaho Medical", "Glow Clinic")
+  const nameMatch = message.match(/["']([^"']{3,50})["']/) ||
+                    message.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4})\b/);
+  if (!nameMatch) return '';
+  const name = nameMatch[1];
+  try {
+    const rows = await searchLeadByName(name, agencyId);
+    if (!rows.length) return `No lead found matching "${name}".`;
+    return rows.map(l => {
+      const parts = [
+        `Lead: ${l.business_name}`,
+        `Status: ${l.status}${l.score != null ? ` | Score: ${l.score}/10` : ''}`,
+        l.score_reason ? `Score reason: ${l.score_reason}` : '',
+        l.pipeline_stage ? `Pipeline: ${l.pipeline_stage}` : '',
+        l.next_action ? `Next action: ${l.next_action}${l.next_action_due ? ` (due ${l.next_action_due.slice(0,10)})` : ''}` : '',
+        l.deal_value ? `Deal value: ${l.deal_currency ?? ''} ${l.deal_value}` : '',
+        l.email ? `Email: ${l.email}` : '',
+        l.phone ? `Phone: ${l.phone}` : '',
+      ].filter(Boolean).join(' | ');
+      return parts;
+    }).join('\n');
+  } catch {
+    return '';
+  }
+}
+
 // ── Load recent conversation history ──────────────────────────────────────────
 async function loadHistory(linkId) {
   if (!linkId) return ''; // WhatsApp has no link table — skip gracefully
@@ -180,7 +211,7 @@ async function loadHistory(linkId) {
 }
 
 // ── Core intelligence: classify + extract + gap-detect ────────────────────────
-async function think(userMessage, businessContext, liveSnapshot, history, lastScoutContext = '') {
+async function think(userMessage, businessContext, liveSnapshot, history, lastScoutContext = '', mentionedLead = '') {
   const agentDescriptions = Object.entries(AGENT_REGISTRY)
     .map(([k, v]) => `  ${k}: ${v.description}`)
     .join('\n');
@@ -193,7 +224,7 @@ async function think(userMessage, businessContext, liveSnapshot, history, lastSc
   const systemPrompt = `You are the Tedmark Growth AI for the owner of Tedmark Digital. You run real agents — never invent lead names or contacts.
 
 BUSINESS: ${businessContext || 'Tedmark Digital — digital marketing agency in Ghana.'}
-${snapshotSection}${lastScoutContext ? `\n${lastScoutContext}` : ''}${history ? `\nRECENT:\n${history}` : ''}
+${snapshotSection}${lastScoutContext ? `\n${lastScoutContext}` : ''}${mentionedLead ? `\nLEAD LOOKUP:\n${mentionedLead}` : ''}${history ? `\nRECENT:\n${history}` : ''}
 
 AGENTS:
 ${agentDescriptions}
@@ -329,10 +360,11 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
  *  - If dispatch present: calling dispatchAgent, then sending the summarised result
  */
 export async function processOwnerMessage({ text, linkId, agencyId, pendingConfirmation = null, lastScoutContext = '', waHistory = null }) {
-  const [businessContext, liveSnapshot, dbHistory] = await Promise.all([
+  const [businessContext, liveSnapshot, dbHistory, mentionedLead] = await Promise.all([
     loadBusinessContext(agencyId),
     loadLiveSnapshot(agencyId),
     loadHistory(linkId),
+    loadMentionedLead(text, agencyId),
   ]);
   // WhatsApp passes pre-built history; Telegram uses DB-loaded history
   const history = waHistory ?? dbHistory;
@@ -359,7 +391,7 @@ export async function processOwnerMessage({ text, linkId, agencyId, pendingConfi
     // Not a clear yes/no — treat as new message, clear pending
   }
 
-  const thought = await think(text, businessContext, liveSnapshot, history, lastScoutContext);
+  const thought = await think(text, businessContext, liveSnapshot, history, lastScoutContext, mentionedLead);
 
   if (thought.type === 'dispatch' || thought.type === 'confirm') {
     // Validate required args before confirming or dispatching
