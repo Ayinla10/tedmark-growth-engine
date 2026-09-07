@@ -260,13 +260,9 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
       throw new Error('empty fallback response');
     } catch (err2) {
       console.error('[engine] fallback also failed:', err2?.message ?? err2);
-      // Last resort: tell the owner what we do know — show live snapshot
-      const snap = liveSnapshot || '';
       return {
         type: 'converse',
-        message: snap
-          ? `Not sure what you meant — here's where things stand:\n\n${snap}`
-          : "What would you like to do? You can ask me to find leads, enrich, qualify, or send outreach.",
+        message: "AI is temporarily unavailable — DeepSeek may be down or rate-limiting. Try again in a moment. Commands still work: /status /leads /help",
       };
     }
   }
