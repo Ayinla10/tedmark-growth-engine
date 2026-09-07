@@ -266,6 +266,42 @@ export async function getOverdueLeads(agencyId, limit = 10) {
   return result.rows;
 }
 
+// Feature 2: 7-day rolling baselines for anomaly detection
+export async function get7DayBaselines(agencyId) {
+  const res = await query(
+    `SELECT
+       round(count(*) FILTER (WHERE created_at > now() - '7 days'::interval)::numeric / 7, 1) AS leads_per_day,
+       round(count(*) FILTER (WHERE created_at::date = now()::date)::numeric, 0) AS leads_today,
+       (SELECT round(count(*)::numeric / 7, 1) FROM outreach WHERE created_at > now() - '7 days'::interval
+        AND lead_id IN (SELECT id FROM leads WHERE agency_id = $1)) AS outreach_per_day,
+       (SELECT count(*) FROM outreach WHERE created_at::date = now()::date
+        AND lead_id IN (SELECT id FROM leads WHERE agency_id = $1)) AS outreach_today
+     FROM leads WHERE agency_id = $1 AND status != 'archived'`,
+    [agencyId]
+  );
+  return res.rows[0];
+}
+
+// Feature 7: overdue leads with total pipeline value
+export async function getOverdueWithValue(agencyId, limit = 10) {
+  const res = await query(
+    `SELECT business_name, next_action, next_action_due, pipeline_stage, deal_value, deal_currency,
+            EXTRACT(DAY FROM now() - next_action_due)::int AS days_overdue
+     FROM leads
+     WHERE agency_id = $1
+       AND next_action_due IS NOT NULL
+       AND next_action_due < now()
+       AND status != 'archived'
+     ORDER BY next_action_due ASC
+     LIMIT $2`,
+    [agencyId, limit]
+  );
+  const rows = res.rows;
+  const totalValue = rows.reduce((sum, r) => sum + (parseFloat(r.deal_value) || 0), 0);
+  const currency = rows.find(r => r.deal_currency)?.deal_currency ?? 'GHS';
+  return { rows, totalValue, currency };
+}
+
 export async function getPipelineCounts(agencyId) {
   const result = await query(
     `SELECT
@@ -546,6 +582,24 @@ export async function markPendingFollowUpsSent(leadId) {
     [leadId]
   );
   return result.rows;
+}
+
+// Agency-scoped: outreach sent N+ days ago with no reply, used for proactive follow-up alerts
+export async function getOutreachWithoutReply(agencyId, daysAgo = 3, limit = 10) {
+  const res = await query(
+    `SELECT o.id, o.subject, o.sent_at, l.business_name, l.email
+     FROM outreach o
+     JOIN leads l ON l.id = o.lead_id
+     WHERE l.agency_id = $1
+       AND o.status = 'sent'
+       AND o.replied = false
+       AND o.sent_at < now() - ($2 || ' days')::interval
+       AND o.sent_at > now() - '30 days'::interval
+     ORDER BY o.sent_at DESC
+     LIMIT $3`,
+    [agencyId, daysAgo, limit]
+  );
+  return res.rows;
 }
 
 export async function getOutreachAwaitingReply(daysSinceSent) {

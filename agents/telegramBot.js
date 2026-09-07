@@ -10,13 +10,15 @@ import {
   getOutreachById,
   getAgencyIdsWithActiveTelegramLinks,
   getOverdueLeads,
+  getOutreachWithoutReply,
+  getOverdueWithValue,
   query,
 } from '../tools/db.js';
 import { runApprove, runSend } from './outreach.js';
 import { setSetting } from '../tools/settings.js';
 import { notifyTelegram } from '../tools/telegramNotify.js';
-import { processOwnerMessage, dispatchAgent, summariseAgentResult, loadBusinessContext, compressConversationSummary } from './conversationEngine.js';
-import { pendingConfirmations, pendingArgCollection, lastScoutResults, conversationSummary } from '../tools/botState.js';
+import { processOwnerMessage, dispatchAgent, summariseAgentResult, loadBusinessContext, compressConversationSummary, updateOwnerPreferences } from './conversationEngine.js';
+import { pendingConfirmations, pendingArgCollection, lastScoutResults, conversationSummary, planQueue, ownerPreferences, declinedSuggestions } from '../tools/botState.js';
 
 const COMMANDS = [
   { command: 'start', description: 'Connect or check your link status' },
@@ -228,23 +230,8 @@ async function handleCommand(link, text, chatId, agencyId) {
       return await reply(link, chatId, HELP_TEXT);
     }
 
-    // ── Natural language fast paths — instant DB queries, no AI needed ─────────
-    if (/\b(overdue|attention|urgent|needs action|follow.?up|pull the|show the)\b/i.test(lower) &&
-        /\b(overdue|attention|urgent)\b/i.test(lower)) {
-      return await reply(link, chatId, await formatAttention(agencyId));
-    }
-    if (/\b(status|report|how are we|how.?s it going|today|summary|current report)\b/i.test(lower)) {
-      const s = await getTelegramStatusSummary(agencyId);
-      return await reply(link, chatId, formatStatus(s));
-    }
-    if (/\b(top leads?|best leads?|qualified leads?|show leads?)\b/i.test(lower)) {
-      return await reply(link, chatId, await formatTopLeads(agencyId));
-    }
-    // "try again" / "again" with no pending → show status as a useful default
-    if (/^(try again|again|retry|repeat)$/i.test(lower)) {
-      const s = await getTelegramStatusSummary(agencyId);
-      return await reply(link, chatId, formatStatus(s));
-    }
+    // ── Feature 2: pending plan — let AI decide confirmed/cancelled/clarify ──────
+    const pendingPlan = await planQueue.get(chatId);
 
     // ── Intelligent conversation engine ────────────────────────────────────────
     const [pending, summaryRaw] = await Promise.all([
@@ -263,11 +250,16 @@ async function handleCommand(link, text, chatId, agencyId) {
     // Auto-inject lead_ids for clearly referential messages ("enrich those", "qualify them")
     const isReferential = /\b(those|them|these|the ones|the leads?|what you found|just found)\b/i.test(text);
 
+    // Build the effective pending confirmation — prefer a pending plan over a single-step pending
+    const effectivePending = pendingPlan
+      ? { command: 'plan', args: {}, _plan: pendingPlan }
+      : (pending ?? null);
+
     const result = await processOwnerMessage({
       text,
       linkId: link.id,
       agencyId,
-      pendingConfirmation: pending ?? null,
+      pendingConfirmation: effectivePending,
       lastScoutContext,
       conversationSummaryText: summaryRaw ?? '',
     });
@@ -277,9 +269,34 @@ async function handleCommand(link, text, chatId, agencyId) {
       result.dispatch.args = { ...result.dispatch.args, lead_ids: scoutMem.lead_ids.join(',') };
     }
 
+    // Handle plan confirmed/cancelled
+    if (pendingPlan && result.clearPending) {
+      await planQueue.del(chatId);
+      if (result.dispatch?.command === 'plan') {
+        // AI confirmed — execute the plan steps
+        stopTyping();
+        await reply(link, chatId, 'Got it — executing the plan.');
+        await executePlanSteps(pendingPlan, link, chatId, agencyId);
+        return;
+      }
+      // AI cancelled — track as declined
+      const declined = pendingPlan.steps?.map(s => s.command) ?? [];
+      if (declined.length) await declinedSuggestions.add(link.id, declined);
+    }
+
     // Update pending state
     if (result.clearPending || result.dispatch) await pendingConfirmations.del(chatId);
     if (result.setPending) await pendingConfirmations.set(chatId, result.setPending);
+    if (result.setPlan) await planQueue.set(chatId, result.setPlan);
+
+    // Track declined commands so the bot stops re-suggesting them
+    if (result.clearPending && !result.dispatch && pending?.command) {
+      await declinedSuggestions.add(link.id, pending.command);
+    }
+    // If AI dispatched a previously-declined command (owner explicitly asked), clear it from declined list
+    if (result.dispatch?.command) {
+      await declinedSuggestions.remove(link.id, result.dispatch.command);
+    }
 
     stopTyping();
 
@@ -296,6 +313,15 @@ async function handleCommand(link, text, chatId, agencyId) {
     compressConversationSummary(summaryRaw ?? '', text, result.reply)
       .then(newSummary => conversationSummary.set(chatId, newSummary))
       .catch(() => {});
+
+    // Feature 5: learn from corrections (non-blocking)
+    const isCorrection = /\b(no,|not that|wrong|that's not|don't do that|i said|i meant|actually|instead)\b/i.test(text);
+    if (isCorrection) {
+      ownerPreferences.get(agencyId)
+        .then(existing => updateOwnerPreferences(agencyId, existing ?? '', text, result.reply, true))
+        .then(updated => ownerPreferences.set(agencyId, updated))
+        .catch(() => {});
+    }
 
     // If AI generated a draft (e.g. a suggested message), send it as a follow-up
     if (result.draft) {
@@ -436,9 +462,14 @@ async function handleCallbackQuery(cb) {
     const [, command, answer] = cb.data.split(':');
     await editMessageReplyMarkup(chatId, cb.message.message_id);
     if (answer === 'no') {
+      const cancelledPending = await pendingConfirmations.get(chatId);
       await pendingConfirmations.del(chatId);
+      // Track this as a declined suggestion
+      if (cancelledPending?.command) {
+        await declinedSuggestions.add(link.id, cancelledPending.command);
+      }
       await answerCallbackQuery(cb.id, 'Cancelled');
-      await sendMessage(chatId, 'Cancelled. What else can I help with?');
+      await sendMessage(chatId, 'Cancelled. What else?');
       return;
     }
     // yes — dispatch
@@ -516,6 +547,52 @@ async function handleCallbackQuery(cb) {
   }
 }
 
+// ── Feature 2: execute an agent chain step by step ────────────────────────────
+async function executePlanSteps(plan, link, chatId, agencyId) {
+  const bizCtx = await loadBusinessContext(agencyId).catch(() => '');
+  for (let i = plan.currentIndex; i < plan.steps.length; i++) {
+    const step = plan.steps[i];
+    const stepLabel = step.label ?? step.command;
+    const isLast = i === plan.steps.length - 1;
+    await sendMessage(chatId, `Step ${i + 1}/${plan.steps.length}: Running *${stepLabel}*...`);
+    await recordTelegramMessage(link.id, 'outbound', `Step ${i + 1}: Running ${stepLabel}`);
+    const stopTyping = startTyping(chatId);
+    try {
+      const agentResult = await dispatchAgent(step.command, step.args ?? {});
+      stopTyping();
+      // Persist scout results for follow-up referencing
+      if (['scout', 'web-scout'].includes(step.command) && agentResult.lead_ids?.length) {
+        const names = (agentResult.output ?? '').match(/- (.+?) \(/g)?.map(s => s.slice(2, -2)) ?? [];
+        await lastScoutResults.set(chatId, {
+          lead_ids: agentResult.lead_ids,
+          names,
+          sector: step.args?.sector,
+          city: step.args?.city,
+          count: agentResult.lead_ids.length,
+          at: new Date().toISOString(),
+        });
+        // Inject lead_ids into remaining steps that don't specify them
+        for (let j = i + 1; j < plan.steps.length; j++) {
+          if (!plan.steps[j].args?.lead_ids) {
+            plan.steps[j].args = { ...plan.steps[j].args, lead_ids: agentResult.lead_ids.join(',') };
+          }
+        }
+      }
+      const summary = agentResult.ok
+        ? await summariseAgentResult(step.command, agentResult.output, bizCtx)
+        : `The ${step.command} step ran into a problem: ${agentResult.output || 'unknown error'}`;
+      const suffix = isLast ? '\n\nAll steps complete.' : '';
+      await reply(link, chatId, summary + suffix);
+    } catch (err) {
+      stopTyping();
+      await reply(link, chatId, `I couldn't reach the ${step.command} agent: ${err.message}. Plan paused.`);
+      await planQueue.del(chatId);
+      return;
+    }
+  }
+  await planQueue.del(chatId);
+}
+
 async function sendDailyReports() {
   const agencyIds = await getAgencyIdsWithActiveTelegramLinks();
   for (const agencyId of agencyIds) {
@@ -547,19 +624,52 @@ export async function runTelegramBot() {
     sendDailyReports().catch((err) => console.error('[telegram-bot] Daily report run failed:', err));
   });
 
-  // Pillar 3: proactive overdue alerts — runs every morning at 09:00 Ghana time (UTC)
+  // Pillar 3 / Feature 7: proactive overdue alerts with deal value — 09:00 Ghana time
   cron.schedule('0 9 * * *', async () => {
     console.log('[telegram-bot] Proactive overdue check running...');
     try {
       const agencyIds = await getAgencyIdsWithActiveTelegramLinks();
       for (const { agency_id, chat_id } of agencyIds) {
-        const overdue = await getOverdueLeads(agency_id, 5);
-        if (!overdue.length) continue;
-        const lines = overdue.map(l => `• ${l.business_name} — ${l.next_action ?? 'action'} overdue since ${l.next_action_due?.slice(0,10)}`).join('\n');
-        await sendMessage(chat_id, `⚠️ *${overdue.length} lead${overdue.length > 1 ? 's' : ''} need attention today:*\n\n${lines}\n\nReply with "outreach" to draft emails, or tell me which one to focus on.`, { parse_mode: 'Markdown' });
+        const { rows, totalValue, currency } = await getOverdueWithValue(agency_id, 5);
+        if (!rows.length) continue;
+        const lines = rows.map(l => {
+          const val = l.deal_value ? ` (${l.deal_currency ?? currency}${Number(l.deal_value).toLocaleString()})` : '';
+          return `• *${l.business_name}*${val} — ${l.next_action ?? 'action'} overdue ${l.days_overdue}d`;
+        }).join('\n');
+        const valueMsg = totalValue > 0
+          ? `\n\n*${currency}${totalValue.toLocaleString()} in pipeline value* is sitting overdue.`
+          : '';
+        await sendMessage(
+          chat_id,
+          `⚠️ *${rows.length} lead${rows.length > 1 ? 's' : ''} need attention today:*\n\n${lines}${valueMsg}\n\nWant me to prioritize by value, or tell me which one to focus on first?`,
+          { parse_mode: 'Markdown' }
+        );
       }
     } catch (err) {
       console.error('[telegram-bot] Proactive overdue check failed:', err.message);
+    }
+  });
+
+  // Feature 4: proactive outreach follow-up — 10:00 AM, check for sent emails with no reply after 3 days
+  cron.schedule('0 10 * * *', async () => {
+    console.log('[telegram-bot] Proactive outreach follow-up check running...');
+    try {
+      const agencyIds = await getAgencyIdsWithActiveTelegramLinks();
+      for (const { agency_id, chat_id } of agencyIds) {
+        const waiting = await getOutreachWithoutReply(agency_id, 3, 8);
+        if (!waiting.length) continue;
+        const lines = waiting.map(o => {
+          const daysSince = Math.floor((Date.now() - new Date(o.sent_at).getTime()) / 86400000);
+          return `• *${o.business_name}* — "${o.subject ?? 'outreach'}" sent ${daysSince}d ago, no reply yet`;
+        }).join('\n');
+        await sendMessage(
+          chat_id,
+          `📬 *${waiting.length} email${waiting.length > 1 ? 's' : ''} still waiting for a reply:*\n\n${lines}\n\nWant me to check replies now, or draft a follow-up for any of these?`,
+          { parse_mode: 'Markdown' }
+        );
+      }
+    } catch (err) {
+      console.error('[telegram-bot] Proactive follow-up check failed:', err.message);
     }
   });
 

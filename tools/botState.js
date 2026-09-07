@@ -79,3 +79,50 @@ export const conversationSummary = {
   get: (chatId)        => get(`tg_summary:${chatId}`),
   set: (chatId, value) => set(`tg_summary:${chatId}`, value),
 };
+
+// Feature 2: agent chaining — pending multi-step plan per chat
+export const planQueue = {
+  get: (chatId)        => get(`tg_plan:${chatId}`),
+  set: (chatId, value) => set(`tg_plan:${chatId}`, value),
+  del: (chatId)        => del(`tg_plan:${chatId}`),
+};
+
+// Feature 5: owner preferences — distilled rules learned over time
+export const ownerPreferences = {
+  get: (agencyId)        => get(`prefs:${agencyId}`),
+  set: (agencyId, value) => set(`prefs:${agencyId}`, value),
+};
+
+// Declined suggestions: stored as {commands:[], expiresAt:ISO} — decay after 24h
+const DECLINED_TTL_MS = 24 * 60 * 60 * 1000;
+
+export const declinedSuggestions = {
+  async get(chatId) {
+    const raw = await get(`tg_declined:${chatId}`);
+    if (!raw) return [];
+    // Expire if older than 24h
+    if (raw.expiresAt && new Date(raw.expiresAt) < new Date()) {
+      await del(`tg_declined:${chatId}`);
+      return [];
+    }
+    return raw.commands ?? [];
+  },
+  async add(chatId, commands) {
+    const existing = await this.get(chatId);
+    const merged = [...new Set([...existing, ...(Array.isArray(commands) ? commands : [commands])])];
+    await set(`tg_declined:${chatId}`, {
+      commands: merged,
+      expiresAt: new Date(Date.now() + DECLINED_TTL_MS).toISOString(),
+    });
+  },
+  async remove(chatId, command) {
+    const existing = await this.get(chatId);
+    const filtered = existing.filter(c => c !== command);
+    if (!filtered.length) { await del(`tg_declined:${chatId}`); return; }
+    await set(`tg_declined:${chatId}`, {
+      commands: filtered,
+      expiresAt: new Date(Date.now() + DECLINED_TTL_MS).toISOString(),
+    });
+  },
+  del: (chatId) => del(`tg_declined:${chatId}`),
+};

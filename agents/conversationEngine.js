@@ -18,7 +18,9 @@ import {
   searchLeadsBySector,
   getOverdueLeads,
   getPipelineCounts,
+  get7DayBaselines,
 } from '../tools/db.js';
+import { ownerPreferences, declinedSuggestions } from '../tools/botState.js';
 
 // ── Agent registry ─────────────────────────────────────────────────────────────
 export const AGENT_REGISTRY = {
@@ -149,9 +151,10 @@ async function loadBusinessContext(agencyId) {
 // ── Load live pipeline snapshot ────────────────────────────────────────────────
 async function loadLiveSnapshot(agencyId) {
   try {
-    const [s, leads] = await Promise.all([
+    const [s, leads, baselines] = await Promise.all([
       getTelegramStatusSummary(agencyId),
       getQualifiedLeads(3, 6, agencyId),
+      get7DayBaselines(agencyId).catch(() => null),
     ]);
     const leadLines = leads
       .map(l => {
@@ -159,14 +162,26 @@ async function loadLiveSnapshot(agencyId) {
         return `  • ${l.business_name} (${l.score}/10)${reason ? ' — ' + reason : ''}`;
       })
       .join('\n');
+
+    // Feature 2: anomaly signals injected into snapshot
+    const anomalies = [];
+    if (baselines) {
+      const avg = parseFloat(baselines.leads_per_day) || 0;
+      const today = parseInt(baselines.leads_today) || 0;
+      if (avg > 0 && today < avg * 0.3) anomalies.push(`⚠️ Only ${today} leads today vs ${avg}/day avg (7d) — scout may have an issue`);
+      if (avg > 0 && today > avg * 2.5) anomalies.push(`🚀 ${today} leads today — well above ${avg}/day avg (7d)`);
+    }
+
     return [
       `LIVE PIPELINE:`,
       `Leads today: ${s.leadsToday} | Total: ${s.leadsTotal} | Qualified: ${s.qualified}`,
       `Outreach drafts: ${s.drafts} | Sent today: ${s.sentToday} | Replies: ${s.replied}`,
       `Proposals: ${s.proposals} | Overdue actions: ${s.dueOrOverdue}`,
+      baselines ? `7-day avgs: ${baselines.leads_per_day}/day leads | ${baselines.outreach_per_day}/day outreach` : '',
+      anomalies.length ? anomalies.join('\n') : '',
       '',
       leads.length ? `Top qualified leads:\n${leadLines}` : 'No leads with score ≥ 6 yet.',
-    ].join('\n');
+    ].filter(l => l !== '').join('\n');
   } catch {
     return 'Live pipeline data unavailable.';
   }
@@ -264,6 +279,33 @@ export async function compressConversationSummary(existingSummary, userMessage, 
   }
 }
 
+// ── Feature 5: load owner preferences distilled over time ─────────────────────
+async function loadOwnerPreferences(agencyId) {
+  try {
+    const prefs = await ownerPreferences.get(agencyId);
+    return prefs ? `OWNER PREFERENCES (learned over time):\n${prefs}` : '';
+  } catch { return ''; }
+}
+
+// ── Feature 5: update owner preferences after each exchange ───────────────────
+export async function updateOwnerPreferences(agencyId, existingPrefs, userMessage, botReply, wasCorrection) {
+  if (!wasCorrection) return existingPrefs; // only update on clear corrections or notable patterns
+  try {
+    const input = existingPrefs
+      ? `Current preferences:\n${existingPrefs}\n\nNew exchange to learn from:\nOwner: ${userMessage.slice(0, 200)}\nAssistant: ${botReply.slice(0, 200)}`
+      : `New exchange to learn from:\nOwner: ${userMessage.slice(0, 200)}\nAssistant: ${botReply.slice(0, 200)}`;
+    const updated = await complete({
+      system: `You maintain a distilled set of behavioral rules for an AI assistant based on how the owner corrects or redirects it.
+Update the preferences list with what you learned. Keep each rule as a short, actionable statement. Max 10 rules total. Remove outdated ones.
+Examples: "Owner prefers checking existing pipeline before scouting new leads", "Never suggest scout without first showing pipeline status", "Owner uses numbers (1-11) to trigger agents — always map them".
+Return ONLY the updated list, one rule per line, no headers.`,
+      user: input,
+      maxTokens: 300,
+    });
+    return (updated ?? '').trim() || existingPrefs;
+  } catch { return existingPrefs; }
+}
+
 async function loadHistory(linkId, conversationSummaryText = '') {
   const parts = [];
   if (conversationSummaryText) parts.push(`CONVERSATION SO FAR: ${conversationSummaryText}`);
@@ -284,7 +326,7 @@ async function loadHistory(linkId, conversationSummaryText = '') {
 }
 
 // ── Core intelligence: classify + extract + gap-detect ────────────────────────
-async function think(userMessage, businessContext, liveSnapshot, history, lastScoutContext = '', mentionedLead = '') {
+async function think(userMessage, businessContext, liveSnapshot, history, lastScoutContext = '', mentionedLead = '', ownerPrefsText = '', declinedText = '', pendingConfirmation = null, agencyId = null) {
   const agentDescriptions = Object.entries(AGENT_REGISTRY)
     .map(([k, v]) => `  ${k}: ${v.description}`)
     .join('\n');
@@ -294,44 +336,63 @@ async function think(userMessage, businessContext, liveSnapshot, history, lastSc
   const needsSnapshot = /\b(pipeline|leads?|status|outreach|drafts?|qualify|enrich|scout|send|report|score|overdue|today|how many|how are)\b/i.test(userMessage);
   const snapshotSection = needsSnapshot ? liveSnapshot : '';
 
+  const pendingSection = pendingConfirmation
+    ? pendingConfirmation.command === 'plan'
+      ? `\nPENDING CONFIRMATION: The owner was just shown a multi-step plan and asked whether to proceed. Their current message is a response to that plan.`
+      : `\nPENDING CONFIRMATION: The owner was just asked to confirm running "${pendingConfirmation.command}"${pendingConfirmation.args && Object.keys(pendingConfirmation.args).length ? ` with ${JSON.stringify(pendingConfirmation.args)}` : ''}. Their current message is a response to this.`
+    : '';
+
   const systemPrompt = `You are the Tedmark Growth AI — a sharp, trusted assistant who's been on the Tedmark Digital team for months. You know the pipeline, you know the owner, and you check before you guess.
 
 BUSINESS: ${businessContext || 'Tedmark Digital — digital marketing agency in Ghana.'}
-${snapshotSection}${lastScoutContext ? `\n${lastScoutContext}` : ''}${mentionedLead ? `\n${mentionedLead}` : ''}${history ? `\n${history}` : ''}
+${snapshotSection}${lastScoutContext ? `\n${lastScoutContext}` : ''}${mentionedLead ? `\n${mentionedLead}` : ''}${history ? `\n${history}` : ''}${ownerPrefsText ? `\n${ownerPrefsText}` : ''}${declinedText ? `\n${declinedText}` : ''}${pendingSection}
 
 AGENTS:
 ${agentDescriptions}
 
 AGENT NUMBERS: 1=scout 2=web-scout 3=enrich 4=enrich-dm 5=qualify 6=icp-score 7=outreach 8=send 9=check-replies 10=analytics 11=daily 12=pipeline-query
 
+LANGUAGE: The owner may write in any language (French, Arabic, Twi, pidgin), with typos or abbreviations. Always understand the intent — never ask for clarification just because of a spelling error.
+
+PENDING CONFIRMATION RULES (only applies when PENDING CONFIRMATION is set above):
+- Clear yes in any language ("yes", "oui", "نعم", "go", "ok", "yep", "do it", "run it", "sure") → type "confirmed"
+- Clear no with nothing meaningful after ("no", "non", "لا", "cancel", "nope", "stop") → type "cancelled"
+- No followed by a real question or statement ("no, how many schools", "no wait, show me the pipeline") → type "cancelled" is WRONG. Instead ignore the pending action and answer the question — use converse, clarify, or dispatch as appropriate.
+- Genuinely ambiguous response ("hmm", "not now", "maybe", "wait", "let me think") → type "clarify" — ask which they meant. Never force it into confirmed or cancelled.
+
 DECISION LOGIC (follow strictly):
 - Owner asks about existing data (counts, status, a specific lead, a sector) → dispatch pipeline-query instantly — never guess.
 - Owner says a number (e.g. "9") → map to agent above and confirm/dispatch.
 - "start over" / "reset" / "fresh start" → greet warmly, ask what they'd like to do. Never run a pipeline.
-- "ok/yes/go ahead" after a confirm → dispatch immediately.
 - "those/them/the ones we found" + LAST SCOUT present → use those lead_ids.
 - If LEAD LOOKUP or SECTOR LOOKUP is in context → answer from it directly; suggest a concrete next step.
 - If 0 leads found for a sector → say so, offer to scout it.
 - To find leads: scout or web-scout. Contacts: enrich. Score: qualify/icp-score. Email: outreach then send. Replies: check-replies.
+- If the request implies 2+ agents in sequence (e.g. "find and contact schools") → type plan with full ordered steps and ask for confirmation.
+- If the owner's message is ambiguous about which prior action to repeat ("try again", "that thing", "do it again") and more than one prior turn could match — use clarify. Never guess which one and jump to confirm or dispatch.
+- If a command appears in DECLINED THIS SESSION → do not re-suggest it unprompted. Answer the literal question and wait.
+- If the message contains a rejection AND a new question — address the new question, don't let "no" swallow it.
 - Never promise action in a converse message — use confirm or dispatch.
 - If unclear, ask exactly one specific question — never guess and act.
 
 PERSONALITY:
 - Talk like someone who's been on this team for months — not a menu system or customer service bot.
 - Acknowledge what the owner just said before answering — don't restart cold each turn.
-- When checking something, say so briefly first: "Let me check that..." then give the real answer.
 - Vary your phrasing — don't reuse the same sentence structure every turn.
 - Never use filler: "No problem!", "What else can I help with?", "Great question!" — get straight to the point.
 - If you ran something or found something, lead with the result, not the process.
 
 RESPOND with exactly one JSON object (no markdown):
+{"type":"confirmed"}
+{"type":"cancelled"}
 {"type":"converse","message":"<150 chars, plain text>"}
 {"type":"converse","message":"...","needs_draft":true,"draft_topic":"precise description"}
-{"type":"clarify","message":"one question"}
+{"type":"clarify","message":"one specific question"}
 {"type":"confirm","command":"name","args":{},"message":"what will run — confirm?"}
 {"type":"dispatch","command":"name","args":{}}
+{"type":"plan","steps":[{"command":"name","args":{},"label":"human description"}...],"message":"Here's my plan: ... — should I go ahead?"}
 
-pipeline-query dispatches instantly — no confirmation step. "message" ≤150 chars. Never put draft content in "message". Never ask two questions.`;
+confirmed/cancelled only valid when PENDING CONFIRMATION is set. pipeline-query dispatches instantly — no confirmation. "message" ≤150 chars. Never put draft content in "message". Never ask two questions. plan.steps must be 2–6 items.`;
 
   try {
     console.log(`[engine] think() prompt_chars=${systemPrompt.length} user="${userMessage.slice(0, 60)}"`);
@@ -363,28 +424,47 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
       return { ...parsed, draft: (draft ?? '').trim() };
     }
 
+    // Add logging for clarify and declined events
+    if (parsed.type === 'clarify') {
+      console.log(`[engine:clarify] triggered for: "${userMessage.slice(0, 80)}"`);
+    }
+
     return parsed;
   } catch (err) {
     console.error('[engine] think() error:', err?.message ?? err);
-    // Fallback: simpler prompt, no JSON mode — but keep history so context is not lost
+    // Constraint #1: retry once with reasoning disabled before falling back
     try {
-      const historySection = history ? `\nRECENT CONVERSATION:\n${history}` : '';
-      const fallback = await complete({
-        system: `You are the Tedmark Growth AI for Tedmark Digital, a digital marketing agency in Ghana. Answer the owner's question directly and helpfully in plain conversational text. Be specific, warm, and concise — max 3 sentences. No corporate language.
-
-AGENT NUMBERS: 1=scout 2=web-scout 3=enrich 4=enrich-dm 5=qualify 6=icp-score 7=outreach 8=send 9=check-replies 10=analytics 11=daily${historySection}`,
+      console.warn('[engine:fallback] retrying think() with reasoning disabled');
+      const raw2 = await complete({
+        system: systemPrompt,
         user: userMessage,
-        maxTokens: 500,
+        maxTokens: 1500,
+        json: true,
       });
-      const msg = (fallback ?? '').trim();
-      if (msg) return { type: 'converse', message: msg };
-      throw new Error('empty fallback response');
+      const jsonMatch2 = raw2?.match(/\{[\s\S]*\}/);
+      if (jsonMatch2) {
+        const parsed2 = JSON.parse(jsonMatch2[0]);
+        if (parsed2.type === 'clarify') {
+          console.log(`[engine:clarify] triggered (fallback) for: "${userMessage.slice(0, 80)}"`);
+        }
+        return parsed2;
+      }
+      throw new Error('No JSON in fallback response');
     } catch (err2) {
-      console.error('[engine] fallback also failed:', err2?.message ?? err2);
-      return {
-        type: 'converse',
-        message: "AI is temporarily unavailable — try again in a moment. Commands still work: /status /leads /help",
-      };
+      // Constraint #1: if both fail, return deterministic DB status summary — never silence
+      console.error('[engine:fallback] both think() attempts failed, using DB summary:', err2?.message ?? err2);
+      try {
+        const c = await getPipelineCounts(agencyId);
+        return {
+          type: 'converse',
+          message: `Pipeline: ${c.total} leads | ${c.outreach_sent} outreached | ${c.overdue} overdue. AI is recovering — try again shortly or use /help for commands.`,
+        };
+      } catch {
+        return {
+          type: 'converse',
+          message: 'AI temporarily unavailable. Commands still work: /status /leads /help',
+        };
+      }
     }
   }
 }
@@ -413,24 +493,37 @@ export async function dispatchAgent(command, args = {}) {
 
 // ── Summarise agent output naturally ──────────────────────────────────────────
 async function summariseAgentResult(command, output, businessContext) {
+  const isScoring = ['qualify', 'icp-score'].includes(command);
   try {
     return await complete({
       system: `You are the Tedmark Growth AI — sharp, direct, like a trusted colleague who's been watching the business all day. Summarise what the ${command} agent just did.
 
 Rules:
 - If results were found: name specific businesses, numbers, key details. Be concrete.
-- If nothing was found: say so plainly in one sentence, then immediately suggest the ONE most useful next step (e.g. "Want me to try web scout instead?" or "Should I enrich the ones already in your database?"). Do not list multiple options or ask multiple questions.
+- If nothing was found: say so plainly in one sentence, then immediately suggest the ONE most useful next step. Do not list multiple options or ask multiple questions.
 - Never use corporate language like "came back with", "surface different prospects", "broaden search criteria". Talk like a real person.
 - Keep it under 4 sentences. Plain text, no markdown, no bullet points unless listing actual business names.
-- Always end with a clear single next-step suggestion if there's an obvious one.
+- Always end with a clear single next-step suggestion if there's an obvious one.${isScoring ? '\n- For each lead scored, include the actual reason why it scored that way — not just the number. E.g. "Nyaho Medical: 9/10 — active clinic with a website but no Google ads, high-intent easy win."' : ''}
 
 Business context: ${businessContext || 'Tedmark Digital, digital marketing agency in Ghana.'}`,
       user: `Agent output:\n${output}`,
-      maxTokens: 300,
+      maxTokens: 350,
     });
   } catch {
     return output || `${command} finished.`;
   }
+}
+
+// ── Feature 3: self-check — verify reply actually answers the question ─────────
+async function selfCheck(question, proposedAnswer) {
+  try {
+    const verdict = await complete({
+      system: 'You are a quality-check step. Answer with exactly one word: YES if the proposed answer directly and correctly answers the question asked, or NO if it misses the point, answers the wrong thing, or is a generic non-answer.',
+      user: `Question: "${question}"\nProposed answer: "${proposedAnswer.slice(0, 300)}"`,
+      maxTokens: 5,
+    });
+    return !(verdict ?? '').trim().toUpperCase().startsWith('NO');
+  } catch { return true; } // on error, don't block
 }
 
 // ── Main entry point ───────────────────────────────────────────────────────────
@@ -443,38 +536,36 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
  *  - If dispatch present: calling dispatchAgent, then sending the summarised result
  */
 export async function processOwnerMessage({ text, linkId, agencyId, pendingConfirmation = null, lastScoutContext = '', waHistory = null, conversationSummaryText = '' }) {
-  const [businessContext, liveSnapshot, dbHistory, mentionedLead] = await Promise.all([
+  const [businessContext, liveSnapshot, dbHistory, mentionedLead, ownerPrefsText, declinedRaw] = await Promise.all([
     loadBusinessContext(agencyId),
     loadLiveSnapshot(agencyId),
     loadHistory(linkId, conversationSummaryText),
     loadMentionedLead(text, agencyId),
+    loadOwnerPreferences(agencyId),
+    declinedSuggestions.get(linkId ?? agencyId).catch(() => null),
   ]);
+  const declinedText = declinedRaw?.length
+    ? `DECLINED THIS SESSION (do not re-suggest unprompted): ${declinedRaw.join(', ')}`
+    : '';
+  if (declinedRaw?.length) {
+    console.log(`[engine:declined-list] ${declinedRaw.length} blocked commands in prompt for chat ${linkId ?? agencyId}: [${declinedRaw.join(', ')}]`);
+  }
   // WhatsApp passes pre-built history; Telegram uses DB-loaded history
   const history = waHistory ?? dbHistory;
 
-  // If there's a pending confirmation from last message, check yes/no
-  if (pendingConfirmation) {
-    const lower = text.toLowerCase().trim();
-    const isYes = /^(yes|yeah|yep|go|ok|okay|do it|run it|sure|proceed|confirm|absolutely|yep|affirmative)/.test(lower);
-    const isNo  = /^(no|nope|cancel|stop|don't|dont|never mind|skip)/.test(lower);
+  const thought = await think(text, businessContext, liveSnapshot, history, lastScoutContext, mentionedLead, ownerPrefsText, declinedText, pendingConfirmation, agencyId);
 
-    if (isYes) {
-      return {
-        reply: `Running ${pendingConfirmation.command} now — give me a moment...`,
-        dispatch: pendingConfirmation,
-        clearPending: true,
-      };
-    }
-    if (isNo) {
-      return {
-        reply: `No problem, cancelled. What else can I help with?`,
-        clearPending: true,
-      };
-    }
-    // Not a clear yes/no — treat as new message, clear pending
+  // Handle AI's decision about a pending confirmation
+  if (thought.type === 'confirmed' && pendingConfirmation) {
+    return {
+      reply: `Running ${pendingConfirmation.command} now — give me a moment...`,
+      dispatch: pendingConfirmation,
+      clearPending: true,
+    };
   }
-
-  const thought = await think(text, businessContext, liveSnapshot, history, lastScoutContext, mentionedLead);
+  if (thought.type === 'cancelled') {
+    return { reply: `Cancelled.`, clearPending: true };
+  }
 
   if (thought.type === 'dispatch' || thought.type === 'confirm') {
     // Validate required args before confirming or dispatching
@@ -490,6 +581,21 @@ export async function processOwnerMessage({ text, linkId, agencyId, pendingConfi
         };
       }
     }
+  }
+
+  if (thought.type === 'plan') {
+    const steps = thought.steps ?? [];
+    if (steps.length >= 2) {
+      return {
+        reply: thought.message,
+        setPlan: { steps, currentIndex: 0 },
+      };
+    }
+    // Single-step plan → treat as a confirm for the first step
+    return {
+      reply: thought.message,
+      setPending: steps[0] ? { command: steps[0].command, args: steps[0].args ?? {} } : undefined,
+    };
   }
 
   if (thought.type === 'dispatch') {
@@ -519,6 +625,29 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
       reply: thought.message,
       setPending: { command: thought.command, args: thought.args ?? {} },
     };
+  }
+
+  // Feature 3: self-check for data-heavy converse replies — verify the answer actually matches the question
+  if (thought.type === 'converse' && mentionedLead && thought.message) {
+    const checkPassed = await selfCheck(text, thought.message).catch(() => true);
+    if (!checkPassed) {
+      // Retry think() once with an explicit hint
+      const retried = await think(
+        text,
+        businessContext,
+        liveSnapshot,
+        history,
+        lastScoutContext,
+        mentionedLead,
+        ownerPrefsText,
+        declinedText,
+        null,
+        agencyId
+      ).catch(() => thought);
+      if (retried.type === 'converse' && retried.message) {
+        return { reply: retried.message, ...(retried.draft ? { draft: retried.draft } : {}) };
+      }
+    }
   }
 
   // converse or clarify — reply, optionally followed by a draft
