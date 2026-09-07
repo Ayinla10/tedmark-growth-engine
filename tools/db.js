@@ -360,6 +360,21 @@ export async function getRecentTelegramMessages(telegramLinkId, limit = 5) {
   return result.rows.reverse();
 }
 
+export async function recordWhatsAppMessage(phone, agencyId, direction, body) {
+  await query(
+    `INSERT INTO whatsapp_messages (phone, agency_id, direction, body) VALUES ($1, $2, $3, $4)`,
+    [phone, agencyId, direction, body]
+  );
+}
+
+export async function getRecentWhatsAppMessages(phone, limit = 6) {
+  const result = await query(
+    `SELECT direction, body FROM whatsapp_messages WHERE phone = $1 ORDER BY created_at DESC LIMIT $2`,
+    [phone, limit]
+  );
+  return result.rows.reverse();
+}
+
 export async function getBusinessContextRow(agencyId) {
   const id = agencyId ?? (await getCurrentAgencyId());
   const result = await query(`SELECT * FROM business_context WHERE agency_id = $1`, [id]);

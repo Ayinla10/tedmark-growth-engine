@@ -348,12 +348,14 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
  *  - Sending the reply immediately
  *  - If dispatch present: calling dispatchAgent, then sending the summarised result
  */
-export async function processOwnerMessage({ text, linkId, agencyId, pendingConfirmation = null, lastScoutContext = '' }) {
-  const [businessContext, liveSnapshot, history] = await Promise.all([
+export async function processOwnerMessage({ text, linkId, agencyId, pendingConfirmation = null, lastScoutContext = '', waHistory = null }) {
+  const [businessContext, liveSnapshot, dbHistory] = await Promise.all([
     loadBusinessContext(agencyId),
     loadLiveSnapshot(agencyId),
     loadHistory(linkId),
   ]);
+  // WhatsApp passes pre-built history; Telegram uses DB-loaded history
+  const history = waHistory ?? dbHistory;
 
   // If there's a pending confirmation from last message, check yes/no
   if (pendingConfirmation) {

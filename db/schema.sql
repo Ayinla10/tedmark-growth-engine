@@ -197,6 +197,17 @@ CREATE TABLE IF NOT EXISTS telegram_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_telegram_messages_link_created ON telegram_messages(telegram_link_id, created_at);
 
+-- WhatsApp owner conversation history, keyed by phone number
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone text NOT NULL,
+  agency_id uuid NOT NULL REFERENCES agencies(id),
+  direction text NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  body text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_phone_created ON whatsapp_messages(phone, created_at);
+
 -- Telegram inline-button callback_data is capped at 64 bytes by the
 -- platform, so a self-contained signed payload doesn't fit — instead the
 -- button carries only a short random token, and the actual action/target

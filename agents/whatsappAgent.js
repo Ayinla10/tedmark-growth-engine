@@ -8,6 +8,8 @@
 import {
   getTelegramStatusSummary,
   getQualifiedLeads,
+  recordWhatsAppMessage,
+  getRecentWhatsAppMessages,
 } from '../tools/db.js';
 import { setSetting } from '../tools/settings.js';
 import { query } from '../tools/db.js';
@@ -226,22 +228,38 @@ async function handleOwnerMessage(from, text, agencyId) {
     return sendWhatsApp(from, OWNER_HELP);
   }
 
+  // Record inbound message for conversation memory
+  await recordWhatsAppMessage(from, agencyId, 'inbound', text).catch(() => {});
+
   // ── Intelligent conversation engine ────────────────────────────────────────
-  // WhatsApp has no link table — pass null linkId (engine skips history gracefully)
+  // Build history from the whatsapp_messages table (same pattern as Telegram)
+  const waHistory = await getRecentWhatsAppMessages(from, 6).catch(() => []);
+  const historyText = waHistory
+    .map(m => `${m.direction === 'inbound' ? 'Owner' : 'Assistant'}: ${m.body.slice(0, 300)}`)
+    .join('\n');
+
   const pending = waPending.get(from) ?? null;
 
   const result = await processOwnerMessage({
     text,
-    linkId: null,
+    linkId: null,          // WA uses DB history above, not the telegram_links table
     agencyId,
     pendingConfirmation: pending,
+    waHistory: historyText, // passed through to think() below
   });
 
   if (result.clearPending || result.dispatch) waPending.delete(from);
   if (result.setPending) waPending.set(from, result.setPending);
 
-  await sendWhatsApp(from, result.reply);
-  if (result.draft) await sendWhatsApp(from, result.draft);
+  const replyText = result.reply ?? '';
+  if (replyText) {
+    await sendWhatsApp(from, replyText);
+    await recordWhatsAppMessage(from, agencyId, 'outbound', replyText).catch(() => {});
+  }
+  if (result.draft) {
+    await sendWhatsApp(from, result.draft);
+    await recordWhatsAppMessage(from, agencyId, 'outbound', result.draft).catch(() => {});
+  }
 
   if (result.dispatch) {
     const { command, args } = result.dispatch;
@@ -251,6 +269,7 @@ async function handleOwnerMessage(from, text, agencyId) {
       if (agentResult.ok) {
         const summary = await summariseAgentResult(command, agentResult.output, bizCtx);
         await sendWhatsApp(from, summary);
+        await recordWhatsAppMessage(from, agencyId, 'outbound', summary).catch(() => {});
       } else {
         await sendWhatsApp(from, `The ${command} agent hit an issue: ${agentResult.output || 'unknown error'}`);
       }
