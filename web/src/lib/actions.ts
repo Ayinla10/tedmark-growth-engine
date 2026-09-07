@@ -26,7 +26,7 @@ import {
 import { setSetting, type Settings } from "./settings";
 import { getSession } from "./auth";
 
-function refreshAll() {
+function refreshAll(leadId?: string) {
   revalidatePath("/agents");
   revalidatePath("/dashboard");
   revalidatePath("/lead-discovery");
@@ -35,6 +35,8 @@ function refreshAll() {
   revalidatePath("/follow-ups");
   revalidatePath("/proposals");
   revalidatePath("/analytics");
+  revalidatePath("/opportunities");
+  if (leadId) revalidatePath(`/opportunities/${leadId}`);
 }
 
 export async function runScoutAction(sector: string, city: string, limit: number) {
@@ -50,28 +52,28 @@ export async function runScoutAction(sector: string, city: string, limit: number
 export async function runEnricherAction(limit: number, leadId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   const result = await runAgentCommand("enrich", args);
-  refreshAll();
+  refreshAll(leadId);
   return result;
 }
 
 export async function runDmEnrichAction(limit: number, leadId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   const result = await runAgentCommand("enrich-dm", args);
-  refreshAll();
+  refreshAll(leadId);
   return result;
 }
 
 export async function runIcpScoreAction(limit: number, leadId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   const result = await runAgentCommand("icp-score", args);
-  refreshAll();
+  refreshAll(leadId);
   return result;
 }
 
 export async function runQualifierAction(limit: number, leadId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   const result = await runAgentCommand("qualify", args);
-  refreshAll();
+  refreshAll(leadId);
   return result;
 }
 
@@ -79,7 +81,7 @@ export async function runOutreachAction(limit: number, leadId?: string, signatur
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   if (signatureId) args.push("--signature-id", signatureId);
   const result = await runAgentCommand("outreach", args);
-  refreshAll();
+  refreshAll(leadId);
   return result;
 }
 
@@ -191,7 +193,7 @@ export async function unlinkTelegramAction() {
 
 export async function archiveLeadAction(leadId: string) {
   const row = await archiveLeadDb(leadId);
-  refreshAll();
+  refreshAll(leadId);
   return { ok: Boolean(row) };
 }
 
