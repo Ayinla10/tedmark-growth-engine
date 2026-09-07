@@ -252,10 +252,13 @@ Business context: ${businessContext || 'Tedmark Digital, digital marketing agenc
     return parsed;
   } catch (err) {
     console.error('[engine] think() error:', err?.message ?? err);
-    // Fallback: simpler prompt, no JSON mode, minimal context to reduce token load
+    // Fallback: simpler prompt, no JSON mode — but keep history so context is not lost
     try {
+      const historySection = history ? `\nRECENT CONVERSATION:\n${history}` : '';
       const fallback = await complete({
-        system: `You are the Tedmark Growth AI for Tedmark Digital, a digital marketing agency in Ghana. Answer the owner's question directly and helpfully in plain conversational text. Be specific, warm, and concise — max 3 sentences. No corporate language.`,
+        system: `You are the Tedmark Growth AI for Tedmark Digital, a digital marketing agency in Ghana. Answer the owner's question directly and helpfully in plain conversational text. Be specific, warm, and concise — max 3 sentences. No corporate language.
+
+AGENT NUMBERS: 1=scout 2=web-scout 3=enrich 4=enrich-dm 5=qualify 6=icp-score 7=outreach 8=send 9=check-replies 10=analytics 11=daily${historySection}`,
         user: userMessage,
         maxTokens: 500,
       });
