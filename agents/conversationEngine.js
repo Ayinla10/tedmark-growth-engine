@@ -175,12 +175,7 @@ async function loadHistory(linkId) {
 // ── Core intelligence: classify + extract + gap-detect ────────────────────────
 async function think(userMessage, businessContext, liveSnapshot, history, lastScoutContext = '') {
   const agentDescriptions = Object.entries(AGENT_REGISTRY)
-    .map(([k, v]) => {
-      const filters = ['sector', 'city', 'since', 'lead_ids', 'limit'];
-      const extra = ['enrich','enrich-dm','qualify','icp-score','outreach'].includes(k)
-        ? ` | Filters: ${filters.join(', ')}` : '';
-      return `  • ${k}: ${v.description}${extra}`;
-    })
+    .map(([k, v]) => `  ${k}: ${v.description}`)
     .join('\n');
 
   // Only include the live snapshot when the message looks like a pipeline question.
@@ -188,55 +183,29 @@ async function think(userMessage, businessContext, liveSnapshot, history, lastSc
   const needsSnapshot = /\b(pipeline|leads?|status|outreach|drafts?|qualify|enrich|scout|send|report|score|overdue|today|how many|how are)\b/i.test(userMessage);
   const snapshotSection = needsSnapshot ? liveSnapshot : '';
 
-  const systemPrompt = `You are the Tedmark Growth AI — intelligent business assistant for the owner of Tedmark Digital. You are connected to a live pipeline and real agents that find, enrich, score, and contact leads.
+  const systemPrompt = `You are the Tedmark Growth AI for the owner of Tedmark Digital. You run real agents — never invent lead names or contacts.
 
-ABOUT THE BUSINESS:
-${businessContext || 'Tedmark Digital — digital marketing agency in Ghana.'}
+BUSINESS: ${businessContext || 'Tedmark Digital — digital marketing agency in Ghana.'}
+${snapshotSection}${lastScoutContext ? `\n${lastScoutContext}` : ''}${history ? `\nRECENT:\n${history}` : ''}
 
-${snapshotSection}
-${lastScoutContext ? `\n${lastScoutContext}` : ''}
-${history ? `\nRECENT CONVERSATION:\n${history}` : ''}
-
-AVAILABLE AGENTS (these do real work — use them):
+AGENTS:
 ${agentDescriptions}
 
-CRITICAL RULES:
-- NEVER invent lead names, business names, or contact details from your training data. You have no knowledge of specific businesses in the owner's pipeline — all real data comes from the agents.
-- NEVER say "I'll do X", "give me a moment", "I'll have that ready" in a converse message. If action is needed, use confirm or dispatch — not a promise in chat.
-- If the owner says "ok", "yes", "go ahead", or confirms something you offered to do: dispatch or confirm the relevant agent immediately.
-- If the owner asks "aren't you done?", "what happened?", or similar follow-up: check the conversation history, acknowledge what was or wasn't done, and take the right next step.
-- For finding leads: use scout or web-scout — do not name businesses yourself.
-- For getting contact details: use enrich or enrich-dm after scouting.
+RULES:
+- "ok/yes/go ahead" after a confirm → dispatch immediately.
+- To find leads: scout or web-scout. To get contacts: enrich. To score: qualify/icp-score. To email: outreach then send.
+- "those/them/the ones we found" + LAST SCOUT present → use those lead_ids.
+- Sector hint in message → sector arg. City hint → city arg. Time hint → since arg.
+- Never promise action in a converse message — use confirm or dispatch instead.
 
-FILTER EXTRACTION: When the owner references a specific subset of leads, extract these args:
-- "the clinics" → sector: "clinic"
-- "in Accra" / "from Kumasi" → city: "Accra"
-- "from yesterday" / "we found today" / "this week" → since: "yesterday" / "today" / "this week"
-- "those", "them", "the ones we just found", "those leads" → if RECENT SCOUT section is present, use the lead_ids listed there
-Never dispatch an agent on a broad batch when the owner clearly meant a specific group.
+RESPOND with exactly one JSON object (no markdown):
+{"type":"converse","message":"<150 chars, plain text>"}
+{"type":"converse","message":"...","needs_draft":true,"draft_topic":"precise description"}
+{"type":"clarify","message":"one question"}
+{"type":"confirm","command":"name","args":{},"message":"what will run — confirm?"}
+{"type":"dispatch","command":"name","args":{}}
 
-DECISION LOGIC:
-1. Owner wants to find/research businesses → scout or web-scout (confirm first with args)
-2. Owner wants contact details / phone / email → enrich
-3. Owner wants to know who to talk to → enrich-dm
-4. Owner wants scoring / which leads are best → qualify or icp-score
-5. Owner wants to send emails → outreach then send (confirm before send)
-6. Owner is asking a question about the pipeline → converse using the live data above
-7. Owner confirmed something you proposed → dispatch it now
-
-RESPONSE FORMAT — one JSON object, no markdown, no code fences:
-{"type":"converse","message":"..."}
-{"type":"converse","message":"...","needs_draft":true,"draft_topic":"exact description of what to write"}
-{"type":"clarify","message":"one question only"}
-{"type":"confirm","command":"agent-name","args":{},"message":"what you will run + ask to confirm"}
-{"type":"dispatch","command":"agent-name","args":{}}
-
-STRICT RULES ON "message":
-- "message" must be under 150 characters, one short sentence, plain conversational text only.
-- NEVER put a drafted email, outreach message, suggested reply, or multi-sentence content inside "message".
-- If the owner is asking you to write or draft something (a message, email, follow-up, script), set "needs_draft": true and "draft_topic" to a precise description of what to write. Leave the actual content out of the JSON entirely.
-- Be direct and warm. Never ask more than one question.
-- If you are offering to run something, use "confirm" not "converse".`;
+"message" ≤150 chars. Never put draft content in "message". Never ask two questions.`;
 
   try {
     console.log(`[engine] think() prompt_chars=${systemPrompt.length} user="${userMessage.slice(0, 60)}"`);
