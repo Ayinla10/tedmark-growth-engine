@@ -18,6 +18,7 @@ import { runSendProposal }    from './agents/proposalDelivery.js';
 import { runAnalytics }       from './agents/analytics.js';
 import { runCleanKnowledge }  from './agents/knowledgeCleaner.js';
 import { runDailyPipeline }   from './scripts/dailyPipeline.js';
+import { runReplyWatcher }    from './agents/replyWatcher.js';
 
 // ── WhatsApp handler ───────────────────────────────────────────────────────────
 import { handleIncomingWhatsApp } from './agents/whatsappAgent.js';
@@ -234,6 +235,15 @@ app.post('/run/:command', requireSecret, async (req, res) => {
   const lead_ids = res._scoutLeadIds ?? null;
   res.json({ ok, output, ...(lead_ids ? { lead_ids } : {}) });
 });
+
+// ── Reply watcher cron — every 30 min, 8am–8pm Ghana time ────────────────────
+cron.schedule('*/30 8-20 * * *', async () => {
+  try {
+    await runReplyWatcher();
+  } catch (err) {
+    console.error('[cron] Reply watcher failed:', err.message);
+  }
+}, { timezone: 'Africa/Accra' });
 
 // ── Daily pipeline cron — 7am Ghana time (UTC+0) ───────────────────────────────
 cron.schedule('0 7 * * *', async () => {
