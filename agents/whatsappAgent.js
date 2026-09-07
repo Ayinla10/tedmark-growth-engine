@@ -14,6 +14,7 @@ import {
 import { setSetting } from '../tools/settings.js';
 import { query } from '../tools/db.js';
 import { processOwnerMessage, dispatchAgent, summariseAgentResult, loadBusinessContext } from './conversationEngine.js';
+import { waPending } from '../tools/botState.js';
 
 // Resolve the owner's agency ID — set WHATSAPP_AGENCY_ID explicitly, or we
 // fall back to the first agency row in the database (single-tenant default).
@@ -191,9 +192,6 @@ async function approveAllDrafts(agencyId) {
     : 'No drafts waiting for approval.';
 }
 
-// ── Per-owner pending confirmation state (in-memory, keyed by phone) ──────────
-const waPending = new Map();
-
 // ── Owner command handler (now powered by the conversation engine) ─────────────
 async function handleOwnerMessage(from, text, agencyId) {
   const lower = text.trim().toLowerCase();
@@ -238,7 +236,7 @@ async function handleOwnerMessage(from, text, agencyId) {
     .map(m => `${m.direction === 'inbound' ? 'Owner' : 'Assistant'}: ${m.body.slice(0, 300)}`)
     .join('\n');
 
-  const pending = waPending.get(from) ?? null;
+  const pending = await waPending.get(from) ?? null;
 
   const result = await processOwnerMessage({
     text,
@@ -248,8 +246,8 @@ async function handleOwnerMessage(from, text, agencyId) {
     waHistory: historyText, // passed through to think() below
   });
 
-  if (result.clearPending || result.dispatch) waPending.delete(from);
-  if (result.setPending) waPending.set(from, result.setPending);
+  if (result.clearPending || result.dispatch) await waPending.del(from);
+  if (result.setPending) await waPending.set(from, result.setPending);
 
   const replyText = result.reply ?? '';
   if (replyText) {

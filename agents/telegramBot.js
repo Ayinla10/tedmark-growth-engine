@@ -15,6 +15,7 @@ import { runApprove, runSend } from './outreach.js';
 import { setSetting } from '../tools/settings.js';
 import { notifyTelegram } from '../tools/telegramNotify.js';
 import { processOwnerMessage, dispatchAgent, summariseAgentResult, loadBusinessContext } from './conversationEngine.js';
+import { pendingConfirmations, pendingArgCollection, lastScoutResults } from '../tools/botState.js';
 
 const COMMANDS = [
   { command: 'start', description: 'Connect or check your link status' },
@@ -102,10 +103,8 @@ async function formatTopLeads(agencyId) {
   return lines.join('\n\n');
 }
 
-// ── Per-chat pending confirmation state (in-memory) ───────────────────────────
-const pendingConfirmations = new Map();  // { chatId -> { command, args } }
-const pendingArgCollection = new Map();  // { chatId -> { command, args, asking } }
-const lastScoutResults     = new Map();  // { chatId -> { lead_ids, names, sector, city, at } }
+// pendingConfirmations, pendingArgCollection, lastScoutResults are imported
+// from tools/botState.js — DB-backed, survive server restarts.
 
 // ── Inline keyboards for each agent argument ───────────────────────────────────
 const ARG_KEYBOARDS = {
@@ -177,7 +176,7 @@ async function sendArgKeyboard(chatId, command, args, asking) {
     limit:  '🔢 How many leads do you want?',
   };
   const question = questions[asking] ?? `What is the ${asking}?`;
-  pendingArgCollection.set(chatId, { command, args, asking });
+  await pendingArgCollection.set(chatId, { command, args, asking });
   if (buttons) {
     await sendMessage(chatId, question, { buttons });
   } else {
@@ -247,10 +246,10 @@ async function handleCommand(link, text, chatId, agencyId) {
     }
 
     // ── Intelligent conversation engine ────────────────────────────────────────
-    const pending = pendingConfirmations.get(chatId) ?? null;
+    const pending = await pendingConfirmations.get(chatId) ?? null;
 
     // Build last-scout context string for the AI prompt — persists until a new scout replaces it
-    const scoutMem = lastScoutResults.get(chatId);
+    const scoutMem = await lastScoutResults.get(chatId);
     let lastScoutContext = '';
     if (scoutMem) {
       const when = new Date(scoutMem.at).toLocaleDateString('en-GH', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -274,8 +273,8 @@ async function handleCommand(link, text, chatId, agencyId) {
     }
 
     // Update pending state
-    if (result.clearPending || result.dispatch) pendingConfirmations.delete(chatId);
-    if (result.setPending) pendingConfirmations.set(chatId, result.setPending);
+    if (result.clearPending || result.dispatch) await pendingConfirmations.del(chatId);
+    if (result.setPending) await pendingConfirmations.set(chatId, result.setPending);
 
     stopTyping();
 
@@ -305,7 +304,7 @@ async function handleCommand(link, text, chatId, agencyId) {
         // Store scout results so follow-up commands can reference "those leads"
         if (['scout', 'web-scout'].includes(command) && agentResult.lead_ids?.length) {
           const names = (agentResult.output ?? '').match(/- (.+?) \(/g)?.map(s => s.slice(2, -2)) ?? [];
-          lastScoutResults.set(chatId, {
+          await lastScoutResults.set(chatId, {
             lead_ids: agentResult.lead_ids,
             names,
             sector: args.sector,
@@ -390,10 +389,10 @@ async function handleCallbackQuery(cb) {
   if (cb.data?.startsWith('arg:')) {
     const [, command, argName, ...valueParts] = cb.data.split(':');
     const value = valueParts.join(':'); // handles values with colons
-    const state = pendingArgCollection.get(chatId);
+    const state = await pendingArgCollection.get(chatId);
     const collectedArgs = state?.command === command ? { ...state.args } : {};
     collectedArgs[argName] = value;
-    pendingArgCollection.delete(chatId);
+    await pendingArgCollection.del(chatId);
     await editMessageReplyMarkup(chatId, cb.message.message_id);
     await answerCallbackQuery(cb.id, `✓ ${value}`);
 
@@ -412,7 +411,7 @@ async function handleCallbackQuery(cb) {
       .map(([, v]) => v)
       .join(' in ');
     const confirmMsg = `Run *${command}* for *${label}*?`;
-    pendingConfirmations.set(chatId, { command, args: { ...agent?.defaults, ...collectedArgs } });
+    await pendingConfirmations.set(chatId, { command, args: { ...agent?.defaults, ...collectedArgs } });
     await sendMessage(chatId, confirmMsg, {
       buttons: [[
         { text: '✅ Yes, run it', callbackData: `confirm:${command}:yes` },
@@ -427,18 +426,18 @@ async function handleCallbackQuery(cb) {
     const [, command, answer] = cb.data.split(':');
     await editMessageReplyMarkup(chatId, cb.message.message_id);
     if (answer === 'no') {
-      pendingConfirmations.delete(chatId);
+      await pendingConfirmations.del(chatId);
       await answerCallbackQuery(cb.id, 'Cancelled');
       await sendMessage(chatId, 'Cancelled. What else can I help with?');
       return;
     }
     // yes — dispatch
-    const pending = pendingConfirmations.get(chatId);
+    const pending = await pendingConfirmations.get(chatId);
     if (!pending || pending.command !== command) {
       await answerCallbackQuery(cb.id, 'Session expired, please try again.');
       return;
     }
-    pendingConfirmations.delete(chatId);
+    await pendingConfirmations.del(chatId);
     await answerCallbackQuery(cb.id, 'Running...');
     await sendMessage(chatId, `On it — running *${command}*... this may take a minute.`);
     const stopAgentTyping = startTyping(chatId);
@@ -450,7 +449,7 @@ async function handleCallbackQuery(cb) {
       // Store scout results for follow-up
       if (['scout', 'web-scout'].includes(pending.command) && agentResult.lead_ids?.length) {
         const names = (agentResult.output ?? '').match(/- (.+?) \(/g)?.map(s => s.slice(2, -2)) ?? [];
-        lastScoutResults.set(chatId, {
+        await lastScoutResults.set(chatId, {
           lead_ids: agentResult.lead_ids,
           names,
           sector: pending.args.sector,

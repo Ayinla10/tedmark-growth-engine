@@ -208,6 +208,13 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_phone_created ON whatsapp_messages(phone, created_at);
 
+-- Persistent bot state — survives server restarts (pending confirmations, scout memory, etc.)
+CREATE TABLE IF NOT EXISTS bot_state (
+  key text PRIMARY KEY,
+  value jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Telegram inline-button callback_data is capped at 64 bytes by the
 -- platform, so a self-contained signed payload doesn't fit — instead the
 -- button carries only a short random token, and the actual action/target
