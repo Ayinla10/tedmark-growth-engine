@@ -28,7 +28,7 @@ import { LeadRowActions } from "@/components/lead-row-actions";
 import { ProposalModal } from "@/components/proposal-modal";
 import { ReplyForm } from "@/components/reply-form";
 import { getLeadThread } from "@/lib/mutations";
-import { getLeadDetail } from "@/lib/queries";
+import { getLeadDetail, getAgentRunsForLead } from "@/lib/queries";
 import { googleMapsSearchUrl, googleSearchUrl } from "@/lib/googleLinks";
 import { formatDate } from "@/lib/time";
 import type { SiteSignals } from "@/lib/queries";
@@ -127,9 +127,10 @@ const CLASSIFICATION_LABELS: Record<string, { label: string; color: string; bg: 
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [{ lead, proposals }, thread] = await Promise.all([
+  const [{ lead, proposals }, thread, agentRuns] = await Promise.all([
     getLeadDetail(id),
     getLeadThread(id),
+    getAgentRunsForLead(id),
   ]);
 
   if (!lead) notFound();
@@ -791,6 +792,47 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 </SectionCard>
               );
             })()}
+
+            {/* AGENT ACTIVITY */}
+            {agentRuns.length > 0 && (
+              <SectionCard>
+                <SectionHeading>Agent activity</SectionHeading>
+                <div className="space-y-2">
+                  {agentRuns.map((run) => {
+                    const label: Record<string, string> = {
+                      enrich: "Enrich",
+                      "enrich-dm": "Find DM",
+                      qualify: "Qualify",
+                      "icp-score": "ICP Score",
+                      outreach: "Outreach",
+                    };
+                    const lastLine = (run.output ?? "").split("\n").filter(Boolean).pop() ?? "";
+                    return (
+                      <div key={run.id} className="flex items-start gap-2">
+                        <span
+                          className="mt-0.5 shrink-0 text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center"
+                          style={{
+                            background: run.ok ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                            color: run.ok ? "#16a34a" : "#dc2626",
+                          }}
+                        >
+                          {run.ok ? "✓" : "✕"}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium" style={{ color: "var(--ink)" }}>
+                            {label[run.command] ?? run.command}
+                          </p>
+                          {lastLine && (
+                            <p className="text-[11px] truncate" style={{ color: "var(--ink-muted)" }}>{lastLine}</p>
+                          )}
+                          <p className="text-[11px]" style={{ color: "var(--ink-muted)" }}>{formatDate(run.created_at)}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+            )}
 
           </div>
         </div>

@@ -21,6 +21,7 @@ import {
   updateSignatureDb,
   setDefaultSignatureDb,
   deleteSignatureDb,
+  insertAgentRunDb,
   type KnowledgeItemInput,
 } from "./mutations";
 import { setSetting, type Settings } from "./settings";
@@ -49,9 +50,17 @@ export async function runScoutAction(sector: string, city: string, limit: number
   return result;
 }
 
+async function logRun(command: string, leadId: string | undefined, result: { ok: boolean; output: string }) {
+  try {
+    const session = await getSession();
+    if (session) await insertAgentRunDb(session.agencyId, leadId ?? null, command, result.ok, result.output);
+  } catch { /* non-blocking */ }
+}
+
 export async function runEnricherAction(limit: number, leadId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   const result = await runAgentCommand("enrich", args);
+  await logRun("enrich", leadId, result);
   refreshAll(leadId);
   return result;
 }
@@ -59,6 +68,7 @@ export async function runEnricherAction(limit: number, leadId?: string) {
 export async function runDmEnrichAction(limit: number, leadId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   const result = await runAgentCommand("enrich-dm", args);
+  await logRun("enrich-dm", leadId, result);
   refreshAll(leadId);
   return result;
 }
@@ -66,6 +76,7 @@ export async function runDmEnrichAction(limit: number, leadId?: string) {
 export async function runIcpScoreAction(limit: number, leadId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   const result = await runAgentCommand("icp-score", args);
+  await logRun("icp-score", leadId, result);
   refreshAll(leadId);
   return result;
 }
@@ -73,6 +84,7 @@ export async function runIcpScoreAction(limit: number, leadId?: string) {
 export async function runQualifierAction(limit: number, leadId?: string) {
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   const result = await runAgentCommand("qualify", args);
+  await logRun("qualify", leadId, result);
   refreshAll(leadId);
   return result;
 }
@@ -81,6 +93,7 @@ export async function runOutreachAction(limit: number, leadId?: string, signatur
   const args = leadId ? ["--lead-id", leadId] : ["--limit", String(limit)];
   if (signatureId) args.push("--signature-id", signatureId);
   const result = await runAgentCommand("outreach", args);
+  await logRun("outreach", leadId, result);
   refreshAll(leadId);
   return result;
 }

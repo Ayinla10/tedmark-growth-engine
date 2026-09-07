@@ -298,3 +298,17 @@ export async function getLeadThread(leadId: string): Promise<ThreadItem[]> {
 
   return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 }
+
+export async function insertAgentRunDb(
+  agencyId: string,
+  leadId: string | null,
+  command: string,
+  ok: boolean,
+  output: string,
+) {
+  await pool.query(
+    `INSERT INTO agent_runs (agency_id, lead_id, command, ok, output)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [agencyId, leadId ?? null, command, ok, output.slice(0, 2000)],
+  );
+}

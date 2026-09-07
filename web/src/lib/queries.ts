@@ -1129,3 +1129,24 @@ export async function getLeadOutreach(leadId: string): Promise<OutreachRow[]> {
   );
   return res.rows;
 }
+
+export type AgentRun = {
+  id: string;
+  command: string;
+  ok: boolean;
+  output: string | null;
+  created_at: string;
+};
+
+export async function getAgentRunsForLead(leadId: string, limit = 8): Promise<AgentRun[]> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT id, command, ok, output, created_at
+     FROM agent_runs
+     WHERE agency_id = $1 AND lead_id = $2
+     ORDER BY created_at DESC
+     LIMIT $3`,
+    [agencyId, leadId, limit],
+  );
+  return res.rows;
+}

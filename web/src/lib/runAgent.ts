@@ -37,8 +37,14 @@ export async function runAgentCommand(command: string, args: string[]): Promise<
         // No timeout here — Next.js server actions time out at their own boundary
       });
 
+      if (!res.ok) {
+        let errBody = "";
+        try { errBody = await res.text(); } catch { /* ignore */ }
+        return { ok: false, output: `Agent server returned ${res.status}: ${errBody || res.statusText}` };
+      }
+
       const data = await res.json() as { ok: boolean; output: string };
-      return { ok: data.ok, output: data.output ?? "" };
+      return { ok: data.ok ?? false, output: data.output ?? "" };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, output: `Agent server error: ${msg}` };
