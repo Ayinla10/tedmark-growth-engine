@@ -102,6 +102,9 @@ export async function complete({ system, user, maxTokens = 1024, json = false })
     } catch (err) {
       lastErr = err;
       const status = err?.status ?? err?.response?.status;
+      if (status === 402) {
+        throw new Error('DeepSeek account has insufficient balance — top up at platform.deepseek.com');
+      }
       if (RETRYABLE.has(status) && attempt < 2) {
         const delay = status === 429 ? 3000 : 1500;
         console.warn(`[llm] attempt=${attempt + 1} status=${status} — retrying in ${delay}ms`);
