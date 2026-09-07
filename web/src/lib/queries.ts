@@ -573,13 +573,17 @@ export function dateClause(column: string, range: DateRange | undefined, params:
   return clauses.length ? ` AND ${clauses.join(" AND ")}` : "";
 }
 
-export async function getLeads(status?: string, range?: DateRange): Promise<Lead[]> {
+export async function getLeads(status?: string, range?: DateRange, sector?: string): Promise<Lead[]> {
   const agencyId = await getCurrentAgencyId();
   const params: unknown[] = [agencyId];
   let where = "";
   if (status) {
     params.push(status);
     where += ` AND status = $${params.length}`;
+  }
+  if (sector) {
+    params.push(sector);
+    where += ` AND sector = $${params.length}`;
   }
   where += dateClause("created_at", range, params);
 
