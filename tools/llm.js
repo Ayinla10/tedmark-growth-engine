@@ -54,6 +54,7 @@ async function callProvider(client, model, provider, { system, user, maxTokens, 
         model,
         max_tokens: maxTokens,
         ...(json ? { response_format: { type: 'json_object' } } : {}),
+        ...(provider === 'openrouter' ? { reasoning: { enabled: false } } : {}),
         messages: [
           { role: 'system', content: system },
           { role: 'user',   content: user },
