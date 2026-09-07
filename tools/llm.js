@@ -64,7 +64,16 @@ async function callProvider(client, model, provider, { system, user, maxTokens, 
       });
 
       const choice = response.choices?.[0];
-      console.log(`[llm] provider=${provider} attempt=${attempt + 1} finish_reason=${choice?.finish_reason} json=${json} content_len=${(choice?.message?.content ?? '').length}`);
+      const content = choice?.message?.content ?? '';
+      console.log(`[llm] provider=${provider} attempt=${attempt + 1} finish_reason=${choice?.finish_reason} json=${json} content_len=${content.length}`);
+
+      // Treat empty response as a retriable failure
+      if (!content && attempt < 2) {
+        console.warn(`[llm] ${provider} attempt=${attempt + 1} returned empty content — retrying`);
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+      if (!content) throw new Error('empty response');
 
       if (response.usage) {
         try {
@@ -75,7 +84,7 @@ async function callProvider(client, model, provider, { system, user, maxTokens, 
         }
       }
 
-      return response.choices?.[0]?.message?.content ?? '';
+      return content;
 
     } catch (err) {
       lastErr = err;

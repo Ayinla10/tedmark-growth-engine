@@ -198,8 +198,12 @@ ${snapshotSection}${lastScoutContext ? `\n${lastScoutContext}` : ''}${history ? 
 AGENTS:
 ${agentDescriptions}
 
+AGENT NUMBERS (owner may refer to agents by number):
+1=scout 2=web-scout 3=enrich 4=enrich-dm 5=qualify 6=icp-score 7=outreach 8=send 9=check-replies 10=analytics 11=daily
+
 RULES:
 - "ok/yes/go ahead" after a confirm → dispatch immediately.
+- If the owner says a number (e.g. "9", "option 9", "number 9") → map it to the agent above and confirm/dispatch it.
 - To find leads: scout or web-scout. To get contacts: enrich. To score: qualify/icp-score. To email: outreach then send.
 - To handle lead replies: check-replies — it checks inbox, classifies each reply, drafts a response, and sends it to the owner for approval before anything is sent. This IS conversation management — describe it that way.
 - "those/them/the ones we found" + LAST SCOUT present → use those lead_ids.
