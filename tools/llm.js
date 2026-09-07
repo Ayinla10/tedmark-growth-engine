@@ -4,19 +4,21 @@ import { recordApiUsage } from './db.js';
 
 dotenv.config();
 
-// Provider chain (primary → fallback):
-//   1. OPENROUTER_API_KEY → openrouter.ai  (primary, free models)
-//   2. DEEPSEEK_API_KEY   → api.deepseek.com (fallback if OpenRouter fails)
-//
-// Set LLM_MODEL in .env to override the default OpenRouter model.
-// Good free OpenRouter models: google/gemma-3-27b-it:free
-//                               deepseek/deepseek-chat-v3-0324:free
-//                               meta-llama/llama-3.3-70b-instruct:free
+// Provider chain: try each free OpenRouter model in order, then fall back to DeepSeek (paid).
+// Models are from different providers so each has its own rate-limit quota.
+const FREE_MODELS = process.env.LLM_MODEL
+  ? [process.env.LLM_MODEL]
+  : [
+      'google/gemma-4-31b-it:free',           // Google — 262K ctx
+      'nvidia/nemotron-3-ultra-550b-a55b:free',// NVIDIA 550B — 1M ctx
+      'nvidia/nemotron-3-super-120b-a12b:free',// NVIDIA 120B — 262K ctx
+      'minimax/minimax-m3:free',               // MiniMax — 1M ctx
+      'nvidia/nemotron-3.5-lightning:free',    // NVIDIA Lightning — 1M ctx
+    ];
 
-const OPENROUTER_MODEL = process.env.LLM_MODEL || 'google/gemma-4-31b-it:free';
-const DEEPSEEK_MODEL   = 'deepseek-chat';
+const DEEPSEEK_MODEL = 'deepseek-chat';
 
-export const LLM_MODEL = process.env.OPENROUTER_API_KEY ? OPENROUTER_MODEL : DEEPSEEK_MODEL;
+export const LLM_MODEL = FREE_MODELS[0];
 
 function makeOpenRouterClient() {
   if (!process.env.OPENROUTER_API_KEY) return null;
@@ -97,14 +99,18 @@ async function callProvider(client, model, provider, { system, user, maxTokens, 
 export async function complete({ system, user, maxTokens = 1024, json = false }) {
   const opts = { system, user, maxTokens, json };
 
-  // ── 1. Try OpenRouter ─────────────────────────────────────────────────────
+  // ── 1. Try each free OpenRouter model in sequence ─────────────────────────
   const orClient = getOpenRouterClient();
   if (orClient) {
-    try {
-      return await callProvider(orClient, OPENROUTER_MODEL, 'openrouter', opts);
-    } catch (err) {
-      console.warn(`[llm] OpenRouter failed (${err?.status ?? err?.message}) — falling back to DeepSeek`);
+    for (const model of FREE_MODELS) {
+      try {
+        return await callProvider(orClient, model, 'openrouter', opts);
+      } catch (err) {
+        const status = err?.status ?? err?.response?.status;
+        console.warn(`[llm] OpenRouter model=${model} failed (${status ?? err?.message}) — trying next`);
+      }
     }
+    console.warn('[llm] All OpenRouter models exhausted — falling back to DeepSeek');
   }
 
   // ── 2. Fall back to DeepSeek ──────────────────────────────────────────────
@@ -115,7 +121,7 @@ export async function complete({ system, user, maxTokens = 1024, json = false })
     } catch (err) {
       const status = err?.status ?? err?.response?.status;
       if (status === 402) {
-        throw new Error('Both OpenRouter and DeepSeek are unavailable (DeepSeek: insufficient balance).');
+        throw new Error('All OpenRouter models and DeepSeek are unavailable (DeepSeek: insufficient balance).');
       }
       throw err;
     }
