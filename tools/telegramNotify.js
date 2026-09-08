@@ -66,10 +66,12 @@ export async function notifyTelegramApproval(agencyId, text, action, targetId) {
   for (const link of links) {
     try {
       const approveToken = await createCallbackToken(link.id, `approve_${action}`, targetId);
-      const rejectToken = await createCallbackToken(link.id, `reject_${action}`, targetId);
+      const rejectToken  = await createCallbackToken(link.id, `reject_${action}`, targetId);
+      const editToken    = await createCallbackToken(link.id, `edit_${action}`, targetId);
       await sendMessage(link.telegram_chat_id, text, {
         buttons: [[
           { text: '✅ Approve', callbackData: approveToken },
+          { text: '✏️ Edit',   callbackData: editToken },
           { text: '❌ Reject', callbackData: rejectToken },
         ]],
       });

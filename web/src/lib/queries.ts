@@ -597,7 +597,7 @@ export async function getLeads(
   const offset = (Math.max(1, page) - 1) * LEADS_PAGE_SIZE;
   params.push(LEADS_PAGE_SIZE, offset);
   const res = await pool.query(
-    `SELECT * FROM leads WHERE agency_id = $1${where} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    `SELECT * FROM leads WHERE agency_id = $1 AND status != 'archived'${where} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
   return res.rows.map(normalizeLead);
@@ -621,7 +621,7 @@ export async function getLeadsCount(
   }
   where += dateClause("created_at", range, params);
   const res = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM leads WHERE agency_id = $1${where}`,
+    `SELECT COUNT(*)::int AS n FROM leads WHERE agency_id = $1 AND status != 'archived'${where}`,
     params
   );
   return res.rows[0].n;

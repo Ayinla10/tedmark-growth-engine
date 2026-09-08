@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { getUpdates, sendMessage, sendChatAction, answerCallbackQuery, editMessageReplyMarkup, setMyCommands } from '../tools/telegram.js';
-import { consumeCallbackToken } from '../tools/telegramAuth.js';
+import { consumeCallbackToken, createCallbackToken } from '../tools/telegramAuth.js';
 import {
   consumeTelegramLinkCode,
   getTelegramLinkByChatId,
@@ -123,7 +123,6 @@ const ARG_KEYBOARDS = {
       { label: 'Salons',        value: 'salon' },
     ],
     [
-      { label: 'Retail Shops',  value: 'retail' },
       { label: 'Real Estate',   value: 'real estate' },
       { label: 'Logistics',     value: 'logistics' },
     ],
@@ -249,6 +248,24 @@ async function handleCommand(link, text, chatId, agencyId) {
 
     // Auto-inject lead_ids for clearly referential messages ("enrich those", "qualify them")
     const isReferential = /\b(those|them|these|the ones|the leads?|what you found|just found)\b/i.test(text);
+
+    // ── Edit outreach intercept — owner is sending a revised message body ────────
+    if (pending?._editOutreach) {
+      await pendingConfirmations.del(chatId);
+      await query(`UPDATE outreach SET body = $1 WHERE id = $2`, [text, pending.outreachId]);
+      stopTyping();
+      const approveToken = await createCallbackToken(link.id, 'approve_outreach', pending.outreachId);
+      const rejectToken  = await createCallbackToken(link.id, 'reject_outreach', pending.outreachId);
+      const editToken    = await createCallbackToken(link.id, 'edit_outreach', pending.outreachId);
+      await sendMessage(chatId, `Draft updated for *${pending.businessName}*. Ready to send?`, {
+        buttons: [[
+          { text: '✅ Approve', callbackData: approveToken },
+          { text: '✏️ Edit',   callbackData: editToken },
+          { text: '❌ Reject', callbackData: rejectToken },
+        ]],
+      });
+      return;
+    }
 
     // Build the effective pending confirmation — prefer a pending plan over a single-step pending
     const effectivePending = pendingPlan
@@ -539,6 +556,17 @@ async function handleCallbackQuery(cb) {
     } else {
       await sendMessage(chatId, `✅ Approved. This is a WhatsApp message — open the dashboard to send it (no automated WhatsApp sending yet).`);
     }
+  } else if (payload.action === 'edit_outreach') {
+    const outreach = await getOutreachById(payload.target_id);
+    if (!outreach || outreach.status !== 'draft') {
+      await answerCallbackQuery(cb.id, 'No longer pending.');
+      await sendMessage(chatId, 'That draft is no longer pending — it may have already been handled.');
+      return;
+    }
+    await answerCallbackQuery(cb.id, 'Send your edited message');
+    // Store edit state so next plain text message is treated as the replacement body
+    await pendingConfirmations.set(chatId, { _editOutreach: true, outreachId: payload.target_id, businessName: outreach.business_name });
+    await sendMessage(chatId, `Send me the revised message for *${outreach.business_name}* and I'll update the draft.\n\nCurrent draft:\n\n${outreach.body}`);
   } else if (payload.action === 'reject_outreach') {
     await answerCallbackQuery(cb.id, 'Rejected');
     await sendMessage(chatId, `Rejected. I won't send this message.`);
