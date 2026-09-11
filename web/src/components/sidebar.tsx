@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/conversations", label: "Conversations",  icon: MessageSquare },
   { href: "/deals",         label: "Deals",          icon: DollarSign },
   { href: "/growth",        label: "Growth",         icon: TrendingUp },
+  { href: "/agents",         label: "AI Orchestrator", icon: Bot },
   { href: "/copilot",       label: "AI Copilot",     icon: Bot },
   { href: "/autopilot",     label: "AI Autopilot",   icon: Cpu },
   { href: "/settings",      label: "Settings",       icon: Settings },
