@@ -2,7 +2,7 @@ import { FileText, RefreshCw, Send, ShieldCheck, TrendingUp, Users } from "lucid
 import { AgentRunButton } from "@/components/agent-run-button";
 import { AiCoreViz } from "@/components/ai-core-viz";
 import { AnimatedNumber } from "@/components/animated-number";
-import { CommandShell } from "@/components/command-shell";
+import { AppShell } from "@/components/app-shell";
 import { Waveform } from "@/components/jarvis-core";
 import { MotionCard } from "@/components/motion-card";
 import { OrchestrationCanvasLive } from "@/components/orchestration-canvas-live";
@@ -167,8 +167,8 @@ export default async function AgentsPage() {
   ];
 
   return (
-    <CommandShell>
-      <section className="p-6 pb-64 space-y-6">
+    <AppShell>
+      <section className="p-6 pb-16 space-y-6">
         {/* Command header */}
         <div className="rounded-3xl border border-emerald-500/15 bg-[#080d1a] p-6 flex items-center justify-between flex-wrap gap-4 shadow-[0_0_40px_rgba(34,197,94,0.05)]">
           <div>
@@ -343,7 +343,7 @@ export default async function AgentsPage() {
         </div>
       </section>
 
-      <TerminalLog command />
-    </CommandShell>
+      <TerminalLog />
+    </AppShell>
   );
 }
