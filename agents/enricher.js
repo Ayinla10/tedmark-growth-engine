@@ -210,9 +210,11 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
         const placesQuery = `${lead.business_name} ${lead.location ?? ''}`;
         await log('info', `Checking Google Maps listing for phone number...`);
         const places = await searchPlaces({ query: placesQuery, gl: lead.country === 'NG' ? 'ng' : lead.country === 'ZA' ? 'za' : 'gh' });
-        const match = places.find((p) =>
-          p.title?.toLowerCase().includes(lead.business_name.toLowerCase().split(' ')[0].toLowerCase())
-        ) ?? places[0];
+        // Strip punctuation before comparing so "Pippa's" matches "Pippas"
+        const slug = (s) => s?.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() ?? '';
+        const nameSlug = slug(lead.business_name);
+        const firstWord = nameSlug.split(/\s+/)[0];
+        const match = places.find((p) => slug(p.title).includes(firstWord)) ?? places[0];
         if (match?.phone) {
           foundPhones.push(match.phone);
           await log('found', `Phone from Google Maps: ${match.phone}`);
