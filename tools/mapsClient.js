@@ -114,6 +114,58 @@ function extractContact(properties) {
   return { phone, website };
 }
 
+// Look up a single known business by name + location to retrieve contact details.
+// Returns { phone, website } or null if not found.
+export async function lookupBusinessContacts({ name, location, country = 'GH' }) {
+  const apiKey = getApiKey();
+
+  // Geocode the location string to get a bounding bias point
+  let biasParam = '';
+  try {
+    const geoParams = new URLSearchParams({
+      text: `${name} ${location}`,
+      format: 'json',
+      limit: '1',
+      apiKey,
+    });
+    if (country) geoParams.set('countrycodes', country.toLowerCase());
+    const geoRes = await fetch(`${GEOCODE_URL}?${geoParams.toString()}`);
+    const geoData = await geoRes.json();
+    const pt = geoData.results?.[0];
+    if (pt?.lon && pt?.lat) biasParam = `proximity:${pt.lon},${pt.lat}`;
+  } catch { /* proceed without bias */ }
+
+  // Text search via Geoapify geocode (address search finds named places with contacts)
+  try {
+    const params = new URLSearchParams({
+      text: `${name} ${location}`,
+      format: 'json',
+      limit: '5',
+      apiKey,
+    });
+    if (country) params.set('countrycodes', country.toLowerCase());
+    if (biasParam) params.set('filter', biasParam);
+
+    const res = await fetch(`${GEOCODE_URL}?${params.toString()}`);
+    const data = await res.json();
+    await recordApiUsage('geoapify', 'geocode', 'requests', 1).catch(() => {});
+
+    const slug = (s) => s?.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() ?? '';
+    const firstWord = slug(name).split(/\s+/)[0];
+
+    const match = (data.results ?? []).find((r) =>
+      slug(r.name ?? r.formatted ?? '').includes(firstWord)
+    ) ?? data.results?.[0];
+
+    if (match) {
+      const { phone, website } = extractContact(match);
+      if (phone || website) return { phone, website };
+    }
+  } catch { /* fall through */ }
+
+  return null;
+}
+
 export async function searchBusinesses({ sector, city, limit = 20, offset = 0 }) {
   const category = resolveSectorCategory(sector);
 

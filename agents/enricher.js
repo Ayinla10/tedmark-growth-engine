@@ -15,6 +15,7 @@ import {
   verifyEmailDomain,
 } from '../tools/contactFinder.js';
 import { searchWeb, searchPlaces } from '../tools/searchClient.js';
+import { lookupBusinessContacts } from '../tools/mapsClient.js';
 import { fetchReadableContent, fetchSiteContent } from '../tools/jinaReader.js';
 
 // Extract owner/manager name from page text using simple heuristics + patterns
@@ -131,7 +132,24 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
     } else {
       // ── Step 2: No website — try Google Maps Places first, then web search ─
 
-      // 2a. Places lookup — fastest, structured, no page crawl needed
+      // 2a. Geoapify — same source as the scout, free, no extra key needed
+      try {
+        await log('info', `Checking Geoapify for "${lead.business_name}"...`);
+        const geo = await lookupBusinessContacts({ name: lead.business_name, location: lead.location ?? '', country: lead.country ?? 'GH' });
+        if (geo?.phone) {
+          foundPhones.push(geo.phone);
+          await log('found', `Phone from Geoapify: ${geo.phone}`);
+        }
+        if (geo?.website && !lead.website_url) {
+          websiteToSave = geo.website;
+          await log('found', `Website from Geoapify: ${geo.website}`);
+        }
+      } catch (err) {
+        await log('error', `Geoapify lookup failed: ${err.message}`);
+      }
+
+      // 2b. Serper Places (Google Maps) — richer data, needs SERPER_API_KEY
+      if (foundPhones.length === 0 || (!lead.website_url && !websiteToSave)) {
       try {
         const placesQuery = `${lead.business_name} ${lead.location ?? ''}`;
         await log('info', `Checking Google Maps listing for "${lead.business_name}"...`);
@@ -153,8 +171,9 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
       } catch (err) {
         await log('error', `Places lookup failed: ${err.message}`);
       }
+      } // end Serper Places block
 
-      // 2b. Web search — only if still missing email (or phone after Places failed)
+      // 2c. Web search — only if still missing email after Geoapify + Places
       const stillNeedsSearch = !lead.email && foundEmails.length === 0;
       if (stillNeedsSearch) {
         try {
