@@ -303,10 +303,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 {lead.problems?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium" style={{ color: "var(--ink-muted)" }}>Problems identified:</p>
-                    {lead.problems.map((p: string, i: number) => (
+                    {lead.problems.map((p: string | { field: string; claim: string }, i: number) => (
                       <div key={i} className="flex items-start gap-2">
                         <span className="text-xs font-bold mt-0.5" style={{ color: "#ef4444", flexShrink: 0 }}>✕</span>
-                        <p className="text-sm" style={{ color: "var(--ink-secondary)" }}>{p}</p>
+                        <p className="text-sm" style={{ color: "var(--ink-secondary)" }}>{typeof p === 'string' ? p : p.claim}</p>
                       </div>
                     ))}
                   </div>

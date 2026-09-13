@@ -78,7 +78,7 @@ export type Lead = {
   site_signals: SiteSignals | null;
   recommended_service: string | null;
   recommended_services: string[];
-  problems: string[];
+  problems: (string | { field: string; claim: string })[];
   social_url: string | null;
   discovery_evidence: DiscoveryEvidence | null;
   created_at: string;
@@ -1087,7 +1087,7 @@ export async function getDealPipeline(): Promise<DealRow[]> {
 }
 
 export type DealDetail = DealRow & {
-  problems: string[];
+  problems: (string | { field: string; claim: string })[];
   website_url: string | null;
   phone: string | null;
   dm_phone: string | null;

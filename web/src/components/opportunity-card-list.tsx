@@ -34,7 +34,7 @@ type Opp = {
   next_action_due: string | null;
   recommended_service: string | null;
   recommended_services: string[];
-  problems: string[];
+  problems: (string | { field: string; claim: string })[];
   dm_name: string | null;
   created_at: string;
 };
@@ -175,7 +175,7 @@ function OppCard({ opp }: { opp: Opp }) {
             className="text-xs mt-2 leading-relaxed line-clamp-2"
             style={{ color: "var(--ink-secondary)" }}
           >
-            {opp.score_reason ?? opp.problems[0]}
+            {opp.score_reason ?? (typeof opp.problems[0] === 'string' ? opp.problems[0] : opp.problems[0]?.claim)}
           </p>
         )}
 
