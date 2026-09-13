@@ -129,88 +129,15 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
       }
 
     } else {
-      // ── Step 2: No website — search Google for their business listing ──────
-      try {
-        // Include location and country in query to avoid wrong-country matches
-        const searchQuery = `"${lead.business_name}" ${lead.location ?? ''} contact`;
-        await log('info', `Searching Google for "${lead.business_name}"...`);
-        const results = await searchWeb({ query: searchQuery, count: 8 });
-        await log('info', `Found ${results.length} search results — browsing each...`);
+      // ── Step 2: No website — try Google Maps Places first, then web search ─
 
-        // First word check is too loose — require at least 2 words or 60% of name
-        const nameLower = lead.business_name.toLowerCase();
-        const nameWords = nameLower.split(/\s+/).filter(w => w.length > 2);
-        function titleMatchesBusiness(title) {
-          if (!title) return false;
-          const t = title.toLowerCase();
-          const matchedWords = nameWords.filter(w => t.includes(w));
-          return matchedWords.length >= Math.max(1, Math.ceil(nameWords.length * 0.6));
-        }
-
-        for (const result of results) {
-          const url = result.link;
-          if (!url) continue;
-
-          // Skip social media and noise entirely — never save as website_url
-          const isSocialOrNoise = /facebook\.com|instagram\.com|twitter\.com|x\.com|youtube\.com|tiktok\.com|yelp\.com|tripadvisor\.|linkedin\.com/i.test(url);
-          if (isSocialOrNoise) {
-            // Still extract social links from the snippet for our social_links field
-            if (/facebook\.com|instagram\.com|linkedin\.com/i.test(url)) {
-              if (!socialLinks) socialLinks = extractSocialLinks(url);
-            }
-            continue;
-          }
-
-          // Skip results that clearly don't match this business
-          if (!titleMatchesBusiness(result.title) && !titleMatchesBusiness(result.snippet)) {
-            await log('info', `Skipping unrelated result: ${result.title}`);
-            continue;
-          }
-
-          try {
-            await log('info', `Browsing: ${url}`);
-            const text = await fetchReadableContent(url);
-            if (!text) continue;
-
-            // Emails
-            const emailMatches = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) ?? [];
-            emailMatches.forEach((e) => foundEmails.push(e.toLowerCase()));
-
-            // Phones
-            const phoneMatches = text.match(/(?:\+?[\d][\d\s\-().]{6,15}[\d])/g) ?? [];
-            phoneMatches.forEach((p) => foundPhones.push(p.trim()));
-
-            // Owner name + social from this page
-            if (!ownerName) ownerName = extractOwnerName(text);
-            if (!socialLinks) socialLinks = extractSocialLinks(text);
-
-            // Only save as website if the page content actually mentions the business name
-            if (!websiteToSave && text.toLowerCase().includes(nameWords[0])) {
-              websiteToSave = url;
-            }
-
-            if (foundEmails.length > 0 || foundPhones.length > 0) {
-              await log('info', `Contact info found on ${url}`);
-              break;
-            }
-          } catch { /* skip this result */ }
-        }
-      } catch (err) {
-        await log('error', `Web search failed: ${err.message}`);
-      }
-    }
-
-    // Only save a real website — never a social media link
-    const isSocialUrl = /facebook\.com|instagram\.com|twitter\.com|x\.com|linkedin\.com|tiktok\.com/i.test(websiteToSave ?? '');
-    if (websiteToSave && !isSocialUrl && !lead.website_url) updates.website_url = websiteToSave;
-
-    // ── Step 2b: Google Maps Places lookup for phone (when still missing) ─
-    if (foundPhones.length === 0 && !lead.phone) {
+      // 2a. Places lookup — fastest, structured, no page crawl needed
       try {
         const placesQuery = `${lead.business_name} ${lead.location ?? ''}`;
-        await log('info', `Checking Google Maps listing for phone number...`);
-        const places = await searchPlaces({ query: placesQuery, gl: lead.country === 'NG' ? 'ng' : lead.country === 'ZA' ? 'za' : 'gh' });
-        // Strip punctuation before comparing so "Pippa's" matches "Pippas"
+        await log('info', `Checking Google Maps listing for "${lead.business_name}"...`);
+        const gl = lead.country === 'NG' ? 'ng' : lead.country === 'ZA' ? 'za' : 'gh';
+        const places = await searchPlaces({ query: placesQuery, gl });
+        // Strip punctuation before comparing so "Pippa's" matches "pippas"
         const slug = (s) => s?.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() ?? '';
         const nameSlug = slug(lead.business_name);
         const firstWord = nameSlug.split(/\s+/)[0];
@@ -219,13 +146,84 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
           foundPhones.push(match.phone);
           await log('found', `Phone from Google Maps: ${match.phone}`);
         }
-        if (match?.website && !lead.website_url && !websiteToSave) {
+        if (match?.website && !lead.website_url) {
           websiteToSave = match.website;
+          await log('found', `Website from Google Maps: ${match.website}`);
         }
       } catch (err) {
         await log('error', `Places lookup failed: ${err.message}`);
       }
+
+      // 2b. Web search — only if still missing email (or phone after Places failed)
+      const stillNeedsSearch = !lead.email && foundEmails.length === 0;
+      if (stillNeedsSearch) {
+        try {
+          const searchQuery = `"${lead.business_name}" ${lead.location ?? ''} contact`;
+          await log('info', `Searching Google for "${lead.business_name}"...`);
+          const results = await searchWeb({ query: searchQuery, count: 8 });
+          await log('info', `Found ${results.length} search results — browsing each...`);
+
+          const nameLower = lead.business_name.toLowerCase();
+          const nameWords = nameLower.split(/\s+/).filter(w => w.length > 2);
+          function titleMatchesBusiness(title) {
+            if (!title) return false;
+            const t = title.toLowerCase();
+            const matchedWords = nameWords.filter(w => t.includes(w));
+            return matchedWords.length >= Math.max(1, Math.ceil(nameWords.length * 0.6));
+          }
+
+          for (const result of results) {
+            const url = result.link;
+            if (!url) continue;
+
+            const isSocialOrNoise = /facebook\.com|instagram\.com|twitter\.com|x\.com|youtube\.com|tiktok\.com|yelp\.com|tripadvisor\.|linkedin\.com/i.test(url);
+            if (isSocialOrNoise) {
+              if (/facebook\.com|instagram\.com|linkedin\.com/i.test(url)) {
+                if (!socialLinks) socialLinks = extractSocialLinks(url);
+              }
+              continue;
+            }
+
+            if (!titleMatchesBusiness(result.title) && !titleMatchesBusiness(result.snippet)) {
+              await log('info', `Skipping unrelated result: ${result.title}`);
+              continue;
+            }
+
+            try {
+              await log('info', `Browsing: ${url}`);
+              const text = await fetchReadableContent(url);
+              if (!text) continue;
+
+              const emailMatches = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) ?? [];
+              emailMatches.forEach((e) => foundEmails.push(e.toLowerCase()));
+
+              if (foundPhones.length === 0) {
+                const phoneMatches = text.match(/(?:\+?[\d][\d\s\-().]{6,15}[\d])/g) ?? [];
+                phoneMatches.forEach((p) => foundPhones.push(p.trim()));
+              }
+
+              if (!ownerName) ownerName = extractOwnerName(text);
+              if (!socialLinks) socialLinks = extractSocialLinks(text);
+
+              if (!websiteToSave && !lead.website_url && text.toLowerCase().includes(nameWords[0])) {
+                websiteToSave = url;
+              }
+
+              if (foundEmails.length > 0 || foundPhones.length > 0) {
+                await log('info', `Contact info found on ${url}`);
+                break;
+              }
+            } catch { /* skip this result */ }
+          }
+        } catch (err) {
+          await log('error', `Web search failed: ${err.message}`);
+        }
+      }
     }
+
+    // Only save a real website — never a social media link
+    const isSocialUrl = /facebook\.com|instagram\.com|twitter\.com|x\.com|linkedin\.com|tiktok\.com/i.test(websiteToSave ?? '');
+    if (websiteToSave && !isSocialUrl && !lead.website_url) updates.website_url = websiteToSave;
 
     // ── Step 3: Validate and save email ───────────────────────────────────
     if (!lead.email && foundEmails.length > 0) {
