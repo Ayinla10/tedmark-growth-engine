@@ -6,7 +6,7 @@ dotenv.config();
 // SearXNG — self-hosted, unlimited, no API key (primary when running)
 // Spin up with: docker run -d -p 8888:8080 searxng/searxng
 // Set SEARXNG_URL=http://localhost:8888 in .env (or leave blank to skip)
-async function searchSearXNG({ query, count = 10 }) {
+async function searchSearXNG({ query, count = 10, gl = null }) {
   const base = process.env.SEARXNG_URL;
   if (!base) throw new Error('SEARXNG_URL not set');
 
@@ -18,6 +18,7 @@ async function searchSearXNG({ query, count = 10 }) {
     safesearch: '0',
     pageno: '1',
   });
+  if (gl) params.set('language', `en-${gl.toUpperCase()}`);
 
   const res = await fetch(`${base}/search?${params}`, {
     headers: { 'Accept': 'application/json' },
@@ -109,11 +110,11 @@ export async function searchPlaces({ query, gl = 'gh' }) {
   }
 }
 
-export async function searchWeb({ query, offset = 0, count = 10 }) {
+export async function searchWeb({ query, offset = 0, count = 10, gl = null }) {
   // 1. SearXNG — self-hosted, unlimited, free (best option when running)
   if (process.env.SEARXNG_URL) {
     try {
-      return await searchSearXNG({ query, count });
+      return await searchSearXNG({ query, count, gl });
     } catch (err) {
       console.warn(`[searchClient] SearXNG failed, falling back to Serper: ${err.message}`);
     }

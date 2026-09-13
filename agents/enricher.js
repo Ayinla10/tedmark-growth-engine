@@ -177,9 +177,10 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
       const stillNeedsSearch = !lead.email && foundEmails.length === 0;
       if (stillNeedsSearch) {
         try {
+          const gl = lead.country === 'NG' ? 'ng' : lead.country === 'ZA' ? 'za' : lead.country === 'DE' ? 'de' : 'gh';
           const searchQuery = `"${lead.business_name}" ${lead.location ?? ''} contact`;
           await log('info', `Searching Google for "${lead.business_name}"...`);
-          const results = await searchWeb({ query: searchQuery, count: 8 });
+          const results = await searchWeb({ query: searchQuery, count: 8, gl });
           await log('info', `Found ${results.length} search results — browsing each...`);
 
           const nameLower = lead.business_name.toLowerCase();
