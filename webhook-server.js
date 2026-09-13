@@ -144,11 +144,11 @@ app.post('/run/:command', requireSecret, async (req, res) => {
         const filterArgs = { sector: args.sector, city: args.city, since: args.since, lead_ids: args.lead_ids };
         await runEnricher({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'], agencyId: args.agency_id, ...filterArgs });
         const r = await query(
-          `SELECT business_name, email, phone, website_url FROM leads WHERE enriched_at >= $1 AND (email IS NOT NULL OR phone IS NOT NULL) ORDER BY enriched_at DESC LIMIT 20`,
+          `SELECT business_name, email, phone, website_url FROM leads WHERE enriched_at >= $1 AND (email IS NOT NULL OR phone IS NOT NULL OR website_url IS NOT NULL) ORDER BY enriched_at DESC LIMIT 20`,
           [since]
         );
         output = r.rows.length
-          ? `Enriched ${r.rows.length} leads:\n` + r.rows.map(l => `- ${l.business_name} | ${l.email ?? '—'} | ${l.phone ?? '—'}`).join('\n')
+          ? `Enriched ${r.rows.length} leads:\n` + r.rows.map(l => `- ${l.business_name} | ${l.email ?? '—'} | ${l.phone ?? '—'} | ${l.website_url ?? '—'}`).join('\n')
           : 'Enricher ran — no new contact details added (may already be enriched).';
         break;
       }
