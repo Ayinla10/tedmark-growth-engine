@@ -70,12 +70,19 @@ const CONTACT_KEYWORDS = /\b(email|contact|reach|write|info|enquir|inquiry|suppo
 const COMMON_PROVIDERS = /^(gmail|yahoo|hotmail|outlook|icloud|me|live|googlemail)\./i;
 const NOISE_DOMAINS = /sentry\.|doubleclick\.|googletagmanager\.|analytics\.|mailchimp\.|sendgrid\.|amazonaws\.|cloudfront\.|wpengine\.|wixpress\.|squarespace\./i;
 
+// Well-known placeholder/example domains that appear in form input placeholders and docs
+const PLACEHOLDER_DOMAINS = /^(example\.(com|org|net|edu)|abc\.xyz|test\.com|foo\.com|bar\.com|domain\.com|email\.com|yourcompany\.com|yourdomain\.com|company\.com)$/i;
+// Local parts that are dead giveaways of a placeholder, not a real address
+const PLACEHOLDER_LOCALS = /^(ex|example|test|user|name|email|your|sample|placeholder|dummy|fake|someone|person|you)$/i;
+
 // Score an email candidate. Returns a number; higher = more likely to be the real contact email.
 // businessDomain: the hostname of the business's known website (e.g. "pippasfitness.com"), or null.
 function scoreEmail(email, pageText, businessDomain) {
   const [local, domain] = email.split('@');
   if (!domain) return -1;
   if (NOISE_DOMAINS.test(domain)) return -1; // tracking/infra noise — hard reject
+  if (PLACEHOLDER_DOMAINS.test(domain)) return -1; // example/placeholder domain — hard reject
+  if (PLACEHOLDER_LOCALS.test(local)) return -1; // placeholder local part — hard reject
 
   let score = 0;
 
