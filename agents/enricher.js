@@ -66,6 +66,48 @@ function extractSocialLinks(text) {
   return Object.keys(social).length > 0 ? social : null;
 }
 
+const CONTACT_KEYWORDS = /\b(email|contact|reach|write|info|enquir|inquiry|support|hello|bookings?|reservations?|get in touch)\b/i;
+const COMMON_PROVIDERS = /^(gmail|yahoo|hotmail|outlook|icloud|me|live|googlemail)\./i;
+const NOISE_DOMAINS = /sentry\.|doubleclick\.|googletagmanager\.|analytics\.|mailchimp\.|sendgrid\.|amazonaws\.|cloudfront\.|wpengine\.|wixpress\.|squarespace\./i;
+
+// Score an email candidate. Returns a number; higher = more likely to be the real contact email.
+// businessDomain: the hostname of the business's known website (e.g. "pippasfitness.com"), or null.
+function scoreEmail(email, pageText, businessDomain) {
+  const [local, domain] = email.split('@');
+  if (!domain) return -1;
+  if (NOISE_DOMAINS.test(domain)) return -1; // tracking/infra noise — hard reject
+
+  let score = 0;
+
+  // Domain match: email is from the business's own domain — strongest signal
+  if (businessDomain && domain.endsWith(businessDomain)) score += 50;
+
+  // Common personal providers (gmail etc.) — valid for small businesses but weaker
+  if (COMMON_PROVIDERS.test(domain)) score += 5;
+
+  // Email appears near a contact keyword in the page text
+  const idx = pageText.toLowerCase().indexOf(email.toLowerCase());
+  if (idx !== -1) {
+    const window = pageText.slice(Math.max(0, idx - 150), idx + 150);
+    if (CONTACT_KEYWORDS.test(window)) score += 20;
+  }
+
+  // Penalise obviously generic/noise local parts
+  if (/noreply|no-reply|unsubscribe|bounce|postmaster|mailer-daemon|webmaster|donotreply/i.test(local)) score -= 100;
+
+  // Prefer short, clean local parts (info, hello, contact, bookings)
+  if (/^(info|hello|contact|bookings?|reservations?|enquir|support|admin)$/i.test(local)) score += 15;
+
+  return score;
+}
+
+function businessDomainFrom(websiteUrl) {
+  if (!websiteUrl) return null;
+  try {
+    return new URL(websiteUrl).hostname.replace(/^www\./, '');
+  } catch { return null; }
+}
+
 export async function runEnricher({ limit, leadId, emit, agencyId, sector, city, since, lead_ids }) {
   try { await ensureEnrichEventsTable(); } catch { /* table may already exist */ }
 
@@ -116,6 +158,8 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
     let websiteToSave = null;
     let ownerName = null;
     let socialLinks = null;
+    // Maps email → 300-char window of page text surrounding it (for proximity scoring)
+    const emailPageContext = {};
 
     await log('info', `Starting enrichment for "${lead.business_name}"...`);
 
@@ -134,7 +178,14 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
 
           // Also scan raw text for emails/phones missed by Playwright
           const textEmails = siteText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) ?? [];
-          textEmails.forEach((e) => { if (!foundEmails.includes(e)) foundEmails.push(e.toLowerCase()); });
+          textEmails.forEach((e) => {
+            const low = e.toLowerCase();
+            if (!foundEmails.includes(low)) foundEmails.push(low);
+            if (!emailPageContext[low]) {
+              const i = siteText.toLowerCase().indexOf(low);
+              emailPageContext[low] = siteText.slice(Math.max(0, i - 150), i + 150);
+            }
+          });
 
           const textPhones = siteText.match(/(?:\+?[\d][\d\s\-().]{6,15}[\d])/g) ?? [];
           textPhones.forEach((p) => foundPhones.push(p.trim()));
@@ -208,7 +259,14 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
             const siteText = await fetchSiteContent(knownWebsite).catch(() => null);
             if (siteText) {
               const textEmails = siteText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) ?? [];
-              textEmails.forEach((e) => { if (!foundEmails.includes(e.toLowerCase())) foundEmails.push(e.toLowerCase()); });
+              textEmails.forEach((e) => {
+                const low = e.toLowerCase();
+                if (!foundEmails.includes(low)) foundEmails.push(low);
+                if (!emailPageContext[low]) {
+                  const i = siteText.toLowerCase().indexOf(low);
+                  emailPageContext[low] = siteText.slice(Math.max(0, i - 150), i + 150);
+                }
+              });
               if (!ownerName) ownerName = extractOwnerName(siteText, knownWebsite, knownWebsite);
               if (!socialLinks) socialLinks = extractSocialLinks(siteText);
             }
@@ -264,7 +322,14 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
               if (!text) continue;
 
               const emailMatches = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) ?? [];
-              emailMatches.forEach((e) => foundEmails.push(e.toLowerCase()));
+              emailMatches.forEach((e) => {
+                const low = e.toLowerCase();
+                if (!foundEmails.includes(low)) foundEmails.push(low);
+                if (!emailPageContext[low]) {
+                  const i = text.toLowerCase().indexOf(low);
+                  emailPageContext[low] = text.slice(Math.max(0, i - 150), i + 150);
+                }
+              });
 
               if (foundPhones.length === 0) {
                 const phoneMatches = text.match(/(?:\+?[\d][\d\s\-().]{6,15}[\d])/g) ?? [];
@@ -294,33 +359,41 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
     const isSocialUrl = /facebook\.com|instagram\.com|twitter\.com|x\.com|linkedin\.com|tiktok\.com/i.test(websiteToSave ?? '');
     if (websiteToSave && !isSocialUrl && !lead.website_url) updates.website_url = websiteToSave;
 
-    // ── Step 3: Validate and save email ───────────────────────────────────
+    // ── Step 3: Score, rank, verify and save email ───────────────────────
     if (!lead.email && foundEmails.length > 0) {
-      await log('info', `Verifying ${foundEmails.length} email(s)...`);
-      for (const email of [...new Set(foundEmails)]) {
-        // Skip obvious system noise only — keep Gmail (very common in West Africa)
-        if (/@example\.com|noreply|no-reply|@sentry\.|unsubscribe|donotreply/.test(email)) continue;
+      const knownWebsite = updates.website_url || lead.website_url || websiteToSave;
+      const bizDomain = businessDomainFrom(knownWebsite);
+      await log('info', `Scoring ${[...new Set(foundEmails)].length} email candidate(s)...`);
 
-        // Try MX check but don't hard-reject if it fails — small businesses
-        // often have no MX records even though the email is real
+      // Score all candidates using page-context-free signals (domain match, local part, noise)
+      // Use emailPageText map if available; fall back to empty string
+      const ranked = [...new Set(foundEmails)]
+        .map(email => ({ email, score: scoreEmail(email, emailPageContext[email] ?? '', bizDomain) }))
+        .filter(e => e.score >= 0)                // hard-reject noise domains
+        .sort((a, b) => b.score - a.score);
+
+      for (const { email, score } of ranked) {
+        await log('info', `  Candidate: ${email} (score ${score})`);
+
+        const [, domain] = email.split('@');
+        const domainMatchesBiz = bizDomain && domain.endsWith(bizDomain);
+
+        // MX check — mandatory unless the email is from the business's own domain
         const domainOk = await verifyEmailDomain(email).catch(() => false);
-        if (domainOk) {
-          updates.email = email;
-          emailsFound++;
-          notes.push(`email: ${email}`);
-          await log('found', `Email verified: ${email}`);
-          break;
-        } else {
-          // MX check failed — save anyway if it looks like a real business email
-          const looksReal = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(email);
-          if (looksReal && !updates.email) {
-            updates.email = email;
-            emailsFound++;
-            notes.push(`email: ${email}`);
-            await log('found', `Email saved (no MX record but looks valid): ${email}`);
-            break;
-          }
+        if (!domainOk && !domainMatchesBiz) {
+          await log('info', `  Skipping ${email} — MX check failed and domain doesn't match business site`);
+          continue;
         }
+
+        updates.email = email;
+        emailsFound++;
+        notes.push(`email: ${email}`);
+        await log('found', `Email saved: ${email}${domainOk ? ' (MX verified)' : ' (own domain, no MX)'}` );
+        break;
+      }
+
+      if (!updates.email) {
+        await log('info', `No email passed quality checks — not saving any candidate`);
       }
     }
 
