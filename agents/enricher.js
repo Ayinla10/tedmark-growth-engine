@@ -281,7 +281,8 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
       }
 
       // 2c. Web search — only if still missing email after Geoapify + Places + website crawl
-      const stillNeedsSearch = !lead.email && foundEmails.length === 0;
+      // Run even when lead.email exists: we may find a better/replacement email
+      const stillNeedsSearch = foundEmails.length === 0;
       if (stillNeedsSearch) {
         try {
           const gl = lead.country === 'NG' ? 'ng' : lead.country === 'ZA' ? 'za' : lead.country === 'DE' ? 'de' : 'gh';
@@ -361,8 +362,26 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
     const isSocialUrl = /facebook\.com|instagram\.com|twitter\.com|x\.com|linkedin\.com|tiktok\.com/i.test(websiteToSave ?? '');
     if (websiteToSave && !isSocialUrl && !lead.website_url) updates.website_url = websiteToSave;
 
-    // ── Step 3: Score, rank, verify and save email ───────────────────────
-    if (!lead.email && foundEmails.length > 0) {
+    // ── Step 3: Verify existing email, then select best candidate ────────
+    // If the lead already has an email, verify it first. If it fails MX, clear
+    // it so we can replace it with whatever passes the source-tier checks below.
+    if (lead.email) {
+      const [, existingDomain] = lead.email.split('@');
+      const bizDomain0 = businessDomainFrom(updates.website_url || lead.website_url || websiteToSave);
+      const existingIsOwnDomain = bizDomain0 && existingDomain?.endsWith(bizDomain0);
+      if (!existingIsOwnDomain) {
+        const existingOk = await verifyEmailDomain(lead.email).catch(() => false);
+        if (!existingOk) {
+          await log('info', `Existing email ${lead.email} failed MX check — will try to replace it`);
+          // Signal that we want to replace: set email to null in updates (COALESCE won't overwrite, so use explicit null)
+          updates.clearEmail = true; // handled below before updateLeadContact call
+        } else {
+          await log('info', `Existing email ${lead.email} passed MX check — keeping it`);
+        }
+      }
+    }
+
+    if ((updates.clearEmail || !lead.email) && foundEmails.length > 0) {
       const knownWebsite = updates.website_url || lead.website_url || websiteToSave;
       const bizDomain = businessDomainFrom(knownWebsite);
       const TIER_RANK = { official_site: 3, directory_aggregator: 2, general_web_page: 1 };
@@ -458,6 +477,20 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
     }
 
     // ── Step 6: Persist ──────────────────────────────────────────────────
+    // If the existing email was flagged invalid, replace or clear it directly
+    // (COALESCE in updateLeadContact won't overwrite an existing value with null or a new one)
+    if (updates.clearEmail) {
+      const replacement = updates.email ?? null;
+      await query(`UPDATE leads SET email = $1 WHERE id = $2`, [replacement, lead.id]);
+      if (replacement) {
+        await log('found', `Replaced invalid email with: ${replacement}`);
+      } else {
+        await log('info', `Cleared invalid email — no verified replacement found`);
+      }
+      delete updates.clearEmail;
+      delete updates.email; // already saved above, don't double-write via COALESCE path
+    }
+
     if (Object.keys(updates).length > 0) {
       await updateLeadContact(lead.id, updates);
       const found = [
