@@ -41,15 +41,17 @@ export async function insertLead(lead) {
     discovery_evidence = null,
     agency_id = null,
     country = 'GH',
+    has_website = null,
+    has_google_business_profile = null,
   } = lead;
 
   const resolvedAgencyId = agency_id ?? (await getCurrentAgencyId());
 
   const result = await query(
-    `INSERT INTO leads (agency_id, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence, status, country)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'raw', $11)
+    `INSERT INTO leads (agency_id, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence, status, country, has_website, has_google_business_profile)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'raw', $11, $12, $13)
      RETURNING *`,
-    [resolvedAgencyId, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence ? JSON.stringify(discovery_evidence) : null, country]
+    [resolvedAgencyId, business_name, sector, location, website_url, phone, email, source, social_url, discovery_evidence ? JSON.stringify(discovery_evidence) : null, country, has_website, has_google_business_profile]
   );
 
   return result.rows[0];
@@ -109,15 +111,30 @@ export async function updateLeadScore(id, score, scoreReason, recommendedService
          qualified_at = now()
      WHERE id = $6
      RETURNING *`,
-    [score, scoreReason, recommendedService, recommendedServices, problems, id]
+    [score, scoreReason, recommendedService, recommendedServices, JSON.stringify(problems), id]
   );
   return result.rows[0];
 }
 
 export async function updateLeadSiteSignals(id, signals) {
   const result = await query(
-    `UPDATE leads SET site_signals = $1 WHERE id = $2 RETURNING *`,
-    [JSON.stringify(signals), id]
+    `UPDATE leads
+     SET site_signals          = $1,
+         has_website           = true,
+         has_ssl               = $2,
+         has_analytics         = $3,
+         has_online_booking    = $4,
+         has_social_media      = $5
+     WHERE id = $6
+     RETURNING *`,
+    [
+      JSON.stringify(signals),
+      signals.hasSsl         ?? null,
+      signals.hasTrackingPixel ?? null,
+      signals.hasBookingSystem ?? null,
+      signals.hasSocialLinks ?? null,
+      id,
+    ]
   );
   return result.rows[0];
 }
@@ -162,15 +179,20 @@ export async function markLeadEnriched(id) {
   return result.rows[0];
 }
 
-export async function updateLeadContact(id, { email, phone, website_url }) {
+export async function updateLeadContact(id, { email, phone, website_url, decision_maker_name, dm_name_source }) {
   const result = await query(
     `UPDATE leads
-     SET email       = COALESCE($1, email),
-         phone       = COALESCE($2, phone),
-         website_url = COALESCE($3, website_url)
-     WHERE id = $4
+     SET email                = COALESCE($1, email),
+         phone                = COALESCE($2, phone),
+         website_url          = COALESCE($3, website_url),
+         decision_maker_name  = COALESCE($4, decision_maker_name),
+         dm_name_source       = COALESCE($5, dm_name_source)
+     WHERE id = $6
      RETURNING *`,
-    [email ?? null, phone ?? null, website_url ?? null, id]
+    [email ?? null, phone ?? null, website_url ?? null,
+     decision_maker_name ?? null,
+     dm_name_source ? JSON.stringify(dm_name_source) : null,
+     id]
   );
   return result.rows[0];
 }

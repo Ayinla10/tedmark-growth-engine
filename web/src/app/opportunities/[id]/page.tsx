@@ -695,6 +695,30 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               </div>
             </SectionCard>
 
+            {/* ENRICHER-SOURCED OWNER NAME (with provenance) */}
+            {!lead.dm_name && lead.decision_maker_name && (
+              <SectionCard>
+                <SectionHeading>Possible owner / manager</SectionHeading>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{lead.decision_maker_name}</p>
+                  {lead.dm_name_source && (
+                    <div className="text-xs leading-relaxed space-y-0.5" style={{ color: "var(--ink-muted)" }}>
+                      <p>Source tier: <span className="font-medium">{lead.dm_name_source.tier}</span></p>
+                      {lead.dm_name_source.url && (
+                        <p>Found on: <a href={lead.dm_name_source.url} target="_blank" rel="noopener noreferrer" className="underline">{lead.dm_name_source.url}</a></p>
+                      )}
+                      {lead.dm_name_source.snippet && (
+                        <p className="italic">&ldquo;{lead.dm_name_source.snippet}&rdquo;</p>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>
+                    Extracted automatically — verify before using in outreach.
+                  </p>
+                </div>
+              </SectionCard>
+            )}
+
             {/* DECISION-MAKER */}
             {lead.dm_name ? (
               <SectionCard>

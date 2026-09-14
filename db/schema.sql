@@ -535,3 +535,67 @@ ALTER TABLE users ALTER COLUMN agency_id DROP NOT NULL;
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_agency_required_unless_super_admin;
 ALTER TABLE users ADD CONSTRAINT users_agency_required_unless_super_admin
   CHECK (agency_id IS NOT NULL OR role = 'super_admin');
+
+-- ============================================================================
+-- Verified signal columns: explicit nullable booleans for every claim that
+-- could appear in "Why this is an opportunity." null = not yet checked —
+-- unknown must never render as "missing." Only set when a real check ran.
+-- ============================================================================
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS has_website               boolean;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS has_google_business_profile boolean;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS has_social_media          boolean;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS has_online_booking        boolean;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS has_ssl                   boolean;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS has_analytics             boolean;
+
+-- Backfill from existing data — only sets values we can derive with
+-- certainty; everything else stays null (unknown).
+
+-- has_website: certain if website_url is stored
+UPDATE leads SET has_website = (website_url IS NOT NULL) WHERE has_website IS NULL;
+
+-- has_google_business_profile: any lead discovered via Google Maps/Geoapify
+-- already has a confirmed GBP — that is the source that found them.
+-- Leads from other sources stay null (unknown).
+UPDATE leads SET has_google_business_profile = true
+  WHERE has_google_business_profile IS NULL AND source = 'maps';
+
+-- has_ssl, has_analytics, has_online_booking, has_social_media:
+-- backfill from site_signals JSON where a scrape already ran.
+-- Cast to boolean: JSON true → true, JSON false → false, absent key → null.
+UPDATE leads SET
+  has_ssl             = (site_signals->>'hasSsl')::boolean,
+  has_analytics       = (site_signals->>'hasTrackingPixel')::boolean,
+  has_online_booking  = (site_signals->>'hasBookingSystem')::boolean,
+  has_social_media    = (site_signals->>'hasSocialLinks')::boolean
+WHERE site_signals IS NOT NULL;
+
+-- ============================================================================
+-- Migrate problems column from text[] to jsonb so structured {field,claim}
+-- objects can be stored. Existing string problems are wrapped as content entries.
+-- Run once; the ADD COLUMN IF NOT EXISTS guards make it idempotent on re-run.
+-- ============================================================================
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS problems_json jsonb;
+
+-- Only populate if problems_json is empty (idempotent re-run guard)
+UPDATE leads
+SET problems_json = (
+  SELECT jsonb_agg(jsonb_build_object('field', 'content', 'claim', elem))
+  FROM unnest(problems) AS elem
+)
+WHERE problems IS NOT NULL
+  AND array_length(problems, 1) > 0
+  AND problems_json IS NULL;
+
+-- The actual DROP + RENAME was run manually against production on 2026-09-13.
+-- The column is now: problems jsonb (was text[]).
+-- Keeping this comment as audit trail; do not re-run DROP/RENAME.
+
+-- ============================================================================
+-- Add dm_name_source jsonb for owner-name provenance (2026-09-14)
+-- Stores {url, snippet, tier} alongside decision_maker_name so the source
+-- of every extracted name is traceable and surfaceable in the UI.
+-- ============================================================================
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS dm_name_source jsonb;

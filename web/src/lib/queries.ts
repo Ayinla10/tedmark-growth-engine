@@ -85,6 +85,8 @@ export type Lead = {
   pipeline_stage: string;
   next_action: string | null;
   next_action_due: string | null;
+  decision_maker_name: string | null;
+  dm_name_source: { url: string | null; snippet: string; tier: string } | null;
   dm_name: string | null;
   dm_title: string | null;
   dm_email: string | null;

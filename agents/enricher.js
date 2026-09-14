@@ -18,17 +18,38 @@ import { searchWeb, searchPlaces } from '../tools/searchClient.js';
 import { lookupBusinessContacts } from '../tools/mapsClient.js';
 import { fetchReadableContent, fetchSiteContent } from '../tools/jinaReader.js';
 
-// Extract owner/manager name from page text using simple heuristics + patterns
-function extractOwnerName(text) {
+const KNOWN_AGGREGATORS = /cartogiraffe\.com|sportsgrounds\.me|foursquare\.com|yelp\.com|yellowpages\.|tripadvisor\.|businesslist\.|ghana-business-directory\.|companiesghana\.|bizeurope\.|cylex\.|hotfrog\.|n49\.com|infobel\.|whereis\.|findermaster\./i;
+
+function classifySourceUrl(url, officialWebsite) {
+  if (!url) return 'general_web_page';
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    const officialHost = officialWebsite ? new URL(officialWebsite).hostname.replace(/^www\./, '') : null;
+    if (officialHost && host === officialHost) return 'official_site';
+  } catch { /* ignore parse errors */ }
+  if (KNOWN_AGGREGATORS.test(url)) return 'directory_aggregator';
+  return 'general_web_page';
+}
+
+// Extract owner/manager name from page text — returns {name, snippet, tier} or null.
+// sourceUrl and officialWebsite are used to compute provenance tier.
+function extractOwnerName(text, sourceUrl = null, officialWebsite = null) {
   if (!text) return null;
   const patterns = [
     /(?:CEO|Founder|Owner|Director|Manager|MD|Managing Director)[:\s,]+([A-Z][a-z]+ [A-Z][a-z]+)/,
     /([A-Z][a-z]+ [A-Z][a-z]+),?\s+(?:CEO|Founder|Owner|Director|Manager)/,
     /(?:by|from)\s+([A-Z][a-z]+ [A-Z][a-z]+)/,
   ];
+  const lines = text.split('\n');
   for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) return match[1].trim();
+    for (const line of lines) {
+      const match = line.match(pattern);
+      if (match?.[1]) {
+        const tier = classifySourceUrl(sourceUrl, officialWebsite);
+        if (tier === 'general_web_page') return null; // too unreliable
+        return { name: match[1].trim(), snippet: line.trim().slice(0, 200), tier, sourceUrl };
+      }
+    }
   }
   return null;
 }
@@ -119,10 +140,10 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
           textPhones.forEach((p) => foundPhones.push(p.trim()));
 
           // Owner name + social
-          ownerName = extractOwnerName(siteText);
+          ownerName = extractOwnerName(siteText, lead.website_url, lead.website_url);
           socialLinks = extractSocialLinks(siteText);
 
-          if (ownerName) await log('found', `Owner/manager detected: ${ownerName}`);
+          if (ownerName) await log('found', `Owner/manager detected: ${ownerName.name} (${ownerName.tier})`);
           if (socialLinks) await log('found', `Social links: ${Object.keys(socialLinks).join(', ')}`);
         }
       } catch (err) {
@@ -173,7 +194,35 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
       }
       } // end Serper Places block
 
-      // 2c. Web search — only if still missing email after Geoapify + Places
+      // 2b.5 — Crawl the discovered website before falling back to web search
+      const knownWebsite = websiteToSave || lead.website_url;
+      if (knownWebsite && foundEmails.length === 0) {
+        const isSocial = /facebook\.com|instagram\.com|twitter\.com|x\.com|linkedin\.com|tiktok\.com/i.test(knownWebsite);
+        if (!isSocial) {
+          try {
+            await log('info', `Crawling discovered website for email: ${knownWebsite}`);
+            const contacts = await findContactsOnWebsite(knownWebsite);
+            contacts.emails.forEach((e) => { if (!foundEmails.includes(e)) foundEmails.push(e); });
+            if (foundPhones.length === 0) contacts.phones.forEach((p) => foundPhones.push(p));
+
+            const siteText = await fetchSiteContent(knownWebsite).catch(() => null);
+            if (siteText) {
+              const textEmails = siteText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) ?? [];
+              textEmails.forEach((e) => { if (!foundEmails.includes(e.toLowerCase())) foundEmails.push(e.toLowerCase()); });
+              if (!ownerName) ownerName = extractOwnerName(siteText, knownWebsite, knownWebsite);
+              if (!socialLinks) socialLinks = extractSocialLinks(siteText);
+            }
+
+            if (foundEmails.length > 0) {
+              await log('info', `[direct_website] Email found on ${knownWebsite}`);
+            }
+          } catch (err) {
+            await log('error', `Website crawl failed: ${err.message}`);
+          }
+        }
+      }
+
+      // 2c. Web search — only if still missing email after Geoapify + Places + website crawl
       const stillNeedsSearch = !lead.email && foundEmails.length === 0;
       if (stillNeedsSearch) {
         try {
@@ -222,7 +271,7 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
                 phoneMatches.forEach((p) => foundPhones.push(p.trim()));
               }
 
-              if (!ownerName) ownerName = extractOwnerName(text);
+              if (!ownerName) ownerName = extractOwnerName(text, url, websiteToSave || lead.website_url);
               if (!socialLinks) socialLinks = extractSocialLinks(text);
 
               if (!websiteToSave && !lead.website_url && text.toLowerCase().includes(nameWords[0])) {
@@ -296,10 +345,11 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
       await log(normalized.isMobile ? 'found' : 'info', waNote);
     }
 
-    // ── Step 5: Save owner name if found ─────────────────────────────────
+    // ── Step 5: Save owner name if found (with provenance) ───────────────
     if (ownerName && !lead.decision_maker_name) {
-      updates.decision_maker_name = ownerName;
-      notes.push(`owner: ${ownerName}`);
+      updates.decision_maker_name = ownerName.name;
+      updates.dm_name_source = { url: ownerName.sourceUrl, snippet: ownerName.snippet, tier: ownerName.tier };
+      notes.push(`owner: ${ownerName.name} [${ownerName.tier}]`);
     }
 
     // ── Step 6: Persist ──────────────────────────────────────────────────
