@@ -23,6 +23,65 @@ import { runReplyWatcher }    from './agents/replyWatcher.js';
 // ── WhatsApp handler ───────────────────────────────────────────────────────────
 import { handleIncomingWhatsApp } from './agents/whatsappAgent.js';
 
+// Build a human-readable, toast-friendly output string from enricher results.
+function buildEnrichOutput(results) {
+  if (!results || results.length === 0) {
+    return 'ENRICH_RESULT\nstatus: nothing_to_do\nreason: No leads needed enrichment — they may already have full contact details.';
+  }
+
+  const TIER_LABEL = {
+    official_site: 'business website',
+    directory_aggregator: 'directory listing (MX verified)',
+    general_web_page: 'web search (MX verified)',
+  };
+  const SOURCE_LABEL = { geoapify: 'Geoapify', google_maps: 'Google Maps', website: 'website' };
+
+  const lines = ['ENRICH_RESULT'];
+
+  for (const r of results) {
+    lines.push(`business: ${r.business_name}`);
+
+    // Email
+    if (r.emailAction === 'found') {
+      lines.push(`email_action: found`);
+      lines.push(`email: ${r.email}`);
+      lines.push(`email_source: ${TIER_LABEL[r.emailTier] ?? r.emailTier}`);
+    } else if (r.emailAction === 'replaced') {
+      lines.push(`email_action: replaced`);
+      lines.push(`email: ${r.email}`);
+      lines.push(`email_prev: ${r.emailPrev}`);
+      lines.push(`email_source: ${TIER_LABEL[r.emailTier] ?? r.emailTier}`);
+      lines.push(`email_replace_reason: previous email failed MX check (domain does not accept mail)`);
+    } else if (r.emailAction === 'cleared') {
+      lines.push(`email_action: cleared`);
+      lines.push(`email_prev: ${r.emailPrev}`);
+      lines.push(`email_clear_reason: failed MX check and no verified replacement found`);
+    } else if (r.emailRejections?.length > 0) {
+      lines.push(`email_action: none_saved`);
+      // Report the top rejection reason
+      const top = r.emailRejections[0];
+      lines.push(`email_rejected: ${top.email}`);
+      lines.push(`email_reject_reason: ${top.reason}`);
+    } else {
+      lines.push(`email_action: not_found`);
+    }
+
+    // Phone
+    if (r.phone) {
+      lines.push(`phone: ${r.phone}`);
+      if (r.phoneSource) lines.push(`phone_source: ${SOURCE_LABEL[r.phoneSource] ?? r.phoneSource}`);
+    }
+
+    // Website
+    if (r.website) {
+      lines.push(`website: ${r.website}`);
+      if (r.websiteSource) lines.push(`website_source: ${SOURCE_LABEL[r.websiteSource] ?? r.websiteSource}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
 // ── Telegram bot ───────────────────────────────────────────────────────────────
 import { runTelegramBot } from './agents/telegramBot.js';
 
@@ -142,14 +201,8 @@ app.post('/run/:command', requireSecret, async (req, res) => {
       }
       case 'enrich': {
         const filterArgs = { sector: args.sector, city: args.city, since: args.since, lead_ids: args.lead_ids };
-        await runEnricher({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'], agencyId: args.agency_id, ...filterArgs });
-        const r = await query(
-          `SELECT business_name, email, phone, website_url FROM leads WHERE enriched_at >= $1 AND (email IS NOT NULL OR phone IS NOT NULL OR website_url IS NOT NULL) ORDER BY enriched_at DESC LIMIT 20`,
-          [since]
-        );
-        output = r.rows.length
-          ? `Enriched ${r.rows.length} leads:\n` + r.rows.map(l => `- ${l.business_name} | ${l.email ?? '—'} | ${l.phone ?? '—'} | ${l.website_url ?? '—'}`).join('\n')
-          : 'Enricher ran — no new contact details added (may already be enriched).';
+        const enrichResults = await runEnricher({ limit: parseInt(args.limit) || 20, leadId: args['lead-id'], agencyId: args.agency_id, ...filterArgs }) ?? [];
+        output = buildEnrichOutput(enrichResults);
         break;
       }
       case 'enrich-dm': {

@@ -13,8 +13,89 @@ export function useToast() {
   return useContext(Ctx);
 }
 
+/** Parse enricher structured output (ENRICH_RESULT format) into a toast. */
+function parseEnrichResult(raw: string): { title: string; body?: string } | null {
+  if (!raw.startsWith("ENRICH_RESULT")) return null;
+
+  const get = (key: string) => {
+    const m = raw.match(new RegExp(`^${key}: (.+)$`, "m"));
+    return m?.[1]?.trim() ?? null;
+  };
+
+  const status = get("status");
+  if (status === "nothing_to_do") {
+    return { title: "Already up to date", body: get("reason") ?? "No new contact details found." };
+  }
+
+  const emailAction = get("email_action");
+  const email = get("email");
+  const emailSource = get("email_source");
+  const emailPrev = get("email_prev");
+  const emailReplaceReason = get("email_replace_reason");
+  const emailClearReason = get("email_clear_reason");
+  const emailRejected = get("email_rejected");
+  const emailRejectReason = get("email_reject_reason");
+  const phone = get("phone");
+  const phoneSource = get("phone_source");
+  const website = get("website");
+  const websiteSource = get("website_source");
+
+  const extras: string[] = [];
+  if (phone) extras.push(`Phone ${phone}${phoneSource ? ` · via ${phoneSource}` : ""}`);
+  if (website) extras.push(`Website found${websiteSource ? ` via ${websiteSource}` : ""}`);
+
+  if (emailAction === "found") {
+    return {
+      title: `Email found · ${email}`,
+      body: [`From ${emailSource}`, ...extras].filter(Boolean).join(" · ") || undefined,
+    };
+  }
+
+  if (emailAction === "replaced") {
+    return {
+      title: `Email updated · ${email}`,
+      body: [
+        `Replaced ${emailPrev}`,
+        emailReplaceReason ?? null,
+        emailSource ? `new address from ${emailSource}` : null,
+        ...extras,
+      ].filter(Boolean).join(" · ") || undefined,
+    };
+  }
+
+  if (emailAction === "cleared") {
+    return {
+      title: `Invalid email removed · ${emailPrev}`,
+      body: [emailClearReason, ...extras].filter(Boolean).join(" · ") || undefined,
+    };
+  }
+
+  if (emailAction === "none_saved" && emailRejected) {
+    const body = [
+      `Found ${emailRejected} but rejected`,
+      emailRejectReason ?? null,
+      ...extras,
+    ].filter(Boolean).join(" · ");
+    if (extras.length > 0) {
+      return { title: extras[0], body: body || undefined };
+    }
+    return { title: "No valid email found", body: body || undefined };
+  }
+
+  // No email — but may have phone or website
+  if (extras.length > 0) {
+    return { title: extras[0], body: extras.slice(1).join(" · ") || undefined };
+  }
+
+  return { title: "Nothing found", body: "No verified contact details available for this business." };
+}
+
 /** Strip raw agent log lines like "[dm-enrich] Fetching lead 123..." and return a clean summary. */
 export function summariseOutput(raw: string, label: string): { title: string; body?: string } {
+  // Try structured enricher format first
+  const enrichParsed = parseEnrichResult(raw);
+  if (enrichParsed) return enrichParsed;
+
   const lines = raw
     .split("\n")
     .map((l) => l.trim())
@@ -24,12 +105,12 @@ export function summariseOutput(raw: string, label: string): { title: string; bo
   const summary = lines.findLast(
     (l) =>
       /done|saved|found|nothing found|up to date|qualified|scored|sent|archived|skipped|processed|success/i.test(l) &&
-      !/^\[/.test(l)        // not a raw log line
+      !/^\[/.test(l)
   );
 
   // Any line that looks like a real human-readable sentence (no [prefix])
   const cleaned = lines
-    .filter((l) => !/^\[/.test(l))   // drop [agent-name] prefixed lines
+    .filter((l) => !/^\[/.test(l))
     .filter((l) => l.length > 0);
 
   if (cleaned.length === 0) {

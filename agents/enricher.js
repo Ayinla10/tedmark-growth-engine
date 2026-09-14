@@ -155,11 +155,26 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
 
   let emailsFound = 0;
   let phonesNormalized = 0;
+  const results = []; // structured per-lead outcomes, returned to caller
 
   for (const lead of leads) {
     try {
     const updates = {};
     const notes = [];
+    // Tracks what happened this run for toast/summary reporting
+    const outcome = {
+      business_name: lead.business_name,
+      email: null,          // email address saved
+      emailAction: null,    // 'found' | 'replaced' | 'cleared'
+      emailTier: null,      // 'official_site' | 'directory_aggregator' | 'general_web_page'
+      emailSourceDomain: null, // hostname the email was found on
+      emailPrev: null,      // previous email when replaced or cleared
+      emailRejections: [],  // [{email, reason}] — why candidates were skipped
+      phone: null,
+      phoneSource: null,    // 'geoapify' | 'google_maps' | 'website'
+      website: null,
+      websiteSource: null,
+    };
     let foundEmails = [];
     let foundPhones = [];
     let websiteToSave = null;
@@ -216,10 +231,12 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
         const geo = await lookupBusinessContacts({ name: lead.business_name, location: lead.location ?? '', country: lead.country ?? 'GH' });
         if (geo?.phone) {
           foundPhones.push(geo.phone);
+          if (!outcome.phoneSource) outcome.phoneSource = 'geoapify';
           await log('found', `Phone from Geoapify: ${geo.phone}`);
         }
         if (geo?.website && !lead.website_url) {
           websiteToSave = geo.website;
+          outcome.websiteSource = 'geoapify';
           await log('found', `Website from Geoapify: ${geo.website}`);
         }
       } catch (err) {
@@ -240,10 +257,12 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
         const match = places.find((p) => slug(p.title).includes(firstWord)) ?? places[0];
         if (match?.phone) {
           foundPhones.push(match.phone);
+          if (!outcome.phoneSource) outcome.phoneSource = 'google_maps';
           await log('found', `Phone from Google Maps: ${match.phone}`);
         }
         if (match?.website && !lead.website_url) {
           websiteToSave = match.website;
+          if (!outcome.websiteSource) outcome.websiteSource = 'google_maps';
           await log('found', `Website from Google Maps: ${match.website}`);
         }
       } catch (err) {
@@ -380,8 +399,8 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
         const existingOk = await verifyEmailDomain(lead.email).catch(() => false);
         if (!existingOk) {
           await log('info', `Existing email ${lead.email} failed MX check — will try to replace it`);
-          // Signal that we want to replace: set email to null in updates (COALESCE won't overwrite, so use explicit null)
-          updates.clearEmail = true; // handled below before updateLeadContact call
+          outcome.emailPrev = lead.email;
+          updates.clearEmail = true;
         } else {
           await log('info', `Existing email ${lead.email} passed MX check — keeping it`);
         }
@@ -397,7 +416,13 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
 
       // Hard-reject noise/infra domains first, then sort by tier (highest first)
       const candidates = uniqueEmails
-        .filter(email => scoreEmail(email, '', bizDomain) >= 0) // reuse noise-domain rejection
+        .filter(email => {
+          if (scoreEmail(email, '', bizDomain) < 0) {
+            outcome.emailRejections.push({ email, reason: 'noise or placeholder domain' });
+            return false;
+          }
+          return true;
+        })
         .map(email => ({ email, tier: emailSourceTier[email] ?? 'general_web_page' }))
         .sort((a, b) => (TIER_RANK[b.tier] ?? 0) - (TIER_RANK[a.tier] ?? 0));
 
@@ -408,44 +433,55 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
         const domainMatchesBiz = bizDomain && domain.endsWith(bizDomain);
 
         if (tier === 'official_site' || domainMatchesBiz) {
-          // Emails from the business's own site are trusted immediately
           updates.email = email;
           emailsFound++;
           notes.push(`email: ${email}`);
+          outcome.email = email;
+          outcome.emailTier = 'official_site';
+          try { outcome.emailSourceDomain = new URL(Object.keys(emailSourceTier).includes(email) ? (websiteToSave || lead.website_url || '') : '').hostname.replace(/^www\./, ''); } catch {}
+          outcome.emailAction = outcome.emailPrev ? 'replaced' : 'found';
           await log('found', `Email saved: ${email} (official site — trusted)`);
           break;
         }
 
         if (tier === 'directory_aggregator') {
-          // Aggregator emails need MX verification
           const domainOk = await verifyEmailDomain(email).catch(() => false);
           if (!domainOk) {
+            outcome.emailRejections.push({ email, reason: 'MX check failed (aggregator source)' });
             await log('info', `  Skipping ${email} — MX check failed (aggregator source)`);
             continue;
           }
           updates.email = email;
           emailsFound++;
           notes.push(`email: ${email}`);
+          outcome.email = email;
+          outcome.emailTier = 'directory_aggregator';
+          outcome.emailAction = outcome.emailPrev ? 'replaced' : 'found';
           await log('found', `Email saved: ${email} (directory aggregator, MX verified)`);
           break;
         }
 
-        // general_web_page — needs MX AND proximity to a contact keyword
+        // general_web_page — needs MX AND contact-role local part
         const CONTACT_KEYWORDS_RE = /\b(email|contact|reach|write|info|enquir|inquiry|support|hello|bookings?|reservations?|get in touch)\b/i;
         const [local] = email.split('@');
         const isContactLocal = /^(info|hello|contact|bookings?|reservations?|enquir|support|admin)$/i.test(local);
         const domainOk = await verifyEmailDomain(email).catch(() => false);
         if (!domainOk) {
+          outcome.emailRejections.push({ email, reason: 'MX check failed (general web page)' });
           await log('info', `  Skipping ${email} — MX check failed (general web page)`);
           continue;
         }
         if (!isContactLocal && !CONTACT_KEYWORDS_RE.test(email)) {
+          outcome.emailRejections.push({ email, reason: 'not a contact-role address (general web page)' });
           await log('info', `  Skipping ${email} — general web page source, local part not a contact role`);
           continue;
         }
         updates.email = email;
         emailsFound++;
         notes.push(`email: ${email}`);
+        outcome.email = email;
+        outcome.emailTier = 'general_web_page';
+        outcome.emailAction = outcome.emailPrev ? 'replaced' : 'found';
         await log('found', `Email saved: ${email} (general web, MX verified, contact role)`);
         break;
       }
@@ -490,13 +526,19 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
       const replacement = updates.email ?? null;
       await query(`UPDATE leads SET email = $1 WHERE id = $2`, [replacement, lead.id]);
       if (replacement) {
+        outcome.emailAction = 'replaced';
         await log('found', `Replaced invalid email with: ${replacement}`);
       } else {
+        outcome.emailAction = 'cleared';
         await log('info', `Cleared invalid email — no verified replacement found`);
       }
       delete updates.clearEmail;
-      delete updates.email; // already saved above, don't double-write via COALESCE path
+      delete updates.email;
     }
+
+    // Fill outcome phone/website from what we're saving
+    if (updates.phone) { outcome.phone = updates.phone; }
+    if (updates.website_url) { outcome.website = updates.website_url; }
 
     if (Object.keys(updates).length > 0) {
       await updateLeadContact(lead.id, updates);
@@ -508,6 +550,8 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
       ].filter(Boolean).join(', ');
       console.log(`Found: ${found}`);
       await log('done', `Done — found: ${found}`);
+    } else if (outcome.emailAction === 'cleared') {
+      await log('done', `Invalid email removed — no verified replacement found`);
     } else if (notes.length > 0) {
       console.log(`Already up to date — no new contact info needed`);
       await log('done', `Already up to date — no new contact info needed`);
@@ -517,6 +561,7 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
     }
 
     await markLeadEnriched(lead.id);
+    results.push(outcome);
     } catch (err) {
       console.error(`[enricher] Failed on lead ${lead.id} (${lead.business_name}): ${err.message}`);
       await log('error', `Unexpected error: ${err.message}`);
@@ -524,4 +569,5 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
   }
 
   console.log(`[enricher] Done. ${emailsFound} emails found, ${phonesNormalized} phones normalized.`);
+  return results;
 }
