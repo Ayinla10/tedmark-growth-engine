@@ -58,10 +58,12 @@ function buildEnrichOutput(results) {
       lines.push(`email_clear_reason: failed MX check and no verified replacement found`);
     } else if (r.emailRejections?.length > 0) {
       lines.push(`email_action: none_saved`);
-      // Report the top rejection reason
       const top = r.emailRejections[0];
       lines.push(`email_rejected: ${top.email}`);
       lines.push(`email_reject_reason: ${top.reason}`);
+    } else if (r.hadExistingEmail) {
+      // Existing email passed MX — nothing to change
+      lines.push(`email_action: already_valid`);
     } else {
       lines.push(`email_action: not_found`);
     }

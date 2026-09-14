@@ -44,6 +44,11 @@ function parseEnrichResult(raw: string): { title: string; body?: string } | null
   if (phone) extras.push(`Phone ${phone}${phoneSource ? ` · via ${phoneSource}` : ""}`);
   if (website) extras.push(`Website found${websiteSource ? ` via ${websiteSource}` : ""}`);
 
+  if (emailAction === "already_valid") {
+    const parts = ["Existing email verified"].concat(extras);
+    return { title: parts[0], body: parts.slice(1).join(" · ") || undefined };
+  }
+
   if (emailAction === "found") {
     return {
       title: `Email found · ${email}`,

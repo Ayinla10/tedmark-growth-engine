@@ -164,14 +164,14 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
     // Tracks what happened this run for toast/summary reporting
     const outcome = {
       business_name: lead.business_name,
-      email: null,          // email address saved
+      hadExistingEmail: !!lead.email,  // true = lead came in with an email already
+      email: null,          // email address saved this run
       emailAction: null,    // 'found' | 'replaced' | 'cleared'
-      emailTier: null,      // 'official_site' | 'directory_aggregator' | 'general_web_page'
-      emailSourceDomain: null, // hostname the email was found on
+      emailTier: null,
       emailPrev: null,      // previous email when replaced or cleared
       emailRejections: [],  // [{email, reason}] — why candidates were skipped
       phone: null,
-      phoneSource: null,    // 'geoapify' | 'google_maps' | 'website'
+      phoneSource: null,
       website: null,
       websiteSource: null,
     };
@@ -306,9 +306,9 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
         }
       }
 
-      // 2c. Web search — only if still missing email after Geoapify + Places + website crawl
-      // Run even when lead.email exists: we may find a better/replacement email
-      const stillNeedsSearch = foundEmails.length === 0;
+      // 2c. Web search — skip only if the existing email already passed MX (no replacement needed)
+      const existingEmailIsGood = !!lead.email && !updates.clearEmail;
+      const stillNeedsSearch = !existingEmailIsGood && foundEmails.length === 0;
       if (stillNeedsSearch) {
         try {
           const gl = lead.country === 'NG' ? 'ng' : lead.country === 'ZA' ? 'za' : lead.country === 'DE' ? 'de' : 'gh';
@@ -438,7 +438,6 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
           notes.push(`email: ${email}`);
           outcome.email = email;
           outcome.emailTier = 'official_site';
-          try { outcome.emailSourceDomain = new URL(Object.keys(emailSourceTier).includes(email) ? (websiteToSave || lead.website_url || '') : '').hostname.replace(/^www\./, ''); } catch {}
           outcome.emailAction = outcome.emailPrev ? 'replaced' : 'found';
           await log('found', `Email saved: ${email} (official site — trusted)`);
           break;
