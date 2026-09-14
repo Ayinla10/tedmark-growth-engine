@@ -158,8 +158,9 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
     let websiteToSave = null;
     let ownerName = null;
     let socialLinks = null;
-    // Maps email → 300-char window of page text surrounding it (for proximity scoring)
-    const emailPageContext = {};
+    // Maps email → source tier: 'official_site' | 'directory_aggregator' | 'general_web_page'
+    // Used to decide trust level instead of scoring heuristics
+    const emailSourceTier = {};
 
     await log('info', `Starting enrichment for "${lead.business_name}"...`);
 
@@ -175,16 +176,14 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
           const contacts = await findContactsOnWebsite(lead.website_url);
           foundEmails = contacts.emails;
           foundPhones = contacts.phones;
+          contacts.emails.forEach((e) => { emailSourceTier[e.toLowerCase()] = 'official_site'; });
 
           // Also scan raw text for emails/phones missed by Playwright
           const textEmails = siteText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) ?? [];
           textEmails.forEach((e) => {
             const low = e.toLowerCase();
             if (!foundEmails.includes(low)) foundEmails.push(low);
-            if (!emailPageContext[low]) {
-              const i = siteText.toLowerCase().indexOf(low);
-              emailPageContext[low] = siteText.slice(Math.max(0, i - 150), i + 150);
-            }
+            if (!emailSourceTier[low]) emailSourceTier[low] = 'official_site';
           });
 
           const textPhones = siteText.match(/(?:\+?[\d][\d\s\-().]{6,15}[\d])/g) ?? [];
@@ -253,7 +252,11 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
           try {
             await log('info', `Crawling discovered website for email: ${knownWebsite}`);
             const contacts = await findContactsOnWebsite(knownWebsite);
-            contacts.emails.forEach((e) => { if (!foundEmails.includes(e)) foundEmails.push(e); });
+            contacts.emails.forEach((e) => {
+              const low = e.toLowerCase();
+              if (!foundEmails.includes(low)) foundEmails.push(low);
+              if (!emailSourceTier[low]) emailSourceTier[low] = 'official_site';
+            });
             if (foundPhones.length === 0) contacts.phones.forEach((p) => foundPhones.push(p));
 
             const siteText = await fetchSiteContent(knownWebsite).catch(() => null);
@@ -262,10 +265,7 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
               textEmails.forEach((e) => {
                 const low = e.toLowerCase();
                 if (!foundEmails.includes(low)) foundEmails.push(low);
-                if (!emailPageContext[low]) {
-                  const i = siteText.toLowerCase().indexOf(low);
-                  emailPageContext[low] = siteText.slice(Math.max(0, i - 150), i + 150);
-                }
+                if (!emailSourceTier[low]) emailSourceTier[low] = 'official_site';
               });
               if (!ownerName) ownerName = extractOwnerName(siteText, knownWebsite, knownWebsite);
               if (!socialLinks) socialLinks = extractSocialLinks(siteText);
@@ -321,13 +321,15 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
               const text = await fetchReadableContent(url);
               if (!text) continue;
 
+              const urlTier = classifySourceUrl(url, websiteToSave || lead.website_url);
               const emailMatches = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) ?? [];
               emailMatches.forEach((e) => {
                 const low = e.toLowerCase();
                 if (!foundEmails.includes(low)) foundEmails.push(low);
-                if (!emailPageContext[low]) {
-                  const i = text.toLowerCase().indexOf(low);
-                  emailPageContext[low] = text.slice(Math.max(0, i - 150), i + 150);
+                // Only upgrade tier, never downgrade (official_site > directory_aggregator > general_web_page)
+                const TIER_RANK = { official_site: 3, directory_aggregator: 2, general_web_page: 1 };
+                if ((TIER_RANK[urlTier] ?? 0) > (TIER_RANK[emailSourceTier[low]] ?? 0)) {
+                  emailSourceTier[low] = urlTier;
                 }
               });
 
@@ -363,37 +365,67 @@ export async function runEnricher({ limit, leadId, emit, agencyId, sector, city,
     if (!lead.email && foundEmails.length > 0) {
       const knownWebsite = updates.website_url || lead.website_url || websiteToSave;
       const bizDomain = businessDomainFrom(knownWebsite);
-      await log('info', `Scoring ${[...new Set(foundEmails)].length} email candidate(s)...`);
+      const TIER_RANK = { official_site: 3, directory_aggregator: 2, general_web_page: 1 };
+      const uniqueEmails = [...new Set(foundEmails)];
+      await log('info', `Selecting from ${uniqueEmails.length} email candidate(s) by source tier...`);
 
-      // Score all candidates using page-context-free signals (domain match, local part, noise)
-      // Use emailPageText map if available; fall back to empty string
-      const ranked = [...new Set(foundEmails)]
-        .map(email => ({ email, score: scoreEmail(email, emailPageContext[email] ?? '', bizDomain) }))
-        .filter(e => e.score >= 0)                // hard-reject noise domains
-        .sort((a, b) => b.score - a.score);
+      // Hard-reject noise/infra domains first, then sort by tier (highest first)
+      const candidates = uniqueEmails
+        .filter(email => scoreEmail(email, '', bizDomain) >= 0) // reuse noise-domain rejection
+        .map(email => ({ email, tier: emailSourceTier[email] ?? 'general_web_page' }))
+        .sort((a, b) => (TIER_RANK[b.tier] ?? 0) - (TIER_RANK[a.tier] ?? 0));
 
-      for (const { email, score } of ranked) {
-        await log('info', `  Candidate: ${email} (score ${score})`);
+      for (const { email, tier } of candidates) {
+        await log('info', `  Candidate: ${email} (tier: ${tier})`);
 
         const [, domain] = email.split('@');
         const domainMatchesBiz = bizDomain && domain.endsWith(bizDomain);
 
-        // MX check — mandatory unless the email is from the business's own domain
-        const domainOk = await verifyEmailDomain(email).catch(() => false);
-        if (!domainOk && !domainMatchesBiz) {
-          await log('info', `  Skipping ${email} — MX check failed and domain doesn't match business site`);
-          continue;
+        if (tier === 'official_site' || domainMatchesBiz) {
+          // Emails from the business's own site are trusted immediately
+          updates.email = email;
+          emailsFound++;
+          notes.push(`email: ${email}`);
+          await log('found', `Email saved: ${email} (official site — trusted)`);
+          break;
         }
 
+        if (tier === 'directory_aggregator') {
+          // Aggregator emails need MX verification
+          const domainOk = await verifyEmailDomain(email).catch(() => false);
+          if (!domainOk) {
+            await log('info', `  Skipping ${email} — MX check failed (aggregator source)`);
+            continue;
+          }
+          updates.email = email;
+          emailsFound++;
+          notes.push(`email: ${email}`);
+          await log('found', `Email saved: ${email} (directory aggregator, MX verified)`);
+          break;
+        }
+
+        // general_web_page — needs MX AND proximity to a contact keyword
+        const CONTACT_KEYWORDS_RE = /\b(email|contact|reach|write|info|enquir|inquiry|support|hello|bookings?|reservations?|get in touch)\b/i;
+        const [local] = email.split('@');
+        const isContactLocal = /^(info|hello|contact|bookings?|reservations?|enquir|support|admin)$/i.test(local);
+        const domainOk = await verifyEmailDomain(email).catch(() => false);
+        if (!domainOk) {
+          await log('info', `  Skipping ${email} — MX check failed (general web page)`);
+          continue;
+        }
+        if (!isContactLocal && !CONTACT_KEYWORDS_RE.test(email)) {
+          await log('info', `  Skipping ${email} — general web page source, local part not a contact role`);
+          continue;
+        }
         updates.email = email;
         emailsFound++;
         notes.push(`email: ${email}`);
-        await log('found', `Email saved: ${email}${domainOk ? ' (MX verified)' : ' (own domain, no MX)'}` );
+        await log('found', `Email saved: ${email} (general web, MX verified, contact role)`);
         break;
       }
 
       if (!updates.email) {
-        await log('info', `No email passed quality checks — not saving any candidate`);
+        await log('info', `No email passed source-tier quality checks — not saving any candidate`);
       }
     }
 
