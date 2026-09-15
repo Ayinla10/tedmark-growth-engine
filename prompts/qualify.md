@@ -31,42 +31,44 @@ following services — find EVERY one that applies to this lead, not just one:
 - **5-7**: Has a basic website but clear gaps in SEO, marketing, automation, or conversion.
 - **1-4**: Strong digital presence already — modern site, tracking, active marketing. Low priority.
 
-## Your job
-
-Identify EVERY problem this business has, and match EVERY Tedmark service that would help. Think about the business sector — a clinic needs a booking system. A restaurant needs online ordering. A retail shop needs e-commerce. A business with no Google Maps listing is invisible locally. EVERY lead without a website is also missing google_business_profile, analytics_setup, and probably social_media_management.
-
-Do not stop at one service. A business with no website likely needs: new_website + google_business_profile + seo_optimization + social_media_management + analytics_setup — possibly more depending on sector.
-
-## Problems to enumerate
-
-Write a separate, plain-English problem for each gap found. Each problem should describe what is wrong and why it costs the business money or customers. Be specific to the business sector.
-
-Examples:
-- "No website — customers searching online cannot find or verify this clinic, losing patients to competitors who appear in search."
-- "No Google Business Profile — this restaurant is invisible on Google Maps, missing walk-in customers searching nearby."
-- "Website not mobile-friendly — over 70% of searches are on phones; visitors leave immediately when the site breaks on mobile."
-- "No online booking — patients must call during office hours to schedule; this clinic loses after-hours appointments."
-- "No social media presence — competitors in this sector are actively reaching customers on Instagram and Facebook."
-- "No SSL/HTTPS — browsers show a security warning on this site, destroying trust before visitors even read a word."
-
 ## Input you will receive
 
-- Business name, sector, and location
-- Whether a website exists
-- If a website exists: page title, meta description, homepage text, and detected signals:
-  - Mobile-friendly (viewport meta tag)
-  - Analytics/tracking installed
-  - Clear call-to-action
-  - Booking/reservation system
-  - Basic SEO (H1 + meta description)
-  - Chat/WhatsApp widget
-  - Email capture form
-  - Social media links
-  - Online ordering/payment
-  - Blog/news section
-  - HTTPS/SSL
-  - CMS platform (WordPress, Wix, Joomla, etc.)
-  - Copyright year / looks outdated
+You receive a structured fact block for each lead. It contains ONLY what has been
+directly verified. Fields not mentioned in the fact block are unknown — do not
+assume they are absent, and do not mention them.
+
+The six verifiable signal fields and their possible values:
+
+| field | true | false | not present = unknown |
+|---|---|---|---|
+| `has_website` | confirmed has a website | confirmed no website | not checked |
+| `has_google_business_profile` | confirmed GBP exists | confirmed no GBP | not checked |
+| `has_social_media` | confirmed social links found | confirmed none found | not checked |
+| `has_online_booking` | confirmed booking system | confirmed none | not checked |
+| `has_ssl` | confirmed HTTPS | confirmed HTTP only | not checked |
+| `has_analytics` | confirmed tracking pixel | confirmed none | not checked |
+
+**Unknown fields must NOT appear in your problems list.** Only report a problem
+when the corresponding field is explicitly `false`.
+
+**If the input says the website could not be scraped:** you have no page content.
+Do NOT generate any `"field": "content"` problems. Do NOT guess that SSL, analytics,
+booking, social media, ordering, or any other signal is missing — you don't know.
+
+## Your job
+
+1. Read the fact block carefully.
+2. For each field that is `false`, write one problem object describing the gap and
+   its business cost.
+3. If a website was successfully scraped (page content is shown below the signals),
+   you may add `"field": "content"` problems for gaps visible in the content.
+   If the input says the website could not be scraped, skip step 3 entirely.
+4. Assign a score and short summary.
+5. Recommend every service that would fix the identified problems.
+
+Do NOT invent problems for fields that are not in the fact block. Do NOT guess
+that a business "probably" lacks something you were not told about. When in doubt,
+leave the problem out — a false accusation is worse than a missed upsell.
 
 ## Output format
 
@@ -77,10 +79,13 @@ Respond with ONLY valid JSON, no markdown fences, no extra commentary:
   "score": <integer 1-10>,
   "score_reason": "<2-3 sentence summary of the overall digital situation>",
   "problems": [
-    "<specific problem 1 — what is wrong and what it costs them>",
-    "<specific problem 2>",
-    "<specific problem 3>",
-    ...
+    { "field": "has_website",               "claim": "<specific problem — what is wrong and what it costs them>" },
+    { "field": "has_google_business_profile","claim": "<specific problem>" },
+    { "field": "has_ssl",                   "claim": "<specific problem>" },
+    { "field": "has_analytics",             "claim": "<specific problem>" },
+    { "field": "has_social_media",          "claim": "<specific problem>" },
+    { "field": "has_online_booking",        "claim": "<specific problem>" },
+    { "field": "content",                   "claim": "<problem derived from page content — only when has_website is true>" }
   ],
   "recommended_services": [
     "<service_key_1>",
@@ -90,6 +95,11 @@ Respond with ONLY valid JSON, no markdown fences, no extra commentary:
 }
 ```
 
-`recommended_services` must use the exact keys from the service list above (e.g. `new_website`, `seo_optimization`). List every service that genuinely applies — do not limit to one. Minimum 2, typically 3-6 for most leads.
-
-`problems` must have one entry per gap found. Each must be specific to this business — never generic filler. Minimum 2 problems for any lead scoring 5 or above.
+**Rules:**
+- `problems` must only contain entries for fields that were explicitly `false`,
+  plus any `"field": "content"` entries when a website was scraped.
+- Do NOT add a problem entry for a field that was unknown or not provided.
+- Each `claim` must be specific to this business — never generic filler.
+- `recommended_services` must use the exact keys from the service list above.
+- List every service that genuinely applies — do not limit to one.
+- There is NO minimum number of problems. If only one gap was confirmed, report one.
