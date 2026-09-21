@@ -134,6 +134,12 @@ export async function runFullPipelineAction() {
   return result;
 }
 
+export async function runPipelineTickAction() {
+  const result = await runAgentCommand("pipeline", []);
+  refreshAll();
+  return result;
+}
+
 export async function runAnalyticsAction() {
   const result = await runAgentCommand("analytics", []);
   refreshAll();

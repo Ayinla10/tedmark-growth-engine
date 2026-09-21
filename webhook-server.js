@@ -18,6 +18,7 @@ import { runSendProposal }    from './agents/proposalDelivery.js';
 import { runAnalytics }       from './agents/analytics.js';
 import { runCleanKnowledge }  from './agents/knowledgeCleaner.js';
 import { runDailyPipeline }   from './scripts/dailyPipeline.js';
+import { runPipeline, startPipelineLoop } from './agents/pipeline.js';
 import { runReplyWatcher }    from './agents/replyWatcher.js';
 
 // ── WhatsApp handler ───────────────────────────────────────────────────────────
@@ -291,6 +292,12 @@ app.post('/run/:command', requireSecret, async (req, res) => {
           : 'Checked inbox — no new replies from leads.';
         break;
       }
+      case 'pipeline': {
+        const agencyId = args.agency_id ?? null;
+        await runPipeline(agencyId ? { agencyId } : {});
+        output = 'Pipeline tick complete.';
+        break;
+      }
       case 'daily':
         await runDailyPipeline();
         output = 'Daily pipeline complete.';
@@ -342,6 +349,14 @@ app.listen(PORT, () => {
   console.log(`[server] Tedmark agent server running on port ${PORT}`);
   console.log(`[server] WhatsApp webhook: POST/GET /webhook`);
   console.log(`[server] Agent API:        POST /run/:command`);
+
+  // ── Autonomous pipeline loop ──────────────────────────────────────────────
+  const PIPELINE_ENABLED = process.env.PIPELINE_ENABLED !== 'false'; // default on
+  if (PIPELINE_ENABLED) {
+    startPipelineLoop();
+  } else {
+    console.log('[pipeline] Disabled (set PIPELINE_ENABLED=true to enable).');
+  }
 
   // Self-ping every 4 minutes to prevent Render free tier from spinning down
   const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;

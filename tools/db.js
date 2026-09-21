@@ -952,4 +952,66 @@ export async function clearEnrichEvents(leadId) {
   await query(`DELETE FROM enrich_events WHERE lead_id = $1`, [leadId]);
 }
 
+// ── Pipeline orchestrator helpers ────────────────────────────────────────────
+
+/**
+ * Returns leads the pipeline should act on next.
+ * Excludes archived, paused, and leads already contacted.
+ * Ordered by created_at so older leads are processed first.
+ */
+export async function getPipelineLeads(agencyId, limit = 50) {
+  const res = await query(
+    `SELECT * FROM leads
+     WHERE agency_id = $1
+       AND status NOT IN ('archived', 'contacted', 'replied')
+       AND pipeline_paused = false
+     ORDER BY created_at ASC
+     LIMIT $2`,
+    [agencyId, limit]
+  );
+  return res.rows;
+}
+
+/** Increment enrichment_attempts and record when we last tried. */
+export async function recordEnrichmentAttempt(id) {
+  const res = await query(
+    `UPDATE leads
+     SET enrichment_attempts = enrichment_attempts + 1,
+         last_enriched_at    = now()
+     WHERE id = $1 RETURNING *`,
+    [id]
+  );
+  return res.rows[0];
+}
+
+/** Mark a lead as a dead end so the pipeline stops touching it. */
+export async function markLeadDeadEnd(id, reason) {
+  const res = await query(
+    `UPDATE leads
+     SET status          = 'dead_end',
+         pipeline_paused = true,
+         score_reason    = COALESCE($2, score_reason)
+     WHERE id = $1 RETURNING *`,
+    [id, reason ?? null]
+  );
+  return res.rows[0];
+}
+
+/** Pause or unpause the pipeline for a single lead. */
+export async function setLeadPipelinePaused(id, paused) {
+  const res = await query(
+    `UPDATE leads SET pipeline_paused = $1 WHERE id = $2 RETURNING *`,
+    [paused, id]
+  );
+  return res.rows[0];
+}
+
+/** Get all agency IDs that have active (non-archived) leads. */
+export async function getActiveAgencyIds() {
+  const res = await query(
+    `SELECT DISTINCT agency_id FROM leads WHERE status != 'archived'`
+  );
+  return res.rows.map(r => r.agency_id);
+}
+
 export default pool;
