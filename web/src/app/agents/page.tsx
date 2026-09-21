@@ -7,6 +7,7 @@ import { Waveform } from "@/components/jarvis-core";
 import { MotionCard } from "@/components/motion-card";
 import { OrchestrationCanvasLive } from "@/components/orchestration-canvas-live";
 import type { OrchestrationNode } from "@/components/orchestration-canvas";
+import { PipelineStatusStrip } from "@/components/pipeline-status-strip";
 import { RunScoutModal } from "@/components/run-scout-modal";
 import { ScoutToggleButton } from "@/components/scout-toggle-button";
 import { TerminalLog } from "@/components/terminal-log";
@@ -17,6 +18,7 @@ import {
   getKpiSummary,
   getLatestAnalyticsSnapshot,
   getOutreach,
+  getPipelineStatus,
   getProposals,
   getRecentQualifiedLeads,
 } from "@/lib/queries";
@@ -42,7 +44,7 @@ function pctChange(now: number, before: number): number | null {
 type AgentStatus = "inprogress" | "completed" | "pending";
 
 export default async function AgentsPage() {
-  const [kpi, topLeads, followUps, outreach, proposals, activity, growth, analyticsSnapshot, settings] = await Promise.all([
+  const [kpi, topLeads, followUps, outreach, proposals, activity, growth, analyticsSnapshot, settings, pipelineStatus] = await Promise.all([
     getKpiSummary(),
     getRecentQualifiedLeads(1),
     getFollowUps(),
@@ -52,6 +54,7 @@ export default async function AgentsPage() {
     getGrowthStats(),
     getLatestAnalyticsSnapshot(),
     getSettings(),
+    getPipelineStatus(),
   ]);
   const topLead = topLeads[0] ?? null;
   const latestDraft = outreach.find((o) => o.status === "draft") ?? null;
@@ -342,6 +345,9 @@ export default async function AgentsPage() {
           </MotionCard>
         </div>
       </section>
+
+        {/* Autonomous pipeline status */}
+        <PipelineStatusStrip status={pipelineStatus} />
 
       <TerminalLog />
     </AppShell>

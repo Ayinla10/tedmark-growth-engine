@@ -122,6 +122,14 @@ export async function archiveLeadDb(leadId: string) {
   return res.rows[0] ?? null;
 }
 
+export async function setLeadPipelinePausedDb(leadId: string, paused: boolean) {
+  const res = await pool.query(
+    `UPDATE leads SET pipeline_paused = $1 WHERE id = $2 RETURNING *`,
+    [paused, leadId]
+  );
+  return res.rows[0] ?? null;
+}
+
 export async function sendDirectReplyDb(leadId: string, subject: string, body: string) {
   const res = await pool.query(
     `INSERT INTO outreach (lead_id, message_type, subject, body, status, sent_at)

@@ -18,6 +18,7 @@
 import { runEnricher }  from './enricher.js';
 import { runQualifier } from './qualifier.js';
 import { runOutreach as runOutreacher } from './outreach.js';
+import { runSequencer } from './sequencer.js';
 import {
   getPipelineLeads,
   recordEnrichmentAttempt,
@@ -118,6 +119,14 @@ export async function runPipelineTick(agencyId) {
       );
     }
   }
+
+  // ── Follow-up scheduling ─────────────────────────────────────────────────
+  // The sequencer handles its own lead selection internally (contacted leads
+  // with no pending follow-up that haven't replied after N days).
+  // Run it once per tick so follow-ups are scheduled automatically.
+  await runSequencer().catch(err =>
+    console.error(`[pipeline] Sequencer failed for agency ${agencyId}:`, err.message)
+  );
 
   summary.processed = summary.toEnrich.length + summary.toQualify.length + summary.toDraftOutreach.length + summary.deadEnds.length;
   console.log(`[pipeline] Tick complete for agency ${agencyId}: ${JSON.stringify({

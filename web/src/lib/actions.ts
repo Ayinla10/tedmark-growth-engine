@@ -7,6 +7,7 @@ import {
   editOutreachDb,
   editProposalDb,
   archiveLeadDb,
+  setLeadPipelinePausedDb,
   updatePipelineDb,
   generateTelegramLinkCodeDb,
   updateTelegramNotificationLevelDb,
@@ -212,6 +213,12 @@ export async function unlinkTelegramAction() {
 
 export async function archiveLeadAction(leadId: string) {
   const row = await archiveLeadDb(leadId);
+  refreshAll(leadId);
+  return { ok: Boolean(row) };
+}
+
+export async function setLeadPipelinePausedAction(leadId: string, paused: boolean) {
+  const row = await setLeadPipelinePausedDb(leadId, paused);
   refreshAll(leadId);
   return { ok: Boolean(row) };
 }

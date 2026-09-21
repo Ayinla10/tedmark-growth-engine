@@ -25,6 +25,7 @@ function detectPhone(raw: string | null, country: string): { isMobile: boolean; 
 }
 import { AppShell } from "@/components/app-shell";
 import { LeadRowActions } from "@/components/lead-row-actions";
+import { PipelinePauseButton } from "@/components/pipeline-pause-button";
 import { ProposalModal } from "@/components/proposal-modal";
 import { ReplyForm } from "@/components/reply-form";
 import { getLeadThread } from "@/lib/mutations";
@@ -242,6 +243,9 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               showQualify={lead.status === "raw"}
               showArchive={lead.status !== "archived"}
             />
+            {lead.status !== "archived" && (
+              <PipelinePauseButton leadId={lead.id} paused={Boolean(lead.pipeline_paused)} />
+            )}
             {proposals.length > 0 && (
               <Link
                 href="#proposals"

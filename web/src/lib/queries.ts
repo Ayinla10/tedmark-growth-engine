@@ -1173,6 +1173,46 @@ export type AgentRun = {
   created_at: string;
 };
 
+export type PipelineStatus = {
+  raw: number;
+  enriched: number;
+  qualified: number;
+  outreach_ready: number;
+  contacted: number;
+  dead_end: number;
+  paused: number;
+  total: number;
+};
+
+export async function getPipelineStatus(): Promise<PipelineStatus> {
+  const agencyId = await getCurrentAgencyId();
+  const res = await pool.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'raw'        AND pipeline_paused = false) AS raw,
+       COUNT(*) FILTER (WHERE status = 'enriched'   AND pipeline_paused = false) AS enriched,
+       COUNT(*) FILTER (WHERE status = 'qualified'  AND pipeline_paused = false) AS qualified,
+       COUNT(*) FILTER (WHERE status = 'outreach'   AND pipeline_paused = false) AS outreach_ready,
+       COUNT(*) FILTER (WHERE status = 'contacted'  AND pipeline_paused = false) AS contacted,
+       COUNT(*) FILTER (WHERE status = 'dead_end')                               AS dead_end,
+       COUNT(*) FILTER (WHERE pipeline_paused = true AND status != 'archived')   AS paused,
+       COUNT(*) FILTER (WHERE status != 'archived')                              AS total
+     FROM leads
+     WHERE agency_id = $1`,
+    [agencyId],
+  );
+  const r = res.rows[0];
+  return {
+    raw:            Number(r.raw),
+    enriched:       Number(r.enriched),
+    qualified:      Number(r.qualified),
+    outreach_ready: Number(r.outreach_ready),
+    contacted:      Number(r.contacted),
+    dead_end:       Number(r.dead_end),
+    paused:         Number(r.paused),
+    total:          Number(r.total),
+  };
+}
+
 export async function getAgentRunsForLead(leadId: string, limit = 8): Promise<AgentRun[]> {
   const agencyId = await getCurrentAgencyId();
   const res = await pool.query(
