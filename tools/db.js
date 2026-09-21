@@ -955,21 +955,34 @@ export async function clearEnrichEvents(leadId) {
 // ── Pipeline orchestrator helpers ────────────────────────────────────────────
 
 /**
- * Returns leads the pipeline should act on next.
- * Excludes archived, paused, and leads already contacted.
- * Ordered by created_at so older leads are processed first.
+ * Returns leads the pipeline should act on next, grouped by stage.
+ * Fetches a batch of each actionable status separately so no stage
+ * is crowded out by a large pool of another status.
  */
-export async function getPipelineLeads(agencyId, limit = 50) {
-  const res = await query(
-    `SELECT * FROM leads
-     WHERE agency_id = $1
-       AND status NOT IN ('archived', 'contacted', 'replied')
-       AND pipeline_paused = false
-     ORDER BY created_at ASC
-     LIMIT $2`,
-    [agencyId, limit]
-  );
-  return res.rows;
+export async function getPipelineLeads(agencyId, limitPerStage = 20) {
+  const [raw, enriched, qualified] = await Promise.all([
+    query(
+      `SELECT * FROM leads
+       WHERE agency_id = $1 AND status = 'raw' AND pipeline_paused = false
+       ORDER BY created_at ASC LIMIT $2`,
+      [agencyId, limitPerStage]
+    ),
+    query(
+      `SELECT * FROM leads
+       WHERE agency_id = $1 AND status = 'enriched' AND pipeline_paused = false
+         AND score IS NULL
+       ORDER BY created_at ASC LIMIT $2`,
+      [agencyId, limitPerStage]
+    ),
+    query(
+      `SELECT * FROM leads
+       WHERE agency_id = $1 AND status = 'qualified' AND pipeline_paused = false
+         AND email IS NOT NULL AND score >= 5
+       ORDER BY score DESC LIMIT $2`,
+      [agencyId, limitPerStage]
+    ),
+  ]);
+  return [...raw.rows, ...enriched.rows, ...qualified.rows];
 }
 
 /** Increment enrichment_attempts and record when we last tried. */

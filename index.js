@@ -14,6 +14,7 @@ import { runCleanKnowledge } from './agents/knowledgeCleaner.js';
 import { runReplyWatcher } from './agents/replyWatcher.js';
 import { runExportProposal, runSendProposal } from './agents/proposalDelivery.js';
 import { runDailyPipeline } from './scripts/dailyPipeline.js';
+import { runPipeline } from './agents/pipeline.js';
 import { runTelegramBot } from './agents/telegramBot.js';
 import { createTelegramLinkCode, findUserForTelegramLink } from './tools/db.js';
 
@@ -189,6 +190,11 @@ async function main() {
       }
 
       await runCleanKnowledge({ category, text });
+      break;
+    }
+
+    case 'pipeline': {
+      await runPipeline();
       break;
     }
 

@@ -45,11 +45,13 @@ export async function runScout({ sector, city, limit, offset = 0, country = 'GH'
         phone: business.phone,
         email: null,
         country,
+        has_website: hasWebsite,
+        has_google_business_profile: true, // all Maps/Geoapify leads have a confirmed GBP
       });
 
       saved += 1;
       console.log(
-        `[scout] Saved lead: ${lead.business_name} (${lead.id}) — phone: ${hasPhone ? 'yes' : 'no'}, website: ${hasWebsite ? 'yes' : 'no'}`
+        `[scout] Saved lead: ${lead.business_name} (${lead.id}) — phone: ${business.phone ? 'yes' : 'no'}, website: ${hasWebsite ? 'yes' : 'no'}`
       );
     } catch (err) {
       console.error(`[scout] Failed to save lead "${business.name}": ${err.message}`);
