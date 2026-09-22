@@ -159,16 +159,8 @@ export async function runSequencer() {
 
         await notifyTelegramApproval(
           candidate.agency_id,
-          [
-            `📬 *FOLLOW-UP #${nextStep} — APPROVAL REQUIRED*`,
-            ``,
-            buildLeadCard(candidate),
-            ``,
-            `─────────────────────`,
-            `✉️ *Subject:* ${subject}`,
-            ``,
-            body,
-          ].join('\n'),
+          [`📬 *FOLLOW-UP #${nextStep} — APPROVAL REQUIRED*`, ``, buildLeadCard(candidate)].join('\n'),
+          `✉️ Subject: ${subject}\n\n${body}`,
           'outreach',
           emailDraft.id
         ).catch(() => {});
@@ -198,16 +190,8 @@ export async function runSequencer() {
 
         await notifyTelegramApproval(
           candidate.agency_id,
-          [
-            `💬 *WHATSAPP FOLLOW-UP #${nextStep} — APPROVAL REQUIRED*`,
-            ``,
-            buildLeadCard(candidate),
-            ``,
-            `─────────────────────`,
-            `📲 *Message:*`,
-            ``,
-            body,
-          ].join('\n'),
+          [`💬 *WHATSAPP FOLLOW-UP #${nextStep} — APPROVAL REQUIRED*`, ``, buildLeadCard(candidate)].join('\n'),
+          `📲 Message:\n\n${body}`,
           'outreach',
           waDraft.id
         ).catch(() => {});

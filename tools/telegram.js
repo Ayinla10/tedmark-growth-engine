@@ -41,7 +41,10 @@ export async function sendMessage(chatId, text, opts = {}) {
   const body = {
     chat_id: chatId,
     text,
-    parse_mode: 'Markdown',
+    // pass plain: true when the text contains user/LLM content that may
+    // have unescaped Markdown characters — Telegram rejects the whole
+    // message on any parse error, silently dropping it.
+    ...(opts.plain ? {} : { parse_mode: 'Markdown' }),
   };
   if (opts.buttons) {
     body.reply_markup = {

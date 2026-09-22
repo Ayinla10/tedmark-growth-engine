@@ -266,16 +266,8 @@ export async function runOutreach({ limit, leadId, signatureId, agencyId, sector
 
         await notifyTelegramApproval(
           lead.agency_id,
-          [
-            `📬 *EMAIL DRAFT — APPROVAL REQUIRED*`,
-            ``,
-            buildLeadCard(lead),
-            ``,
-            `─────────────────────`,
-            `✉️ *Subject:* ${subject}`,
-            ``,
-            body,
-          ].join('\n'),
+          [`📬 *EMAIL DRAFT — APPROVAL REQUIRED*`, ``, buildLeadCard(lead)].join('\n'),
+          `✉️ Subject: ${subject}\n\n${body}`,
           'outreach',
           draft.id
         );
@@ -305,16 +297,8 @@ export async function runOutreach({ limit, leadId, signatureId, agencyId, sector
 
         await notifyTelegramApproval(
           lead.agency_id,
-          [
-            `💬 *WHATSAPP DRAFT — APPROVAL REQUIRED*`,
-            ``,
-            buildLeadCard(lead),
-            ``,
-            `─────────────────────`,
-            `📲 *Message:*`,
-            ``,
-            body,
-          ].join('\n'),
+          [`💬 *WHATSAPP DRAFT — APPROVAL REQUIRED*`, ``, buildLeadCard(lead)].join('\n'),
+          `📲 Message:\n\n${body}`,
           'outreach',
           draft.id
         );

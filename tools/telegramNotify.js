@@ -52,7 +52,15 @@ export async function notifyTelegram(agencyId, level, text, opts = {}) {
  * across chats). Always ACTION_REQUIRED, so it's never silently
  * suppressed by a notification-level preference.
  */
-export async function notifyTelegramApproval(agencyId, text, action, targetId) {
+/**
+ * Sends an approval request split across two messages:
+ *   1. Lead card (Markdown formatted) — always safe, no user-generated content
+ *   2. Draft body (plain text) + Approve/Edit/Reject buttons
+ *
+ * Splitting prevents a broken character in the LLM draft from killing the
+ * lead card (Telegram rejects the entire message on any Markdown parse error).
+ */
+export async function notifyTelegramApproval(agencyId, cardText, draftText, action, targetId) {
   if (!process.env.TELEGRAM_BOT_TOKEN) return;
 
   let links;
@@ -65,17 +73,23 @@ export async function notifyTelegramApproval(agencyId, text, action, targetId) {
 
   for (const link of links) {
     try {
+      // Message 1: lead card with Markdown formatting
+      await sendMessage(link.telegram_chat_id, cardText, {});
+
+      // Message 2: draft body (plain text) + action buttons
       const approveToken = await createCallbackToken(link.id, `approve_${action}`, targetId);
       const rejectToken  = await createCallbackToken(link.id, `reject_${action}`, targetId);
       const editToken    = await createCallbackToken(link.id, `edit_${action}`, targetId);
-      await sendMessage(link.telegram_chat_id, text, {
+      await sendMessage(link.telegram_chat_id, draftText, {
+        plain: true,
         buttons: [[
           { text: '✅ Approve', callbackData: approveToken },
           { text: '✏️ Edit',   callbackData: editToken },
           { text: '❌ Reject', callbackData: rejectToken },
         ]],
       });
-      await recordTelegramMessage(link.id, 'outbound', text, { level: 'ACTION_REQUIRED', action, targetId });
+
+      await recordTelegramMessage(link.id, 'outbound', cardText + '\n\n' + draftText, { level: 'ACTION_REQUIRED', action, targetId });
     } catch (err) {
       console.warn(`[telegram-notify] Failed to send approval to chat ${link.telegram_chat_id}: ${err.message}`);
     }
