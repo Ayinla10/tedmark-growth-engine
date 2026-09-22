@@ -50,17 +50,18 @@ export function buildLeadCard(lead) {
     const bar = '█'.repeat(Math.round(lead.score)) + '░'.repeat(10 - Math.round(lead.score));
     lines.push(`\n⭐ *Score: ${lead.score}/10*  ${bar}`);
   }
-  if (lead.score_reason) {
-    lines.push(`_${lead.score_reason}_`);
-  }
 
   // ── Problems identified ───────────────────────────────────────────────────
+  // problems[] has been through validateProblems() — only entries where
+  // the DB signal field is confirmed false. Show the verified field name
+  // next to the claim so it's clear what fact backs it up.
   const problems = Array.isArray(lead.problems) ? lead.problems : [];
   if (problems.length) {
-    lines.push(`\n🔍 *Problems identified (${problems.length}):*`);
+    lines.push(`\n🔍 *Confirmed problems (${problems.length}):*`);
     for (const p of problems) {
-      const claim = typeof p === 'string' ? p : p.claim ?? JSON.stringify(p);
-      lines.push(`• ${claim}`);
+      if (typeof p === 'string') continue; // legacy — skip unstructured
+      const fieldLabel = p.field ? `[${p.field}] ` : '';
+      lines.push(`• ${fieldLabel}${p.claim ?? ''}`);
     }
   }
 
@@ -85,7 +86,6 @@ export function buildLeadCard(lead) {
   // ── ICP score ─────────────────────────────────────────────────────────────
   if (lead.icp_total != null) {
     lines.push(`\n🎯 *ICP fit: ${lead.icp_total}/5*`);
-    if (lead.icp_reasoning) lines.push(`_${lead.icp_reasoning}_`);
   }
 
   // ── Decision maker ────────────────────────────────────────────────────────
