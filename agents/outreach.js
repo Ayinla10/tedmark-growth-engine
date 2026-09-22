@@ -50,6 +50,9 @@ export function buildLeadCard(lead) {
     const bar = '█'.repeat(Math.round(lead.score)) + '░'.repeat(10 - Math.round(lead.score));
     lines.push(`\n⭐ *Score: ${lead.score}/10*  ${bar}`);
   }
+  if (lead.score_reason) {
+    lines.push(`_${lead.score_reason}_`);
+  }
 
   // ── Problems identified ───────────────────────────────────────────────────
   // problems[] has been through validateProblems() — only entries where

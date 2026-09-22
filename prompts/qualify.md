@@ -77,7 +77,7 @@ Respond with ONLY valid JSON, no markdown fences, no extra commentary:
 ```
 {
   "score": <integer 1-10>,
-  "score_reason": "<2-3 sentence summary of the overall digital situation>",
+  "score_reason": "<2-3 sentence summary based ONLY on what is in the fact block — do not mention signals that were not checked>",
   "problems": [
     { "field": "has_website",               "claim": "<specific problem — what is wrong and what it costs them>" },
     { "field": "has_google_business_profile","claim": "<specific problem>" },
