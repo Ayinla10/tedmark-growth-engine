@@ -26,6 +26,77 @@ import { fetchReadableContent } from '../tools/jinaReader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Builds a rich Telegram card for a lead — everything you need to review
+ * an outreach draft without opening the dashboard.
+ */
+export function buildLeadCard(lead) {
+  const lines = [];
+
+  // ── Identity ─────────────────────────────────────────────────────────────
+  lines.push(`🏢 *${lead.business_name}*`);
+  lines.push(`📍 ${lead.sector ?? '—'} · ${lead.location ?? '—'}`);
+
+  // ── Contact info ──────────────────────────────────────────────────────────
+  const contacts = [];
+  if (lead.email)       contacts.push(`📧 ${lead.email}`);
+  if (lead.phone)       contacts.push(`📞 ${lead.phone}`);
+  if (lead.website_url) contacts.push(`🌐 ${lead.website_url}`);
+  if (lead.social_url)  contacts.push(`📱 ${lead.social_url}`);
+  if (contacts.length)  lines.push(contacts.join('  '));
+
+  // ── Qualification score ───────────────────────────────────────────────────
+  if (lead.score != null) {
+    const bar = '█'.repeat(Math.round(lead.score)) + '░'.repeat(10 - Math.round(lead.score));
+    lines.push(`\n⭐ *Score: ${lead.score}/10*  ${bar}`);
+  }
+  if (lead.score_reason) {
+    lines.push(`_${lead.score_reason}_`);
+  }
+
+  // ── Problems identified ───────────────────────────────────────────────────
+  const problems = Array.isArray(lead.problems) ? lead.problems : [];
+  if (problems.length) {
+    lines.push(`\n🔍 *Problems identified (${problems.length}):*`);
+    for (const p of problems) {
+      const claim = typeof p === 'string' ? p : p.claim ?? JSON.stringify(p);
+      lines.push(`• ${claim}`);
+    }
+  }
+
+  // ── Recommended services ──────────────────────────────────────────────────
+  const services = Array.isArray(lead.recommended_services) ? lead.recommended_services : [];
+  if (services.length) {
+    lines.push(`\n🛠 *Services to pitch:* ${services.join(', ')}`);
+  }
+
+  // ── Digital signals ───────────────────────────────────────────────────────
+  const signals = [];
+  if (lead.has_website               === false) signals.push('No website');
+  if (lead.has_google_business_profile === false) signals.push('No GBP');
+  if (lead.has_ssl                   === false) signals.push('No SSL');
+  if (lead.has_analytics             === false) signals.push('No analytics');
+  if (lead.has_social_media          === false) signals.push('No social');
+  if (lead.has_online_booking        === false) signals.push('No booking');
+  if (signals.length) {
+    lines.push(`\n⚠️ *Confirmed gaps:* ${signals.join(' · ')}`);
+  }
+
+  // ── ICP score ─────────────────────────────────────────────────────────────
+  if (lead.icp_total != null) {
+    lines.push(`\n🎯 *ICP fit: ${lead.icp_total}/5*`);
+    if (lead.icp_reasoning) lines.push(`_${lead.icp_reasoning}_`);
+  }
+
+  // ── Decision maker ────────────────────────────────────────────────────────
+  if (lead.decision_maker_name) {
+    lines.push(`\n👤 *Contact:* ${lead.decision_maker_name}${lead.dm_title ? ` · ${lead.dm_title}` : ''}`);
+    if (lead.dm_email) lines.push(`   📧 ${lead.dm_email}`);
+  }
+
+  return lines.join('\n');
+}
+
 async function loadPrompt() {
   return readFile(path.join(__dirname, '..', 'prompts', 'outreach.md'), 'utf-8');
 }
@@ -192,7 +263,16 @@ export async function runOutreach({ limit, leadId, signatureId, agencyId, sector
 
         await notifyTelegramApproval(
           lead.agency_id,
-          `*APPROVAL REQUIRED*\n\nEmail draft for *${lead.business_name}*\n\n*Subject:* ${subject}\n\n${body}`,
+          [
+            `📬 *EMAIL DRAFT — APPROVAL REQUIRED*`,
+            ``,
+            buildLeadCard(lead),
+            ``,
+            `─────────────────────`,
+            `✉️ *Subject:* ${subject}`,
+            ``,
+            body,
+          ].join('\n'),
           'outreach',
           draft.id
         );
@@ -222,7 +302,16 @@ export async function runOutreach({ limit, leadId, signatureId, agencyId, sector
 
         await notifyTelegramApproval(
           lead.agency_id,
-          `*APPROVAL REQUIRED*\n\nWhatsApp draft for *${lead.business_name}*\n\n${body}`,
+          [
+            `💬 *WHATSAPP DRAFT — APPROVAL REQUIRED*`,
+            ``,
+            buildLeadCard(lead),
+            ``,
+            `─────────────────────`,
+            `📲 *Message:*`,
+            ``,
+            body,
+          ].join('\n'),
           'outreach',
           draft.id
         );

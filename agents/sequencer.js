@@ -14,6 +14,8 @@ import {
 import { getSettings } from '../tools/settings.js';
 import { appendKnowledgeContext } from '../tools/knowledge.js';
 import { resolveSignatureText, applySignature } from '../tools/signature.js';
+import { notifyTelegramApproval } from '../tools/telegramNotify.js';
+import { buildLeadCard } from './outreach.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -144,7 +146,7 @@ export async function runSequencer() {
 
         const { subject, body } = parseEmailFollowUpResponse(text);
 
-        await insertOutreach({
+        const emailDraft = await insertOutreach({
           lead_id: candidate.lead_id,
           message_type: 'email',
           subject,
@@ -154,6 +156,22 @@ export async function runSequencer() {
         });
 
         console.log(`[sequencer] Email follow-up step ${nextStep} drafted for "${candidate.business_name}".`);
+
+        await notifyTelegramApproval(
+          candidate.agency_id,
+          [
+            `📬 *FOLLOW-UP #${nextStep} — APPROVAL REQUIRED*`,
+            ``,
+            buildLeadCard(candidate),
+            ``,
+            `─────────────────────`,
+            `✉️ *Subject:* ${subject}`,
+            ``,
+            body,
+          ].join('\n'),
+          'outreach',
+          emailDraft.id
+        ).catch(() => {});
       } else {
         const text = await complete({
           system: whatsappSystemPrompt,
@@ -167,7 +185,7 @@ export async function runSequencer() {
 
         const { body } = parseWhatsappFollowUpResponse(text);
 
-        await insertOutreach({
+        const waDraft = await insertOutreach({
           lead_id: candidate.lead_id,
           message_type: 'whatsapp',
           subject: null,
@@ -177,6 +195,22 @@ export async function runSequencer() {
         });
 
         console.log(`[sequencer] WhatsApp follow-up step ${nextStep} drafted for "${candidate.business_name}".`);
+
+        await notifyTelegramApproval(
+          candidate.agency_id,
+          [
+            `💬 *WHATSAPP FOLLOW-UP #${nextStep} — APPROVAL REQUIRED*`,
+            ``,
+            buildLeadCard(candidate),
+            ``,
+            `─────────────────────`,
+            `📲 *Message:*`,
+            ``,
+            body,
+          ].join('\n'),
+          'outreach',
+          waDraft.id
+        ).catch(() => {});
       }
 
       const followUp = await insertFollowUp({

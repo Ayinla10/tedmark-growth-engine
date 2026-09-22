@@ -626,7 +626,14 @@ export async function getOutreachWithoutReply(agencyId, daysAgo = 3, limit = 10)
 
 export async function getOutreachAwaitingReply(daysSinceSent) {
   const result = await query(
-    `SELECT o.*, l.business_name, l.sector, l.location
+    `SELECT o.*,
+            l.business_name, l.sector, l.location, l.email, l.phone,
+            l.website_url, l.social_url, l.score, l.score_reason,
+            l.problems, l.recommended_services, l.has_website,
+            l.has_google_business_profile, l.has_ssl, l.has_analytics,
+            l.has_social_media, l.has_online_booking,
+            l.decision_maker_name, l.dm_title, l.dm_email,
+            l.icp_total, l.icp_reasoning, l.agency_id
      FROM outreach o
      JOIN leads l ON l.id = o.lead_id
      WHERE o.status = 'sent'
